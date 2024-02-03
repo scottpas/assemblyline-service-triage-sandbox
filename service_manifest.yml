@@ -20,7 +20,7 @@ config:
   # See README for in-depth descriptions of configuration values
   api_key: null # Add your API key here
   private_client: false
-  allow_dyanmic_submit: true # Set to false if you don't want to submit files.
+  allow_dynamic_submit: true # Set to false if you don't want to submit files.
 
 submission_params:
   - default: 150

@@ -124,7 +124,7 @@ class TriageSandbox(ServiceBase):
         # ==================================================================
         self.log.info(f"start() from {self.service_attributes.name} service called")
         self.client = TriageClient(token=self.config.get("api_key", None))
-        self.allow_dyanmic_submit = self.config.get("allow_dynamic_submit", False)
+        self.allow_dynamic_submit = self.config.get("allow_dynamic_submit", False)
         if self.config.get("private_client", False):
             self.client = TriagePrivateClient(token=self.config.get("api_key", None))
 
@@ -134,7 +134,7 @@ class TriageSandbox(ServiceBase):
             self.log.debug(f"Submission: {submission['id']}")
         except StopIteration:
             self.log.debug(f"Existing sample not found: {request.sha256}")
-            if self.allow_dyanmic_submit:
+            if self.allow_dynamic_submit:
                 if request.file_type.startswith("uri"):
                     with open(request.file_path, "r") as f:
                         data = yaml.safe_load(f)
