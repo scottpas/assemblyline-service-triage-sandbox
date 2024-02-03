@@ -1,0 +1,88 @@
+name: TriageSandbox
+version: $SERVICE_TAG
+description: Provides dynamic malware analysis through sandboxing.
+
+accepts: (executable/(windows|linux)|java|audiovisual|meta)/.*|document/(installer/windows|office/(excel|ole|powerpoint|rtf|unknown|word|mhtml|onenote)|pdf$)|code/(javascript|jscript|python|vbs|wsf|html|ps1|batch|hta|vbe|a3x)|shortcut/windows|archive/(chm|iso|rar|vhd|udf|zip|7-zip)|text/windows/registry|audiovisual/flash
+rejects: empty|metadata/.*
+
+stage: CORE
+category: Dynamic Analysis
+
+file_required: true
+timeout: 800
+disable_cache: false
+
+enabled: false
+is_external: true
+licence_count: 0
+
+config:
+  # See README for in-depth descriptions of configuration values
+  api_key: null # Add your API key here
+  private_client: false
+  allow_dyanmic_submit: true # Set to false if you don't want to submit files.
+
+submission_params:
+  - default: 150
+    name: analysis_timeout_in_seconds
+    type: int
+    value: 150
+
+  - default: "internet"
+    name: network
+    type: list
+    value: "internet"
+    list: ["internet", "drop", "tor", "sim200", "sim404", "simnx"]
+
+  - default: ""
+    name: api_key
+    type: str
+    value: ""
+
+  - default: false
+    name: extract_pcap
+    type: bool
+    value: false
+
+heuristics:
+  - description: No (potentially) malicious behavior was detected.
+    filetype: "*"
+    heur_id: 1
+    name: Likely benign
+    score: 0
+  - description: One or more interesting behaviors were detected. The detected actions are interesting enough to be notified about, but are not directly malicious.
+    filetype: "*"
+    heur_id: 2
+    name: Likely benign
+    score: 100
+  - description: One or more suspicious actions were detected. The detected actions can be malicious, but also have (common) benign uses.
+    filetype: "*"
+    heur_id: 3
+    name: Shows suspicious behavior
+    score: 500
+  - description: One or more known damaging malware attack patterns were detected.
+    filetype: "*"
+    heur_id: 4
+    name: Likely Malicious
+    score: 800
+  - description: A malware family was detected.
+    filetype: "*"
+    heur_id: 5
+    name: Malware Detected
+    score: 1000
+  - description: ATT&CK Technique
+    filetype: "*"
+    heur_id: 10
+    name: ATT&CK Technique
+    score: 0
+  - description: Malware Config Found
+    filetype: "*"
+    heur_id: 100
+    score: 1000
+    name: Malware Config
+
+docker_config:
+  allow_internet_access: true
+  image: ${REGISTRY}scottpas/assemblyline-service-triage-sandbox:$SERVICE_TAG
+  cpu_cores: 1
+  ram_mb: 1024

@@ -339,12 +339,18 @@ class DynamicReport:
                     al_sig = [sig for sig in self.ontology.get_signatures()
                               if sig.__getattribute__("objectid").tag == tag][0]
                 for i in sig.get("indicators", []):
-                    if i.get("procid"):
-                        source_process = self.ontology.get_process_by_pid(
-                            self._id_pid_map[i["procid"]]).__getattribute__("objectid")
-                        source_process = source_process
-                        attr = Attribute(source=source_process)
-                        al_sig.add_attribute(attr)
+                    if i.get("procid", None):
+                        try:
+                            source_process = self.ontology.get_process_by_pid(
+                                self._id_pid_map[i["procid"]]).__getattribute__("objectid")
+                            source_process = source_process
+                            attr = Attribute(source=source_process)
+                            al_sig.add_attribute(attr)
+                        except KeyError:
+                            # ProcID not in mapping
+                            continue
+                        except Exception:
+                            raise
         pass
 
     def __add_extracted(self):
@@ -378,12 +384,12 @@ class DynamicReport:
                             score=score,
                             malware_families=families
                         )
-                    if i.get("resource", False):
-                        source = self.ontology.get_process_by_pid(
-                            int(i["resource"].split("/")[-1].split("-")[0]))
-                        if source:
-                            attr = Attribute(source=source.objectid)
-                            al_sig.add_attribute(attr)
+                    # if i.get("resource", False):
+                    #     source = self.ontology.get_process_by_pid(
+                    #         int(i["resource"].split("/")[-1].split("-")[0]))
+                    #     if source:
+                    #         attr = Attribute(source=source.objectid)
+                    #         al_sig.add_attribute(attr)
                     self.ontology.add_signature(al_sig)
             if i.get("ransom", False):
                 self.malware_config.append(Ransom(**i["ransom"]).create_MalwareConfig())
@@ -445,7 +451,8 @@ class TriageResult:
 
     def __init__(self, client: TriageClient, sample):
         self.sample = Sample(**sample)
-        self.ontology_results = OntologyResults(service_name=SERVICE_NAME)
-        self.sample.get_task_reports(client, ontology=self.ontology_results)
+        # self.ontology_results = OntologyResults(service_name=SERVICE_NAME)
+        # self.sample.get_task_reports(client, ontology=self.ontology_results)
+        self.sample.get_task_reports(client, ontology=OntologyResults(service_name=SERVICE_NAME))
         self.malware_config = list(itertools.chain(*[i.malware_config for i in self.sample.task_reports]))
         pass
