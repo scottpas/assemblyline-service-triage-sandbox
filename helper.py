@@ -273,7 +273,7 @@ class DynamicReport:
                 }
                 if f.get("pid", False):
                     pass
-                # TODO: add connection details
+                # TODO: #1 add connection details
                 # if any(proto.startswith("http") for proto in f["protocols"]):
                 #     self.flow_dict[f["id"]]["connection_type"] = "http"
                 # elif any(proto == "dns" for proto in f["protocols"]):
@@ -384,6 +384,7 @@ class DynamicReport:
                             score=score,
                             malware_families=families
                         )
+                    # TODO: #2 Tag processes related to signatures from resource dumps
                     # if i.get("resource", False):
                     #     source = self.ontology.get_process_by_pid(
                     #         int(i["resource"].split("/")[-1].split("-")[0]))
@@ -439,12 +440,6 @@ class Sample:
                 )
                 )
         pass
-
-    def is_completed(self):
-        if self.status == "reported":
-            return True
-        else:
-            return False
 
 
 class TriageResult:

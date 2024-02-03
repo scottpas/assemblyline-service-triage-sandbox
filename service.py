@@ -88,21 +88,6 @@ def _is_submission_reported(submission: dict) -> bool:
     # return submission["status"] != "reported"
 
 
-def strip_null(d: dict):
-    # Source:
-    # https://github.com/CybercentreCanada/assemblyline-service-configextractor/blob/master/configextractor_/configextractor_.py
-    clean_config = {}
-    for k, v in d.items():
-        if v:
-            if isinstance(v, dict):
-                clean_config[k] = strip_null(v)
-            elif isinstance(v, list) and isinstance(v[0], dict):
-                clean_config[k] = [strip_null(vi) for vi in v]
-            else:
-                clean_config[k] = v
-    return clean_config
-
-
 class TriageSandbox(ServiceBase):
     def __init__(self, config=None):
         super(TriageSandbox, self).__init__(config)
