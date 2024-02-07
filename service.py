@@ -12,7 +12,6 @@ from assemblyline_v4_service.common.result import Result, ResultSection, ResultT
 from helper import TriageResult
 from retrying import RetryError, retry
 from triage import Client as TriageClient
-from triage.client import PrivateClient as TriagePrivateClient
 from triage.client import ServerError
 
 # Ontology Result Constants
@@ -108,12 +107,13 @@ class TriageSandbox(ServiceBase):
         #   Your service might have to do some warming up on startup to make things faster
         # ==================================================================
         self.log.info(f"start() from {self.service_attributes.name} service called")
-        self.client = TriageClient(token=self.config.get("api_key", None))
-        self.allow_dynamic_submit = self.config.get("allow_dynamic_submit", False)
-        if self.config.get("private_client", False):
-            self.client = TriagePrivateClient(token=self.config.get("api_key", None))
 
     def execute(self, request: ServiceRequest) -> None:
+        self.client = TriageClient(
+            token=request.get_param("api_key") or self.config.get("api_key"),
+            root_url=self.config.get("root_url")
+        )
+        self.allow_dynamic_submit = request.get_param("allow_dynamic_submit") or self.config.get("allow_dynamic_submit")
         try:
             submission = self.client.search(query=f"sha256:{request.sha256}", max=1).__next__()
             self.log.debug(f"Submission: {submission['id']}")
