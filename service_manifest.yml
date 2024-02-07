@@ -18,8 +18,11 @@ licence_count: 0
 
 config:
   # See README for in-depth descriptions of configuration values
+  # Public Triage
+  root_url: https://api.tria.ge
+  # Private Triage
+  # root_url: https://private.tria.ge/api
   api_key: null # Add your API key here
-  private_client: false
   allow_dynamic_submit: true # Set to false if you don't want to submit files.
 
 submission_params:
@@ -43,6 +46,11 @@ submission_params:
     name: extract_pcap
     type: bool
     value: false
+
+  - default: true
+    name: allow_dynamic_submit
+    type: bool
+    value: true
 
 heuristics:
   - description: No (potentially) malicious behavior was detected.
