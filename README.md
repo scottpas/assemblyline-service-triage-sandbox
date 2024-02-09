@@ -6,7 +6,7 @@ This service uses [Triage Sandbox](https://tria.ge) to query and analyse submiss
 - `api_key` - Sets a service-wide API key.
 - `allow_dynamic_submit` - Allow dynamic submission of files. This overrides the submission parameter.
 
-# Submission Parameters
+## Submission Parameters
 - `analysis_timeout_in_seconds` - Sets the analysis time.
 - `network` - Sets the network type to be used for analysis. These are the available options:
     - `internet` - Internet enabled
