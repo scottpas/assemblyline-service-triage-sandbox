@@ -148,7 +148,8 @@ class TriageSandbox(ServiceBase):
             token=request.get_param("api_key") or self.config.get("api_key"),
             root_url=self.config.get("root_url")
         )
-        self.allow_dynamic_submit = request.get_param("allow_dynamic_submit") or self.config.get("allow_dynamic_submit")
+        self.allow_dynamic_submit = request.get_param(
+            "allow_dynamic_submit") and self.config.get("allow_dynamic_submit")
         try:
             submission = None
             if request.get_param("use_existing_submission"):
