@@ -114,6 +114,7 @@ class TriageSandbox(ServiceBase):
         super(TriageSandbox, self).__init__(config)
 
     def search_triage(self, request: ServiceRequest):
+        submission = None
         try:
             if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
                 submission = self.client.search(query=f'url:"{request.task.fileinfo.uri_info.uri}"', max=1).__next__()
@@ -122,7 +123,7 @@ class TriageSandbox(ServiceBase):
             self.log.debug(f"Submission: {submission['id']}")
         except StopIteration:
             self.log.debug(f"Existing sample not found: {request.sha256}")
-        return submission or None
+        return submission
 
     def submit_triage(self, request: ServiceRequest):
         if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
