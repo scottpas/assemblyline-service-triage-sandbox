@@ -42,13 +42,28 @@ submission_params:
     type: str
     value: ""
 
+  - default: true
+    name: use_existing_submission
+    type: bool
+    value: true
+
   - default: false
     name: extract_pcap
     type: bool
     value: false
 
+  - default: false
+    name: extract_memdump
+    type: bool
+    value: false
+
   - default: true
     name: allow_dynamic_submit
+    type: bool
+    value: true
+
+  - default: true
+    name: submit_as_url
     type: bool
     value: true
 
@@ -91,6 +106,9 @@ heuristics:
 
 docker_config:
   allow_internet_access: true
-  image: ${REGISTRY}scottpas/assemblyline-service-triage-sandbox:$SERVICE_TAG
+  image: ${PRIVATE_REGISTRY}scottpas/assemblyline-service-triage-sandbox:$SERVICE_TAG
   cpu_cores: 1
   ram_mb: 1024
+  environment:
+  - name: MAX_ANALYSIS_TIMEOUT
+    value: 600

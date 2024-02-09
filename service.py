@@ -1,6 +1,7 @@
 import json
+import os
+import tempfile
 
-import yaml
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
 from assemblyline_service_utilities.common.dynamic_service_helper import (
     attach_dynamic_ontology,
@@ -77,28 +78,62 @@ SUPPORTED_FILE_TYPES = [
     "shortcut/windows"
 ]
 
-TRIAGE_POLL_DELAY = 5
+TRIAGE_POLL_DELAY = 10
+try:
+    MAX_ANALYSIS_TIMEOUT = int(os.environ["MAX_ANALYSIS_TIMEOUT"])
+except KeyError:
+    MAX_ANALYSIS_TIMEOUT = 600  # Default to 600 seconds
 
 
-def _is_submission_reported(submission: dict) -> bool:
+def _is_submission_not_reported(submission: dict) -> bool:
     if not submission:
         return True
-    return False
-    # return submission["status"] != "reported"
+    else:
+        return submission.get("status", "none") != "reported"
+
+
+def _retry_on_not_found(exception: Exception) -> bool:
+    return isinstance(exception, ServerError) and exception.status == 404
+
+
+@retry(
+    wait_fixed=TRIAGE_POLL_DELAY * 1000,
+    stop_max_delay=MAX_ANALYSIS_TIMEOUT * 1000,
+    stop_max_attempt_number=(MAX_ANALYSIS_TIMEOUT / TRIAGE_POLL_DELAY),
+    retry_on_result=_is_submission_not_reported,
+    retry_on_exception=_retry_on_not_found
+)
+def wait_for_submission(service, submission_id):
+    submission = service.client.sample_by_id(submission_id)
+    service.log.info(f'{submission["id"]} status: {submission["status"]}')
+    return submission
 
 
 class TriageSandbox(ServiceBase):
     def __init__(self, config=None):
         super(TriageSandbox, self).__init__(config)
 
-    @retry(
-        wait_fixed=TRIAGE_POLL_DELAY * 1000,
-        stop_max_attempt_number=(600 / TRIAGE_POLL_DELAY),
-        retry_on_result=_is_submission_reported
-    )
-    def wait_for_sample(self, submission_id):
-        submission = self.client.sample_by_id(submission_id)
-        self.log.info(f'{submission["id"]} status: {submission["status"]}')
+    def search_triage(self, request: ServiceRequest):
+        try:
+            if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
+                submission = self.client.search(query=f'url:"{request.task.fileinfo.uri_info.uri}"', max=1).__next__()
+            else:
+                submission = self.client.search(query=f"sha256:{request.sha256}", max=1).__next__()
+            self.log.debug(f"Submission: {submission['id']}")
+        except StopIteration:
+            self.log.debug(f"Existing sample not found: {request.sha256}")
+        return submission or None
+
+    def submit_triage(self, request: ServiceRequest):
+        if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
+            submission = self.client.submit_sample_url(url=request.task.fileinfo.uri_info.uri,
+                                                       network=request.get_param("network"),
+                                                       timeout=request.get_param("analysis_timeout_in_seconds"))
+        elif request.file_type in SUPPORTED_FILE_TYPES:
+            submission = self.client.submit_sample_file(
+                filename=request.file_name, file=open(request.file_path, "rb"),
+                network=request.get_param("network"),
+                timeout=request.get_param("analysis_timeout_in_seconds"))
         return submission
 
     def start(self):
@@ -115,23 +150,13 @@ class TriageSandbox(ServiceBase):
         )
         self.allow_dynamic_submit = request.get_param("allow_dynamic_submit") or self.config.get("allow_dynamic_submit")
         try:
-            submission = self.client.search(query=f"sha256:{request.sha256}", max=1).__next__()
-            self.log.debug(f"Submission: {submission['id']}")
-        except StopIteration:
-            self.log.debug(f"Existing sample not found: {request.sha256}")
-            if self.allow_dynamic_submit:
-                if request.file_type.startswith("uri"):
-                    with open(request.file_path, "r") as f:
-                        data = yaml.safe_load(f)
-                    url = data.pop("uri")
-                    submission = self.client.submit_sample_url(url=url)
-                elif request.file_type in SUPPORTED_FILE_TYPES:
-                    submission = self.client.submit_sample_file(
-                        filename=request.file_name, file=open(request.file_path, "r"),
-                        network=request.get_param("network"),
-                        timeout=request.get_param("analysis_timeout_in_seconds"))
-                else:
-                    pass
+            submission = None
+            if request.get_param("use_existing_submission"):
+                submission = self.search_triage(request)
+            elif self.allow_dynamic_submit and not submission:
+                submission = self.submit_triage(request)
+            else:
+                return None
         except ServerError as e:
             self.log.error(f"Triage Server Error: {e.status} - {e.kind} - {e.message}")
             raise
@@ -140,8 +165,7 @@ class TriageSandbox(ServiceBase):
             raise
 
         try:
-            if submission["status"] != "reported":
-                self.wait_for_sample(submission["id"])
+            wait_for_submission(service=self, submission_id=submission["id"])
             triage_result = TriageResult(self.client, self.client.sample_by_id(sample_id=submission["id"]))
             for i in triage_result.malware_config:
                 self.ontology.add_result_part(MalwareConfig, i.as_primitives(strip_null=True))
@@ -156,56 +180,84 @@ class TriageSandbox(ServiceBase):
                 task_section.add_line(f"URL: https://tria.ge/{task.session}")
                 process_tree = task.ontology.get_process_tree_result_section()
                 process_tree.auto_collapse = True
-                sigs_section = ResultSection(title_text="Signatures")
+                sigs_section = ResultSection(title_text="Signatures", auto_collapse=True)
+                sig_subsections = {}
                 for sig in task.ontology.get_signatures():
                     name = sig.name.upper()
-                    s = ResultSection(title_text=name)
-                    # for section in sigs_section.subsections:
-                    #     if section.title_text == name:
-                    #         s = section
-                    s.add_tag(tag_type="dynamic.signature.name", value=name)
-                    for f in sig.malware_families:
-                        s.add_tag(tag_type="attribution.family", value=f)
-                    if not s.heuristic:
-                        if sig.score == 1000:
-                            s.set_heuristic(5, signature=name)
-                        elif sig.score >= 800 and sig.score < 1000:
-                            s.set_heuristic(4, signature=name)
-                        elif sig.score >= 500 and sig.score < 800:
-                            s.set_heuristic(3, signature=name)
-                        elif sig.score >= 100 and sig.score < 500:
-                            s.set_heuristic(2, signature=name)
-                        elif sig.score >= 0 and sig.score < 100:
-                            s.set_heuristic(1, signature=name)
-                    for a in sig.attacks:
-                        a_section = ResultSection(title_text=f'ATT&CK Technique: {a["attack_id"]}', auto_collapse=True)
-                        a_section.add_line(a["description"])
-                        a_section.set_heuristic(10, attack_id=a["attack_id"])
-                        s.add_subsection(a_section)
-                    for attr in sig.attributes:
-                        if attr.source.ontology_id.startswith("process_"):
-                            s.add_tag(tag_type="dynamic.processtree_id", value=attr.source.tag)
-                    sigs_section.add_subsection(s)
+                    if sig_subsections.get(name, False):
+                        for attr in sig.attributes:
+                            if attr.source.ontology_id.startswith("process_"):
+                                sig_subsections[name].add_tag(
+                                    tag_type="dynamic.processtree_id",
+                                    value=attr.source.tag
+                                )
+                    else:
+                        s = ResultSection(title_text=name)
+                        s.add_tag(tag_type="dynamic.signature.name", value=name)
+                        for f in sig.malware_families:
+                            s.add_tag(tag_type="attribution.family", value=f)
+                        if not s.heuristic:
+                            if sig.score == 1000:
+                                s.set_heuristic(5, signature=name)
+                            elif sig.score >= 800 and sig.score < 1000:
+                                s.set_heuristic(4, signature=name)
+                            elif sig.score >= 500 and sig.score < 800:
+                                s.set_heuristic(3, signature=name)
+                            elif sig.score >= 100 and sig.score < 500:
+                                s.set_heuristic(2, signature=name)
+                            elif sig.score >= 0 and sig.score < 100:
+                                s.set_heuristic(1, signature=name)
+                        for attr in sig.attributes:
+                            if attr.source.ontology_id.startswith("process_"):
+                                s.add_tag(tag_type="dynamic.processtree_id", value=attr.source.tag)
+                        sig_subsections[name] = s
+                for i in reversed(sorted(sig_subsections.values(), key=lambda value: value.heuristic.heur_id)):
+                    sigs_section.add_subsection(i)
                 task_section.add_subsection(process_tree)
                 task_section.add_subsection(sigs_section)
-                ioc_section = ResultTableSection(title_text="Network IOCs")
+                ioc_section = ResultTableSection(title_text="Network IOCs", auto_collapse=True)
                 extract_iocs_from_text_blob(blob=json.dumps(task.network), result_section=ioc_section)
-                ioc_section.auto_collapse = True
-                sandbox_section.add_subsection(ioc_section)
+                task_section.add_subsection(ioc_section)
                 if task.analysis.get("ttp"):
                     ttp_section = ResultSection("ATT&CK Techniques", auto_collapse=True)
                     for t in task.analysis["ttp"]:
                         s = ResultSection(title_text=t)
                         s.set_heuristic(10, attack_id=t)
                         ttp_section.add_subsection(s)
-                for e in task.extracted:
-                    if e.get("config", {}).get("c2", False):
-                        m = ResultTableSection(title_text=f'Malware Config IOCs: {e["config"]["family"].upper()}')
-                        extract_iocs_from_text_blob(blob=json.dumps(e["config"]), result_section=m)
-                        m.set_heuristic(100, signature=e["config"]["family"].upper())
-                        task_section.add_subsection(m)
+                if task.extracted:
+                    malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
+                    for e in task.extracted:
+                        if e.get("config", {}).get("c2", False):
+                            m = ResultTableSection(title_text=f'{e["config"]["family"].upper()}')
+                            extract_iocs_from_text_blob(blob=json.dumps(e["config"]), result_section=m)
+                            m.set_heuristic(100, signature=e["config"]["family"].upper())
+                            m.add_tag(tag_type="attribution.family", value=e["config"]["family"].upper())
+                            malware_section.add_subsection(m)
+                        malware_section.add_subsection(ResultSection(
+                            title_text="Raw Config", body_format="JSON", body=json.dumps(e["config"])))
+                    if len(malware_section.subsections) > 0:
+                        task_section.add_subsection(malware_section)
                 sandbox_section.add_subsection(task_section)
+                if request.get_param("extract_pcap"):
+                    try:
+                        pcap = self.client._req_file(
+                            method="GET",
+                            path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/dump.pcapng"
+                        )
+                        fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
+                        with os.fdopen(fd, "wb") as f:
+                            f.write(pcap)
+                        request.add_extracted(
+                            path=temp_path,
+                            name=f"{triage_result.sample.id}-{task.task_id}-dump.pcapng",
+                            description=f"PCAP file from task {triage_result.sample.id}-{task.task_id}"
+                        )
+                    except Exception as e:
+                        self.log.error(e)
+                if request.get_param("extract_memdump"):
+                    continue
             result.add_section(sandbox_section)
             request.result = result
         except RetryError:
             self.log.error("Max retries exceeded for sample.")
+            raise

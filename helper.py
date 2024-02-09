@@ -384,13 +384,16 @@ class DynamicReport:
                             score=score,
                             malware_families=families
                         )
-                    # TODO: #2 Tag processes related to signatures from resource dumps
-                    # if i.get("resource", False):
-                    #     source = self.ontology.get_process_by_pid(
-                    #         int(i["resource"].split("/")[-1].split("-")[0]))
-                    #     if source:
-                    #         attr = Attribute(source=source.objectid)
-                    #         al_sig.add_attribute(attr)
+                    if i.get("resource", False):
+                        try:
+                            source = self.ontology.get_process_by_pid(
+                                int(i["resource"].split("/")[-1].split("-")[0]))
+                            if source:
+                                attr = Attribute(source=source.objectid)
+                                al_sig.add_attribute(attr)
+                        except ValueError:
+                            # resource is not related to a process
+                            pass
                     self.ontology.add_signature(al_sig)
             if i.get("ransom", False):
                 self.malware_config.append(Ransom(**i["ransom"]).create_MalwareConfig())
