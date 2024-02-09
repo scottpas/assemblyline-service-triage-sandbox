@@ -155,9 +155,12 @@ class TriageSandbox(ServiceBase):
             submission = None
             if request.get_param("use_existing_submission"):
                 submission = self.search_triage(request)
-            elif self.allow_dynamic_submit and not submission:
+            if self.allow_dynamic_submit and not submission:
                 submission = self.submit_triage(request)
             else:
+                return None
+            # If you don't have a submission by now, just return nothing.
+            if not submission:
                 return None
         except ServerError as e:
             self.log.error(f"Triage Server Error: {e.status} - {e.kind} - {e.message}")
