@@ -22,7 +22,10 @@ config:
   root_url: https://api.tria.ge
   # Private Triage
   # root_url: https://private.tria.ge/api
-  api_key: null # Add your API key here
+
+  # Add your API key here
+  # api_key: null
+
   allow_dynamic_submit: true # Set to false if you don't want to submit files.
 
 submission_params:
@@ -54,6 +57,11 @@ submission_params:
 
   - default: false
     name: extract_memdump
+    type: bool
+    value: false
+
+  - default: false
+    name: extract_dropped_files
     type: bool
     value: false
 

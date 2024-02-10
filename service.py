@@ -154,10 +154,13 @@ class TriageSandbox(ServiceBase):
         try:
             submission = None
             if request.get_param("use_existing_submission"):
+                self.log.debug("Searching for file...")
                 submission = self.search_triage(request)
             if self.allow_dynamic_submit and not submission:
+                self.log.debug("Submitting file...")
                 submission = self.submit_triage(request)
-            else:
+            if not submission:
+                self.log.info("File not found or submitted. Returning nothing.")
                 return None
             # If you don't have a submission by now, just return nothing.
             if not submission:
@@ -259,8 +262,42 @@ class TriageSandbox(ServiceBase):
                         )
                     except Exception as e:
                         self.log.error(e)
-                if request.get_param("extract_memdump"):
-                    continue
+                if task.dumped and (request.get_param("extract_memdump") or request.get_param("extract_dropped_files")):
+                    for i in task.dumped:
+                        if i["kind"] == "region" and request.get_param("extract_memdump"):
+                            self.log.debug(f"Downloading{i['name']}")
+                            try:
+                                file = self.client._req_file(
+                                    method="GET",
+                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/files/{i['name']}"
+                                )
+                                fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
+                                with os.fdopen(fd, "wb") as f:
+                                    f.write(file)
+                                request.add_extracted(
+                                    path=temp_path,
+                                    name=i["name"],
+                                    description=f"Memdump file from task {triage_result.sample.id}-{task.task_id}"
+                                )
+                            except Exception as e:
+                                self.log.error(e)
+                        if i["kind"] == "martian" and request.get_param("extract_dropped_files"):
+                            self.log.debug(f"Downloading{i['name']}")
+                            try:
+                                file = self.client._req_file(
+                                    method="GET",
+                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/{i['name']}"
+                                )
+                                fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
+                                with os.fdopen(fd, "wb") as f:
+                                    f.write(file)
+                                request.add_extracted(
+                                    path=temp_path,
+                                    name=i["name"],
+                                    description=f"Dropped file from task {triage_result.sample.id}-{task.task_id}"
+                                )
+                            except Exception as e:
+                                self.log.error(e)
             result.add_section(sandbox_section)
             request.result = result
         except RetryError:
