@@ -18,7 +18,8 @@ This service uses [Triage Sandbox](https://tria.ge) to query and analyse submiss
 - `api_key` - A submission-level API key. This overrides the service-configured key.
 - `use_existing_submission` - If this is true, the service searches for and uses the latest result from Triage.
 - `extract_pcap` - Adds the PCAP for each task as an extracted file for futher analysis by services.
-- `extract_memdump` - **To be implemented** - Adds memdump files for each task for further analysis by services.
+- `extract_memdump` - Adds memdump files for each task for further analysis by services.
+- `extract_dropped_files` - Adds dropped files for each task for further analysis by services.
 - `allow_dynamic_submit` - If the service config allows dynamic submission, this will submit the sample to Triage.
 - `submit_as_url` - Submits the request URI to Triage for analysis.
 
