@@ -179,13 +179,15 @@ class TriageSandbox(ServiceBase):
                 self.ontology.add_result_part(MalwareConfig, i.as_primitives(strip_null=True))
             result = Result()
             sandbox_section = ResultSection("Sandbox Information")
-            sandbox_section.add_line(f"URL: https://tria.ge/{triage_result.sample.id}")
+            sandbox_section.add_line(
+                f'URL: {self.config.get("root_url").strip("api.").strip("/api").rstrip("/")}/{triage_result.sample.id}')
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             for task in triage_result.sample.task_reports:
                 attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {task.task_id}")
-                task_section.add_line(f"URL: https://tria.ge/{task.session}")
+                task_section.add_line(
+                    f'URL: {self.config.get("root_url").strip("api.").strip("/api").rstrip("/")}/{task.session}')
                 process_tree = task.ontology.get_process_tree_result_section()
                 process_tree.auto_collapse = True
                 sigs_section = ResultSection(title_text="Signatures", auto_collapse=True)
