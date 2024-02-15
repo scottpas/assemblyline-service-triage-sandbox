@@ -188,6 +188,7 @@ class DynamicReport:
     extracted: Optional[List[dict]] = None
     tags: Optional[List[dict]] = None
     dumped: Optional[List[dict]] = None
+    errors: Optional[List[dict]] = None
 
     def __add_sandbox(self) -> None:
         oid = SandboxModel.get_oid(
@@ -433,7 +434,7 @@ class Sample:
     def get_task_reports(self, client: TriageClient, ontology: OntologyResults):
         self.task_reports = []
         for task in self.tasks:
-            if task['id'].startswith("behavioral"):
+            if task['id'].startswith("behavioral") and task['status'] != "failed":
                 self.task_reports.append(DynamicReport(
                     task_id=task['id'],
                     ontology=ontology, **client._req_json(
