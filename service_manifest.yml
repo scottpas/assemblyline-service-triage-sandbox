@@ -114,7 +114,7 @@ heuristics:
 
 docker_config:
   allow_internet_access: true
-  image: ${PRIVATE_REGISTRY}scottpas/assemblyline-service-triage-sandbox:$SERVICE_TAG
+  image: ${REGISTRY}scottpas/assemblyline-service-triage-sandbox:$SERVICE_TAG
   cpu_cores: 1
   ram_mb: 1024
   environment:
