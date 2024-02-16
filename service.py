@@ -127,9 +127,7 @@ class TriageSandbox(ServiceBase):
 
     def submit_triage(self, request: ServiceRequest):
         if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
-            submission = self.client.submit_sample_url(url=request.task.fileinfo.uri_info.uri,
-                                                       network=request.get_param("network"),
-                                                       timeout=request.get_param("analysis_timeout_in_seconds"))
+            submission = self.client.submit_sample_url(url=request.task.fileinfo.uri_info.uri)
         elif request.file_type in SUPPORTED_FILE_TYPES:
             submission = self.client.submit_sample_file(
                 filename=request.file_name, file=open(request.file_path, "rb"),
