@@ -1,0 +1,3741 @@
+{
+    "version": "0.3.0",
+    "sample": {
+        "id": "240202-3y8f7sefen",
+        "score": 10,
+        "submitted": "2024-02-02T23:56:27Z",
+        "target": "8adc5d57a26fc6ad44338a47a1a45dcb",
+        "size": 2965516,
+        "md5": "8adc5d57a26fc6ad44338a47a1a45dcb",
+        "sha1": "5160b9f42a52e2d9d7c286cef12499e53f34ac46",
+        "sha256": "7d50e22081955b574b989561277ce0e835117e716817736373ac8799774b6f03",
+        "sha512": "f00f2f1b6048fed465d1541c865f64ce14ab8a01b1c1dfdc209637f2a09edea81f6401fbe473795362b43443050a71af9ccb8d4a429e367f022bd6edc72f7a41",
+        "ssdeep": "49152:9g/PiVJuJNz0XqAbsC6QFC5vXIovwASRIyQkPXhmZUS6IspAdVnXC5yrzIKPVG5n:y/Pij4KqoPzPXgPsidQcnw9am",
+        "static_tags": [
+            "windows:4",
+            "windows",
+            "x86",
+            "arch:x86"
+        ]
+    },
+    "task": {
+        "target": "8adc5d57a26fc6ad44338a47a1a45dcb.exe",
+        "size": 2965516,
+        "md5": "8adc5d57a26fc6ad44338a47a1a45dcb",
+        "sha1": "5160b9f42a52e2d9d7c286cef12499e53f34ac46",
+        "sha256": "7d50e22081955b574b989561277ce0e835117e716817736373ac8799774b6f03",
+        "sha512": "f00f2f1b6048fed465d1541c865f64ce14ab8a01b1c1dfdc209637f2a09edea81f6401fbe473795362b43443050a71af9ccb8d4a429e367f022bd6edc72f7a41",
+        "ssdeep": "49152:9g/PiVJuJNz0XqAbsC6QFC5vXIovwASRIyQkPXhmZUS6IspAdVnXC5yrzIKPVG5n:y/Pij4KqoPzPXgPsidQcnw9am",
+        "static_tags": [
+            "windows:4",
+            "windows",
+            "x86",
+            "arch:x86"
+        ]
+    },
+    "analysis": {
+        "score": 10,
+        "tags": [
+            "family:fabookie",
+            "family:nullmixer",
+            "family:privateloader",
+            "family:smokeloader",
+            "aspackv2",
+            "backdoor",
+            "dropper",
+            "loader",
+            "spyware",
+            "stealer",
+            "trojan"
+        ],
+        "ttp": [
+            "T1082",
+            "T1012",
+            "T1120"
+        ],
+        "features": [
+            "analog",
+            "overview"
+        ],
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "max_time_network": 151606,
+        "max_time_kernel": 150118,
+        "backend": "sbx4m65",
+        "resource": "win7-20231215-en",
+        "resource_tags": [
+            "arch:x64",
+            "arch:x86",
+            "image:win7-20231215-en",
+            "locale:en-us",
+            "os:windows7-x64",
+            "system"
+        ],
+        "platform": "windows7_x64"
+    },
+    "processes": [
+        {
+            "procid": 27,
+            "procid_parent": 6,
+            "pid": 2104,
+            "ppid": 1220,
+            "cmd": "\"C:\\Users\\Admin\\AppData\\Local\\Temp\\8adc5d57a26fc6ad44338a47a1a45dcb.exe\"",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\8adc5d57a26fc6ad44338a47a1a45dcb.exe",
+            "orig": false,
+            "started": 154,
+            "terminated": 450
+        },
+        {
+            "procid": 28,
+            "procid_parent": 27,
+            "pid": 2936,
+            "ppid": 2104,
+            "cmd": "\"C:\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe\" ",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "orig": false,
+            "started": 435
+        },
+        {
+            "procid": 29,
+            "procid_parent": 28,
+            "pid": 2356,
+            "ppid": 2936,
+            "cmd": "\"C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe\" ",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "orig": false,
+            "started": 638
+        },
+        {
+            "procid": 30,
+            "procid_parent": 29,
+            "pid": 2360,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c powershell -inputformat none -outputformat none -NonInteractive -Command Add-MpPreference -ExclusionPath  \"C:\\Users\\Admin\\AppData\\Local\\Temp\"",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1230,
+            "terminated": 7595
+        },
+        {
+            "procid": 31,
+            "procid_parent": 29,
+            "pid": 3028,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat14af44d511d3.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1230
+        },
+        {
+            "procid": 32,
+            "procid_parent": 29,
+            "pid": 356,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat14ea52090698.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1277
+        },
+        {
+            "procid": 33,
+            "procid_parent": 29,
+            "pid": 1764,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat1439757f36bcd2d5.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1262
+        },
+        {
+            "procid": 34,
+            "procid_parent": 29,
+            "pid": 1052,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat14cd569dce36.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1262
+        },
+        {
+            "procid": 35,
+            "pid": 2792,
+            "ppid": 1032,
+            "cmd": "Sat1400e35015ff26dd.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1400e35015ff26dd.exe",
+            "orig": false,
+            "started": 1355,
+            "terminated": 7548
+        },
+        {
+            "procid": 36,
+            "procid_parent": 30,
+            "pid": 2788,
+            "ppid": 2360,
+            "cmd": "powershell  -inputformat none -outputformat none -NonInteractive -Command Add-MpPreference -ExclusionPath  \"C:\\Users\\Admin\\AppData\\Local\\Temp\"",
+            "image": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "orig": true,
+            "started": 1340,
+            "terminated": 7455
+        },
+        {
+            "procid": 37,
+            "procid_parent": 31,
+            "pid": 2644,
+            "ppid": 3028,
+            "cmd": "Sat14af44d511d3.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14af44d511d3.exe",
+            "orig": false,
+            "started": 1324
+        },
+        {
+            "procid": 38,
+            "pid": 2912,
+            "ppid": 1048,
+            "cmd": "Sat14546eea434751d.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14546eea434751d.exe",
+            "orig": false,
+            "started": 1433,
+            "terminated": 28265
+        },
+        {
+            "procid": 39,
+            "procid_parent": 34,
+            "pid": 2204,
+            "ppid": 1052,
+            "cmd": "Sat14cd569dce36.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14cd569dce36.exe",
+            "orig": false,
+            "started": 1558
+        },
+        {
+            "procid": 40,
+            "procid_parent": 33,
+            "pid": 1876,
+            "ppid": 1764,
+            "cmd": "Sat1439757f36bcd2d5.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "orig": false,
+            "started": 1542
+        },
+        {
+            "procid": 41,
+            "pid": 2024,
+            "ppid": 2444,
+            "cmd": "Sat144adc22f2e612dc.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat144adc22f2e612dc.exe",
+            "orig": false,
+            "started": 1620,
+            "terminated": 68311
+        },
+        {
+            "procid": 42,
+            "procid_parent": 32,
+            "pid": 1944,
+            "ppid": 356,
+            "cmd": "Sat14ea52090698.exe",
+            "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14ea52090698.exe",
+            "orig": false,
+            "started": 1418
+        },
+        {
+            "procid": 43,
+            "procid_parent": 29,
+            "pid": 1048,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat14546eea434751d.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1324,
+            "terminated": 28484
+        },
+        {
+            "procid": 44,
+            "procid_parent": 29,
+            "pid": 2444,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat144adc22f2e612dc.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1324,
+            "terminated": 68311
+        },
+        {
+            "procid": 45,
+            "procid_parent": 29,
+            "pid": 1032,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\system32\\cmd.exe /c Sat1400e35015ff26dd.exe",
+            "image": "C:\\Windows\\SysWOW64\\cmd.exe",
+            "orig": true,
+            "started": 1262,
+            "terminated": 7954
+        },
+        {
+            "procid": 47,
+            "procid_parent": 29,
+            "pid": 1540,
+            "ppid": 2356,
+            "cmd": "C:\\Windows\\SysWOW64\\WerFault.exe -u -p 2356 -s 416",
+            "image": "C:\\Windows\\SysWOW64\\WerFault.exe",
+            "orig": true,
+            "started": 3992
+        }
+    ],
+    "signatures": [
+        {
+            "name": "Detect Fabookie payload",
+            "score": 10,
+            "indicators": [
+                {
+                    "resource": "behavioral1/files/0x0005000000018770-80.dat",
+                    "yara_rule": "family_fabookie"
+                },
+                {
+                    "resource": "behavioral1/files/0x0005000000018770-108.dat",
+                    "yara_rule": "family_fabookie"
+                },
+                {
+                    "resource": "behavioral1/files/0x0005000000018770-110.dat",
+                    "yara_rule": "family_fabookie"
+                }
+            ]
+        },
+        {
+            "label": "fabookie",
+            "name": "Fabookie",
+            "score": 10,
+            "tags": [
+                "spyware",
+                "stealer",
+                "family:fabookie"
+            ],
+            "desc": "Fabookie is facebook account info stealer."
+        },
+        {
+            "label": "nullmixer",
+            "name": "NullMixer",
+            "score": 10,
+            "tags": [
+                "dropper",
+                "family:nullmixer"
+            ],
+            "desc": "NullMixer is a malware dropper leading to an infection chain of a wide variety of malware families."
+        },
+        {
+            "label": "privateloader",
+            "name": "PrivateLoader",
+            "score": 10,
+            "tags": [
+                "loader",
+                "family:privateloader"
+            ],
+            "desc": "PrivateLoader is a downloader sold as a pay-per-install malware distribution service."
+        },
+        {
+            "label": "smokeloader",
+            "name": "SmokeLoader",
+            "score": 10,
+            "tags": [
+                "trojan",
+                "backdoor",
+                "family:smokeloader"
+            ],
+            "desc": "Modular backdoor trojan in use since 2014."
+        },
+        {
+            "name": "ASPack v2.12-2.42",
+            "score": 7,
+            "tags": [
+                "aspackv2"
+            ],
+            "indicators": [
+                {
+                    "resource": "behavioral1/files/0x0036000000016c45-53.dat",
+                    "yara_rule": "aspack_v212_v242"
+                },
+                {
+                    "resource": "behavioral1/files/0x0007000000016d21-58.dat",
+                    "yara_rule": "aspack_v212_v242"
+                },
+                {
+                    "resource": "behavioral1/files/0x0007000000016d21-56.dat",
+                    "yara_rule": "aspack_v212_v242"
+                },
+                {
+                    "resource": "behavioral1/files/0x0036000000016c45-52.dat",
+                    "yara_rule": "aspack_v212_v242"
+                },
+                {
+                    "resource": "behavioral1/files/0x0007000000016d08-51.dat",
+                    "yara_rule": "aspack_v212_v242"
+                }
+            ],
+            "desc": "Detects executables packed with ASPack v2.12-2.42"
+        },
+        {
+            "name": "Executes dropped EXE",
+            "score": 7,
+            "indicators": [
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2644,
+                    "procid": 37
+                },
+                {
+                    "pid": 2792,
+                    "procid": 35
+                },
+                {
+                    "pid": 1944,
+                    "procid": 42
+                },
+                {
+                    "pid": 2912,
+                    "procid": 38
+                },
+                {
+                    "pid": 1876,
+                    "procid": 40
+                },
+                {
+                    "pid": 2204,
+                    "procid": 39
+                },
+                {
+                    "pid": 2024,
+                    "procid": 41
+                }
+            ]
+        },
+        {
+            "name": "Loads dropped DLL",
+            "score": 7,
+            "indicators": [
+                {
+                    "pid": 2104,
+                    "procid": 27
+                },
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2936,
+                    "procid": 28
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 2356,
+                    "procid": 29
+                },
+                {
+                    "pid": 3028,
+                    "procid": 31
+                },
+                {
+                    "pid": 1032,
+                    "procid": 45
+                },
+                {
+                    "pid": 1032,
+                    "procid": 45
+                },
+                {
+                    "pid": 2644,
+                    "procid": 37
+                },
+                {
+                    "pid": 2792,
+                    "procid": 35
+                },
+                {
+                    "pid": 2792,
+                    "procid": 35
+                },
+                {
+                    "pid": 2644,
+                    "procid": 37
+                },
+                {
+                    "pid": 356,
+                    "procid": 32
+                },
+                {
+                    "pid": 1048,
+                    "procid": 43
+                },
+                {
+                    "pid": 1944,
+                    "procid": 42
+                },
+                {
+                    "pid": 1944,
+                    "procid": 42
+                },
+                {
+                    "pid": 1764,
+                    "procid": 33
+                },
+                {
+                    "pid": 1764,
+                    "procid": 33
+                },
+                {
+                    "pid": 1052,
+                    "procid": 34
+                },
+                {
+                    "pid": 1876,
+                    "procid": 40
+                },
+                {
+                    "pid": 1876,
+                    "procid": 40
+                },
+                {
+                    "pid": 2444,
+                    "procid": 44
+                },
+                {
+                    "pid": 2024,
+                    "procid": 41
+                },
+                {
+                    "pid": 2024,
+                    "procid": 41
+                },
+                {
+                    "pid": 1540,
+                    "procid": 47
+                },
+                {
+                    "pid": 1540,
+                    "procid": 47
+                },
+                {
+                    "pid": 1540,
+                    "procid": 47
+                },
+                {
+                    "pid": 1540,
+                    "procid": 47
+                }
+            ]
+        },
+        {
+            "label": "external_ip_lookup",
+            "name": "Looks up external IP address via web service",
+            "score": 6,
+            "indicators": [
+                {
+                    "ioc": "ip-api.com",
+                    "flow": 7
+                }
+            ],
+            "desc": "Uses a legitimate IP lookup service to find the infected system's external IP."
+        },
+        {
+            "label": "file_antivm_ide_drive",
+            "name": "Enumerates physical storage devices",
+            "score": 3,
+            "ttp": [
+                "T1082"
+            ],
+            "desc": "Attempts to interact with connected storage/optical drive(s)."
+        },
+        {
+            "label": "program_crash",
+            "name": "Program crash",
+            "score": 3,
+            "indicators": [
+                {
+                    "pid": 1540,
+                    "procid": 47,
+                    "pid_target": 2356,
+                    "procid_target": 29
+                }
+            ]
+        },
+        {
+            "label": "reg_system_enum",
+            "name": "Checks SCSI registry key(s)",
+            "ttp": [
+                "T1012",
+                "T1120",
+                "T1082"
+            ],
+            "indicators": [
+                {
+                    "ioc": "\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Enum\\SCSI",
+                    "description": "Key opened",
+                    "procid": 35
+                },
+                {
+                    "ioc": "\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Enum\\SCSI",
+                    "description": "Key queried",
+                    "procid": 35
+                },
+                {
+                    "ioc": "\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Enum\\SCSI",
+                    "description": "Key enumerated",
+                    "procid": 35
+                }
+            ],
+            "desc": "SCSI information is often read in order to detect sandboxing environments."
+        },
+        {
+            "name": "Suspicious behavior: EnumeratesProcesses",
+            "indicators": [
+                {
+                    "pid": 2792,
+                    "procid": 35
+                },
+                {
+                    "pid": 2792,
+                    "procid": 35
+                },
+                {
+                    "pid": 2788,
+                    "procid": 36
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                }
+            ]
+        },
+        {
+            "name": "Suspicious behavior: MapViewOfSection",
+            "indicators": [
+                {
+                    "pid": 2792,
+                    "procid": 35
+                }
+            ]
+        },
+        {
+            "name": "Suspicious use of AdjustPrivilegeToken",
+            "indicators": [
+                {
+                    "description": "Token: SeDebugPrivilege",
+                    "pid": 2788,
+                    "procid": 36
+                },
+                {
+                    "description": "Token: SeDebugPrivilege",
+                    "pid": 2912,
+                    "procid": 38
+                },
+                {
+                    "description": "Token: SeShutdownPrivilege",
+                    "pid": 1220,
+                    "procid": 6
+                }
+            ]
+        },
+        {
+            "name": "Suspicious use of FindShellTrayWindow",
+            "indicators": [
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                }
+            ]
+        },
+        {
+            "name": "Suspicious use of SendNotifyMessage",
+            "indicators": [
+                {
+                    "pid": 1220,
+                    "procid": 6
+                },
+                {
+                    "pid": 1220,
+                    "procid": 6
+                }
+            ]
+        },
+        {
+            "name": "Suspicious use of WriteProcessMemory",
+            "indicators": [
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2104 wrote to memory of 2936",
+                    "pid": 2104,
+                    "procid": 27,
+                    "procid_target": 28
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2936 wrote to memory of 2356",
+                    "pid": 2936,
+                    "procid": 28,
+                    "procid_target": 29
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2360",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 30
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 3028",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 31
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1032",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 45
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1052",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 34
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1764",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 33
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 356",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 32
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 2444",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 44
+                },
+                {
+                    "description": "PID 2356 wrote to memory of 1048",
+                    "pid": 2356,
+                    "procid": 29,
+                    "procid_target": 43
+                }
+            ]
+        }
+    ],
+    "tags": null,
+    "network": {
+        "flows": [
+            {
+                "id": 2,
+                "src": "10.127.0.103:59655",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2644,
+                "procid": 37,
+                "first_seen": 3343,
+                "last_seen": 3395,
+                "rx_bytes": 130,
+                "rx_packets": 1,
+                "tx_bytes": 59,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "a.goatgame.co"
+            },
+            {
+                "id": 3,
+                "src": "10.127.0.103:65480",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2356,
+                "procid": 29,
+                "first_seen": 3343,
+                "last_seen": 3383,
+                "rx_bytes": 120,
+                "rx_packets": 1,
+                "tx_bytes": 55,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "sornx.xyz"
+            },
+            {
+                "id": 6,
+                "src": "10.127.0.103:49314",
+                "dst": "37.0.10.214:80",
+                "proto": "tcp",
+                "pid": 2024,
+                "procid": 41,
+                "first_seen": 5738,
+                "last_seen": 14841,
+                "rx_bytes": 0,
+                "rx_packets": 0,
+                "tx_bytes": 152,
+                "tx_packets": 3
+            },
+            {
+                "id": 7,
+                "src": "10.127.0.103:61786",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2204,
+                "procid": 39,
+                "first_seen": 8007,
+                "last_seen": 8056,
+                "rx_bytes": 72,
+                "rx_packets": 1,
+                "tx_bytes": 56,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "ip-api.com"
+            },
+            {
+                "id": 8,
+                "src": "10.127.0.103:49320",
+                "dst": "208.95.112.1:80",
+                "proto": "tcp",
+                "pid": 2204,
+                "procid": 39,
+                "first_seen": 8056,
+                "last_seen": 59560,
+                "rx_bytes": 662,
+                "rx_packets": 4,
+                "tx_bytes": 774,
+                "tx_packets": 6,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "ip-api.com"
+            },
+            {
+                "id": 10,
+                "src": "10.127.0.103:57410",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2912,
+                "procid": 38,
+                "first_seen": 13359,
+                "last_seen": 13404,
+                "rx_bytes": 143,
+                "rx_packets": 1,
+                "tx_bytes": 70,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "theonlinesportsgroup.net"
+            },
+            {
+                "id": 11,
+                "src": "10.127.0.103:55901",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2912,
+                "procid": 38,
+                "first_seen": 13413,
+                "last_seen": 13471,
+                "rx_bytes": 128,
+                "rx_packets": 1,
+                "tx_bytes": 63,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "remotenetwork.xyz"
+            },
+            {
+                "id": 12,
+                "src": "10.127.0.103:63049",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2912,
+                "procid": 38,
+                "first_seen": 13472,
+                "last_seen": 13512,
+                "rx_bytes": 124,
+                "rx_packets": 1,
+                "tx_bytes": 59,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "remotepc3.xyz"
+            },
+            {
+                "id": 13,
+                "src": "10.127.0.103:61359",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 26510,
+                "last_seen": 26559,
+                "rx_bytes": 92,
+                "rx_packets": 1,
+                "tx_bytes": 60,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "varmisende.com"
+            },
+            {
+                "id": 14,
+                "src": "10.127.0.103:49346",
+                "dst": "172.67.145.41:80",
+                "proto": "tcp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 26823,
+                "last_seen": 56821,
+                "rx_bytes": 132,
+                "rx_packets": 3,
+                "tx_bytes": 688,
+                "tx_packets": 5,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "varmisende.com"
+            },
+            {
+                "id": 15,
+                "src": "10.127.0.103:49347",
+                "dst": "37.0.10.244:80",
+                "proto": "tcp",
+                "pid": 2024,
+                "procid": 41,
+                "first_seen": 26838,
+                "last_seen": 35854,
+                "rx_bytes": 0,
+                "rx_packets": 0,
+                "tx_bytes": 152,
+                "tx_packets": 3
+            },
+            {
+                "id": 16,
+                "src": "10.127.0.103:64562",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2912,
+                "procid": 38,
+                "first_seen": 28819,
+                "last_seen": 28863,
+                "rx_bytes": 84,
+                "rx_packets": 1,
+                "tx_bytes": 52,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "yip.su"
+            },
+            {
+                "id": 17,
+                "src": "10.127.0.103:49348",
+                "dst": "172.67.169.89:443",
+                "proto": "tcp",
+                "pid": 2912,
+                "procid": 38,
+                "first_seen": 29037,
+                "last_seen": 29942,
+                "rx_bytes": 14164,
+                "rx_packets": 21,
+                "tx_bytes": 1045,
+                "tx_packets": 15,
+                "protocols": [
+                    "tls",
+                    "http"
+                ],
+                "domain": "yip.su",
+                "tls_ja3": "1d095e68489d3c535297cd8dffb06cb9",
+                "tls_ja3s": "654097951f6c4ac92edde146d2427f05",
+                "tls_sni": "yip.su"
+            },
+            {
+                "id": 18,
+                "src": "10.127.0.103:49349",
+                "dst": "172.67.169.89:443",
+                "proto": "tcp",
+                "pid": 2912,
+                "procid": 38,
+                "first_seen": 29634,
+                "last_seen": 29942,
+                "rx_bytes": 14025,
+                "rx_packets": 19,
+                "tx_bytes": 931,
+                "tx_packets": 13,
+                "protocols": [
+                    "tls",
+                    "http"
+                ],
+                "domain": "yip.su",
+                "tls_ja3": "1d095e68489d3c535297cd8dffb06cb9",
+                "tls_ja3s": "654097951f6c4ac92edde146d2427f05",
+                "tls_sni": "yip.su"
+            },
+            {
+                "id": 19,
+                "src": "127.0.0.1:49274",
+                "dst": "127.0.0.1:49273",
+                "proto": "tcp",
+                "pid": 2356,
+                "procid": 29,
+                "rx_bytes": 0,
+                "rx_packets": 0,
+                "tx_bytes": 0,
+                "tx_packets": 0
+            },
+            {
+                "id": 20,
+                "src": "127.0.0.1:49276",
+                "dst": "127.0.0.1:49275",
+                "proto": "tcp",
+                "pid": 2356,
+                "procid": 29,
+                "rx_bytes": 0,
+                "rx_packets": 0,
+                "tx_bytes": 0,
+                "tx_packets": 0
+            },
+            {
+                "id": 21,
+                "src": "10.127.0.103:61297",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 2024,
+                "procid": 41,
+                "first_seen": 48085,
+                "last_seen": 48131,
+                "rx_bytes": 90,
+                "rx_packets": 1,
+                "tx_bytes": 58,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "wfsdragon.ru"
+            },
+            {
+                "id": 22,
+                "src": "10.127.0.103:49365",
+                "dst": "104.21.5.208:80",
+                "proto": "tcp",
+                "pid": 2024,
+                "procid": 41,
+                "first_seen": 48568,
+                "last_seen": 69991,
+                "rx_bytes": 779,
+                "rx_packets": 4,
+                "tx_bytes": 437,
+                "tx_packets": 5,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "wfsdragon.ru"
+            },
+            {
+                "id": 23,
+                "src": "10.127.0.103:49366",
+                "dst": "212.193.30.115:80",
+                "proto": "tcp",
+                "pid": 2024,
+                "procid": 41,
+                "first_seen": 48772,
+                "last_seen": 57850,
+                "rx_bytes": 0,
+                "rx_packets": 0,
+                "tx_bytes": 152,
+                "tx_packets": 3
+            },
+            {
+                "id": 24,
+                "src": "10.127.0.103:59621",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 57429,
+                "last_seen": 57475,
+                "rx_bytes": 95,
+                "rx_packets": 1,
+                "tx_bytes": 63,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "fernandomayol.com"
+            },
+            {
+                "id": 25,
+                "src": "10.127.0.103:49374",
+                "dst": "172.67.145.249:80",
+                "proto": "tcp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 57476,
+                "last_seen": 87771,
+                "rx_bytes": 132,
+                "rx_packets": 3,
+                "tx_bytes": 623,
+                "tx_packets": 5,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "fernandomayol.com"
+            },
+            {
+                "id": 26,
+                "src": "10.127.0.103:51940",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 88348,
+                "last_seen": 88397,
+                "rx_bytes": 90,
+                "rx_packets": 1,
+                "tx_bytes": 58,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "nextlytm.com"
+            },
+            {
+                "id": 27,
+                "src": "10.127.0.103:49389",
+                "dst": "104.21.88.60:80",
+                "proto": "tcp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 88398,
+                "last_seen": 118815,
+                "rx_bytes": 132,
+                "rx_packets": 3,
+                "tx_bytes": 656,
+                "tx_packets": 5,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "nextlytm.com"
+            },
+            {
+                "id": 28,
+                "src": "10.127.0.103:52846",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 119423,
+                "last_seen": 119472,
+                "rx_bytes": 92,
+                "rx_packets": 1,
+                "tx_bytes": 60,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "people4jan.com"
+            },
+            {
+                "id": 29,
+                "src": "10.127.0.103:49417",
+                "dst": "172.67.150.232:80",
+                "proto": "tcp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 119518,
+                "last_seen": 149812,
+                "rx_bytes": 132,
+                "rx_packets": 3,
+                "tx_bytes": 871,
+                "tx_packets": 5,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "people4jan.com"
+            },
+            {
+                "id": 30,
+                "src": "10.127.0.103:62949",
+                "dst": "8.8.8.8:53",
+                "proto": "udp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 150514,
+                "last_seen": 150569,
+                "rx_bytes": 92,
+                "rx_packets": 1,
+                "tx_bytes": 60,
+                "tx_packets": 1,
+                "protocols": [
+                    "dns"
+                ],
+                "domain": "asfaltwerk.com"
+            },
+            {
+                "id": 31,
+                "src": "10.127.0.103:49425",
+                "dst": "172.67.167.128:80",
+                "proto": "tcp",
+                "pid": 1220,
+                "procid": 6,
+                "first_seen": 150569,
+                "last_seen": 150652,
+                "rx_bytes": 132,
+                "rx_packets": 3,
+                "tx_bytes": 811,
+                "tx_packets": 4,
+                "protocols": [
+                    "http"
+                ],
+                "domain": "asfaltwerk.com"
+            }
+        ],
+        "requests": [
+            {
+                "flow": 2,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "a.goatgame.co"
+                    ],
+                    "questions": [
+                        {
+                            "name": "a.goatgame.co",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 2,
+                "index": 1,
+                "dns_response": {}
+            },
+            {
+                "flow": 3,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "sornx.xyz"
+                    ],
+                    "questions": [
+                        {
+                            "name": "sornx.xyz",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 3,
+                "index": 1,
+                "dns_response": {}
+            },
+            {
+                "flow": 7,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "ip-api.com"
+                    ],
+                    "questions": [
+                        {
+                            "name": "ip-api.com",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 7,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "ip-api.com"
+                    ],
+                    "ip": [
+                        "208.95.112.1"
+                    ],
+                    "answers": [
+                        {
+                            "name": "ip-api.com",
+                            "type": "IN A",
+                            "value": "208.95.112.1"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 8,
+                "index": 1,
+                "http_request": {
+                    "method": "GET",
+                    "url": "http://ip-api.com/json/",
+                    "request": "GET /json/ HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+                        "Accept-Language: en,q=0.9;q=0.8,ja;q=0.7,af;q=0.6,am;q=0.5,sq;q=0.4,ar;q=0.3,an;q=0.2,hy;q=0.1,ast;q=0.1,az;q=0.1,bn;q=0.1,eu;q=0.1",
+                        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36 Edg/87.0.664.60",
+                        "viewport-width: 1920",
+                        "Host: ip-api.com"
+                    ]
+                }
+            },
+            {
+                "flow": 8,
+                "index": 1,
+                "http_response": {
+                    "status": "200",
+                    "response": "HTTP/1.1 200 OK",
+                    "headers": [
+                        "Date: Fri, 02 Feb 2024 23:56:45 GMT",
+                        "Content-Type: application/json; charset=utf-8",
+                        "Content-Length: 313",
+                        "Access-Control-Allow-Origin: *",
+                        "X-Ttl: 55",
+                        "X-Rl: 43"
+                    ]
+                }
+            },
+            {
+                "flow": 10,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "theonlinesportsgroup.net"
+                    ],
+                    "questions": [
+                        {
+                            "name": "theonlinesportsgroup.net",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 10,
+                "index": 1,
+                "dns_response": {}
+            },
+            {
+                "flow": 11,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "remotenetwork.xyz"
+                    ],
+                    "questions": [
+                        {
+                            "name": "remotenetwork.xyz",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 11,
+                "index": 1,
+                "dns_response": {}
+            },
+            {
+                "flow": 12,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "remotepc3.xyz"
+                    ],
+                    "questions": [
+                        {
+                            "name": "remotepc3.xyz",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 12,
+                "index": 1,
+                "dns_response": {}
+            },
+            {
+                "flow": 13,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "varmisende.com"
+                    ],
+                    "questions": [
+                        {
+                            "name": "varmisende.com",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 13,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "varmisende.com",
+                        "varmisende.com"
+                    ],
+                    "ip": [
+                        "172.67.145.41",
+                        "104.21.71.125"
+                    ],
+                    "answers": [
+                        {
+                            "name": "varmisende.com",
+                            "type": "IN A",
+                            "value": "172.67.145.41"
+                        },
+                        {
+                            "name": "varmisende.com",
+                            "type": "IN A",
+                            "value": "104.21.71.125"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 14,
+                "index": 1,
+                "http_request": {
+                    "method": "POST",
+                    "url": "http://varmisende.com/upload/",
+                    "request": "POST /upload/ HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "Content-Type: application/x-www-form-urlencoded",
+                        "Accept: */*",
+                        "Referer: http://varmisende.com/upload/",
+                        "User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64; Trident/7.0; rv:11.0) like Gecko",
+                        "Content-Length: 182",
+                        "Host: varmisende.com"
+                    ]
+                }
+            },
+            {
+                "flow": 16,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "yip.su"
+                    ],
+                    "questions": [
+                        {
+                            "name": "yip.su",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 16,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "yip.su",
+                        "yip.su"
+                    ],
+                    "ip": [
+                        "172.67.169.89",
+                        "104.21.79.77"
+                    ],
+                    "answers": [
+                        {
+                            "name": "yip.su",
+                            "type": "IN A",
+                            "value": "172.67.169.89"
+                        },
+                        {
+                            "name": "yip.su",
+                            "type": "IN A",
+                            "value": "104.21.79.77"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 17,
+                "index": 1,
+                "http_request": {
+                    "method": "GET",
+                    "url": "https://yip.su/1bsZq7",
+                    "request": "GET /1bsZq7 HTTP/1.1",
+                    "headers": [
+                        "User-Agent: sa828",
+                        "Host: yip.su",
+                        "Connection: Keep-Alive"
+                    ]
+                }
+            },
+            {
+                "flow": 17,
+                "index": 1,
+                "http_response": {
+                    "status": "200",
+                    "response": "HTTP/1.1 200 OK",
+                    "headers": [
+                        "Date: Fri, 02 Feb 2024 23:57:07 GMT",
+                        "Content-Type: text/html; charset=UTF-8",
+                        "Transfer-Encoding: chunked",
+                        "Connection: keep-alive",
+                        "memory: 0.35857391357421875",
+                        "expires: Fri, 02 Feb 2024 23:57:07 +0000",
+                        "strict-transport-security: max-age=604800",
+                        "strict-transport-security: max-age=31536000",
+                        "content-security-policy: img-src https: data:; upgrade-insecure-requests",
+                        "x-frame-options: SAMEORIGIN",
+                        "CF-Cache-Status: DYNAMIC",
+                        "Report-To: {\"endpoints\":[{\"url\":\"https:\/\/a.nel.cloudflare.com\/report\/v3?s=qWU6sziwM1YW79wPNRNksCxIVAUw2d4EN9luenkhbPdoUdisgrIncfWQx9nrdIempuKhJeH3JisTqBMuJrQFGP6MV3KSU3Lz68ZMkr%2F7Q8GPZwFjsDkigOI%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+                        "NEL: {\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+                        "Server: cloudflare",
+                        "CF-RAY: 84f65fe8ac4b6548-LHR",
+                        "alt-svc: h3=\":443\"; ma=86400"
+                    ]
+                }
+            },
+            {
+                "flow": 18,
+                "index": 1,
+                "http_request": {
+                    "method": "GET",
+                    "url": "https://yip.su/1DAit7",
+                    "request": "GET /1DAit7 HTTP/1.1",
+                    "headers": [
+                        "Host: yip.su"
+                    ]
+                }
+            },
+            {
+                "flow": 18,
+                "index": 1,
+                "http_response": {
+                    "status": "200",
+                    "response": "HTTP/1.1 200 OK",
+                    "headers": [
+                        "Date: Fri, 02 Feb 2024 23:57:07 GMT",
+                        "Content-Type: text/html; charset=UTF-8",
+                        "Transfer-Encoding: chunked",
+                        "Connection: keep-alive",
+                        "memory: 0.35848236083984375",
+                        "expires: Fri, 02 Feb 2024 23:57:07 +0000",
+                        "strict-transport-security: max-age=604800",
+                        "strict-transport-security: max-age=31536000",
+                        "content-security-policy: img-src https: data:; upgrade-insecure-requests",
+                        "x-frame-options: SAMEORIGIN",
+                        "CF-Cache-Status: DYNAMIC",
+                        "Report-To: {\"endpoints\":[{\"url\":\"https:\/\/a.nel.cloudflare.com\/report\/v3?s=wQFpdY5l2QVHlbUOfympIPNWsfO0bKyMtwuGJggxkMqYiuXzgkiuRNmm4YIC%2FILvwyeFwFzfQxqqtlZo7YcCUzvbounA7fu5hyaN98A%2BqrqEWViyEZyFCsY%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+                        "NEL: {\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+                        "Server: cloudflare",
+                        "CF-RAY: 84f65fea8b2a8861-LHR",
+                        "alt-svc: h3=\":443\"; ma=86400"
+                    ]
+                }
+            },
+            {
+                "flow": 21,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "wfsdragon.ru"
+                    ],
+                    "questions": [
+                        {
+                            "name": "wfsdragon.ru",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 21,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "wfsdragon.ru",
+                        "wfsdragon.ru"
+                    ],
+                    "ip": [
+                        "104.21.5.208",
+                        "172.67.133.215"
+                    ],
+                    "answers": [
+                        {
+                            "name": "wfsdragon.ru",
+                            "type": "IN A",
+                            "value": "104.21.5.208"
+                        },
+                        {
+                            "name": "wfsdragon.ru",
+                            "type": "IN A",
+                            "value": "172.67.133.215"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 22,
+                "index": 1,
+                "http_request": {
+                    "method": "GET",
+                    "url": "http://wfsdragon.ru/api/setStats.php",
+                    "request": "GET /api/setStats.php HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+                        "Host: wfsdragon.ru"
+                    ]
+                }
+            },
+            {
+                "flow": 22,
+                "index": 1,
+                "http_response": {
+                    "status": "200",
+                    "response": "HTTP/1.1 200 OK",
+                    "headers": [
+                        "Date: Fri, 02 Feb 2024 23:57:26 GMT",
+                        "Content-Type: text/html; charset=utf-8",
+                        "Transfer-Encoding: chunked",
+                        "Connection: keep-alive",
+                        "CF-Cache-Status: DYNAMIC",
+                        "Report-To: {\"endpoints\":[{\"url\":\"https:\/\/a.nel.cloudflare.com\/report\/v3?s=WPRHO8XEiT6o2H%2FPwZ4wQ0eMmKf1bmHYlQf7euTbbGb6ePaWfEvN2euiv6IcwZ0igTfhtF3BlveZwoyAiwRQ3lhiOHUnB87%2FFCVpnKqTSEyOd%2FQDCxF%2BOPc1DsHc7HQ%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+                        "NEL: {\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+                        "Server: cloudflare",
+                        "CF-RAY: 84f660605b3b8880-LHR",
+                        "alt-svc: h3=\":443\"; ma=86400"
+                    ]
+                }
+            },
+            {
+                "flow": 24,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "fernandomayol.com"
+                    ],
+                    "questions": [
+                        {
+                            "name": "fernandomayol.com",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 24,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "fernandomayol.com",
+                        "fernandomayol.com"
+                    ],
+                    "ip": [
+                        "172.67.145.249",
+                        "104.21.47.84"
+                    ],
+                    "answers": [
+                        {
+                            "name": "fernandomayol.com",
+                            "type": "IN A",
+                            "value": "172.67.145.249"
+                        },
+                        {
+                            "name": "fernandomayol.com",
+                            "type": "IN A",
+                            "value": "104.21.47.84"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 25,
+                "index": 1,
+                "http_request": {
+                    "method": "POST",
+                    "url": "http://fernandomayol.com/upload/",
+                    "request": "POST /upload/ HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "Content-Type: application/x-www-form-urlencoded",
+                        "Accept: */*",
+                        "Referer: http://fernandomayol.com/upload/",
+                        "User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64; Trident/7.0; rv:11.0) like Gecko",
+                        "Content-Length: 111",
+                        "Host: fernandomayol.com"
+                    ]
+                }
+            },
+            {
+                "flow": 26,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "nextlytm.com"
+                    ],
+                    "questions": [
+                        {
+                            "name": "nextlytm.com",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 26,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "nextlytm.com",
+                        "nextlytm.com"
+                    ],
+                    "ip": [
+                        "104.21.88.60",
+                        "172.67.173.80"
+                    ],
+                    "answers": [
+                        {
+                            "name": "nextlytm.com",
+                            "type": "IN A",
+                            "value": "104.21.88.60"
+                        },
+                        {
+                            "name": "nextlytm.com",
+                            "type": "IN A",
+                            "value": "172.67.173.80"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 27,
+                "index": 1,
+                "http_request": {
+                    "method": "POST",
+                    "url": "http://nextlytm.com/upload/",
+                    "request": "POST /upload/ HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "Content-Type: application/x-www-form-urlencoded",
+                        "Accept: */*",
+                        "Referer: http://nextlytm.com/upload/",
+                        "User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64; Trident/7.0; rv:11.0) like Gecko",
+                        "Content-Length: 154",
+                        "Host: nextlytm.com"
+                    ]
+                }
+            },
+            {
+                "flow": 28,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "people4jan.com"
+                    ],
+                    "questions": [
+                        {
+                            "name": "people4jan.com",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 28,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "people4jan.com",
+                        "people4jan.com"
+                    ],
+                    "ip": [
+                        "172.67.150.232",
+                        "104.21.0.112"
+                    ],
+                    "answers": [
+                        {
+                            "name": "people4jan.com",
+                            "type": "IN A",
+                            "value": "172.67.150.232"
+                        },
+                        {
+                            "name": "people4jan.com",
+                            "type": "IN A",
+                            "value": "104.21.0.112"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 29,
+                "index": 1,
+                "http_request": {
+                    "method": "POST",
+                    "url": "http://people4jan.com/upload/",
+                    "request": "POST /upload/ HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "Content-Type: application/x-www-form-urlencoded",
+                        "Accept: */*",
+                        "Referer: http://people4jan.com/upload/",
+                        "User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64; Trident/7.0; rv:11.0) like Gecko",
+                        "Content-Length: 365",
+                        "Host: people4jan.com"
+                    ]
+                }
+            },
+            {
+                "flow": 30,
+                "index": 1,
+                "dns_request": {
+                    "domains": [
+                        "asfaltwerk.com"
+                    ],
+                    "questions": [
+                        {
+                            "name": "asfaltwerk.com",
+                            "type": "IN A"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 30,
+                "index": 1,
+                "dns_response": {
+                    "domains": [
+                        "asfaltwerk.com",
+                        "asfaltwerk.com"
+                    ],
+                    "ip": [
+                        "172.67.167.128",
+                        "104.21.83.31"
+                    ],
+                    "answers": [
+                        {
+                            "name": "asfaltwerk.com",
+                            "type": "IN A",
+                            "value": "172.67.167.128"
+                        },
+                        {
+                            "name": "asfaltwerk.com",
+                            "type": "IN A",
+                            "value": "104.21.83.31"
+                        }
+                    ]
+                }
+            },
+            {
+                "flow": 31,
+                "index": 1,
+                "http_request": {
+                    "method": "POST",
+                    "url": "http://asfaltwerk.com/upload/",
+                    "request": "POST /upload/ HTTP/1.1",
+                    "headers": [
+                        "Connection: Keep-Alive",
+                        "Content-Type: application/x-www-form-urlencoded",
+                        "Accept: */*",
+                        "Referer: http://asfaltwerk.com/upload/",
+                        "User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64; Trident/7.0; rv:11.0) like Gecko",
+                        "Content-Length: 351",
+                        "Host: asfaltwerk.com"
+                    ]
+                }
+            }
+        ],
+        "ips": {
+            "104.21.5.208": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "104.21.88.60": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "172.67.145.249": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "172.67.145.41": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "172.67.150.232": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "172.67.167.128": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "172.67.169.89": {
+                "cc": "US",
+                "asn": "AS13335"
+            },
+            "208.95.112.1": {
+                "cc": "US",
+                "asn": "AS53334"
+            },
+            "212.193.30.115": {
+                "cc": "NL"
+            },
+            "37.0.10.214": {
+                "cc": "NL"
+            },
+            "37.0.10.244": {
+                "cc": "NL"
+            },
+            "8.8.8.8": {
+                "cc": "US",
+                "asn": "AS15169"
+            }
+        }
+    },
+    "dumped": [
+        {
+            "at": 435,
+            "pid": 2104,
+            "procid": 27,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "name": "files/0x000c000000016306-2.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "041c80976df8c6c9f09215455c1cf31c",
+            "sha1": "1c0064350b13b0556ef8f9de737d61250305e815",
+            "sha256": "332f801a1892966fea2dd4139015b859cdc3d64e3fc49fdd0b921d08b1beee00",
+            "sha512": "c0730ed3158b6884509d8c844c61a562b93e7bead67b5f2d8bd218d0b342e04960842d5711b86669d223e16f24b29f1efcb495890246f7951886e6747097c201",
+            "ssdeep": "24576:xcVkKSUEPY/RQ5DsvLwcaBhdZIl9mVcIXyVeHYYkCqwzp6vUvhm6z:xcBlEwJ84vLRaBtIl9mVcIuSkzZvCh3",
+            "size": 1288123
+        },
+        {
+            "at": 450,
+            "pid": 2936,
+            "procid": 28,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "name": "files/0x000c000000016306-6.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "91a4c31e3746802bfd25df517496fd10",
+            "sha1": "d3d8d7c42382b8a057d4501ac94693a3ca4a7e07",
+            "sha256": "bf6ea6bc2c2417129980b88c8717f963697d71144033fe7f8f52505b6d65f717",
+            "sha512": "34179f78d65252e51685df8d0f94e3db7368a6cf9af5b20255e821cb135e9f7e7ba585dfcf0cbda0ac788dc8f4ca9064f8dcf067442a3d42e786c8df7d601c93",
+            "ssdeep": "12288:RTcFngzqfSWhxEPVzKjOunHN/Q5eW/sB/RLW1caMjnvfmvJhb6Ak:xcVkKSUEPY/RQ5DsvLwcaBhdk",
+            "size": 616785
+        },
+        {
+            "at": 466,
+            "pid": 2936,
+            "procid": 28,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "name": "files/0x000c000000016306-7.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "b0cecf743f287a542710602d25d79dea",
+            "sha1": "c435f90598874b9b90d2db55e2c593cc2adcaaff",
+            "sha256": "773390a5aa17a406d0952707374180040d5b2ba74815de48fa47351bb2b17c2f",
+            "sha512": "49143a4436cb4fc7d811bfef9456b68a78b3d42d678eb9c44e195a253424be6ea14382b06399b5b9a80c07a9b183868fe91fde6fbad8d9b6475f22a9aaeb7ac6",
+            "ssdeep": "12288:RTcFngzqfSWhxEPVzKjOunHN/Q5eW/sB/RLD:xcVkKSUEPY/RQ5DsvLD",
+            "size": 481907
+        },
+        {
+            "at": 497,
+            "pid": 2936,
+            "procid": 28,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "name": "files/0x000c000000016306-10.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "e4b6a6aeabf8c816315f207b894dbb14",
+            "sha1": "e021f43cbc5ec7db5bcf46e21201ab99bfe6c928",
+            "sha256": "fc760573e482201bc03773aed6b82c6a0d2f493d71d783a71f13609f8bfcf778",
+            "sha512": "80ee38eb384555854464ffe1a4a40d1149b08c62e8270b9848a612dc236eef514404768a208a84be8d43bcf7a91a4e757063e70cfe394f56bf50b3aaa6a8fb8d",
+            "ssdeep": "12288:RTcFngzqfSWhxEPVzKjOunHN/Q5eW/sB/RLW1caMjnvfmvJhi:xcVkKSUEPY/RQ5DsvLwcaBhi",
+            "size": 604835
+        },
+        {
+            "at": 497,
+            "pid": 2936,
+            "procid": 28,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "name": "files/0x000c000000016306-9.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "581f9642d83c26944fa136f932faae5e",
+            "sha1": "18c36908ac2fa451c2f967263587510feae91924",
+            "sha256": "5560063b696980ed3845314ef7cc0b8a0f954a1f46224e8fffa186f6e42ba344",
+            "sha512": "4479a6adcb56f1c37f890aec767acdc8f21840e339e89a95314dd4ca812aafcf2c99f79c1f1724346f5f694f7bed4343adc36b71d3cfec8fd4f5bdb14746078b",
+            "ssdeep": "12288:RTcFngzqfSWhxEPVzKjOunHN/Q5eW/sBH:xcVkKSUEPY/RQ5DsZ",
+            "size": 418212
+        },
+        {
+            "at": 497,
+            "pid": 2936,
+            "procid": 28,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\setup_installer.exe",
+            "name": "files/0x000c000000016306-8.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "e45b98818832f415337a60ff1b2f2e30",
+            "sha1": "eb070f37c36c457a50ef599da37d0421237358c4",
+            "sha256": "37a90d6b6c3adba17c48b37631f3cd077e70e7bbbb9e81da7b7de6f60ee385bf",
+            "sha512": "0cf548593cfebf95e32ee5c46613634857c43b798fa63abb396a8081fb485bbbe3e2b1276cb6cc9adb9f55029d7d8015e07682c72f72be0504bead45de81e717",
+            "ssdeep": "12288:RTcFngzqfSWhxEPVzKjOunHN/Q5eW/sB/RLW1caG:xcVkKSUEPY/RQ5DsvLwcZ",
+            "size": 524288
+        },
+        {
+            "at": 638,
+            "pid": 2936,
+            "procid": 28,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-38.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "308009c22691a1e7f4871e204aa64a95",
+            "sha1": "c0bd6f664be60dd7ec5a5c0af61a924c87daa2c7",
+            "sha256": "3286def9498c5c998ce392ed8b7c6503febaed54b3a50b445abfbb273701dcb1",
+            "sha512": "ffaebd33547c17a25592c68eead232a20e92c21e1119fd8da246130ea0c795d47df9109ebb9926ff5cfd9d1a426cd26971e627ecd0fca3defed5df08179e8dc3",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdkFoHYpYpWH606FKU+hiQTX:KXVI63S7a1wUuld2ZtHL+Ev+HYpYT+x",
+            "size": 181280
+        },
+        {
+            "at": 653,
+            "pid": 2936,
+            "procid": 28,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-45.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "5079e88efc6d0ace6864d185fe73d711",
+            "sha1": "f76e0ce67628be91d04cdf499df326f56d905955",
+            "sha256": "4f97232f2ee12c94b10621bb37e767afb740c0f3414b5136e3d373e54cef18d3",
+            "sha512": "86e36dedd8b49e61f600a677b5a873a5423996120ded13b5667c420cdc71db44081f67b6afb279784075cac62b9348ae3d31352f450c248f16151e41605f1ec9",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdkFoHYpYpWH606FKU+hiQTDwev:KXVI63S7a1wUuld2ZtHL+Ev+HYpYT+VB",
+            "size": 191249
+        },
+        {
+            "at": 653,
+            "pid": 2936,
+            "procid": 28,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-42.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "a6882a0ebbb2cf2e965bab58e8c307e5",
+            "sha1": "c86de7818354d848d381502df8e02438e3a9cfe3",
+            "sha256": "cf44829e402e6e862f3a81ea7832a574cb47cd308dbe5c414b4be79f40efa837",
+            "sha512": "2fda672267e302d022926dc4b04ae62656ab578e0a41d66fa343e567a8a701094888ea0e737985eb14e52ed2724d2f9765ddb16107a3ff8504774f32e2158f9b",
+            "ssdeep": "6144:KXVI63S7a1wUuld2ZtHL+Ev+HYpYT+VweipKlTj0EbP54V:OVI63S7a1wU+delv+HYpYT+VIpKBB0",
+            "size": 289417
+        },
+        {
+            "at": 653,
+            "pid": 2936,
+            "procid": 28,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-40.dat",
+            "kind": "martian",
+            "origin": "ransom",
+            "md5": "dfc9c3a35baf9273f8af7194eb55d427",
+            "sha1": "178906b36421144c321772d718df73f173a7d11a",
+            "sha256": "fe7eea9e678637083d3c678cd80dffb93b2dc830230e8d95e0104bb6d644d4a9",
+            "sha512": "11076d88b9be24b27626a3bcae66b11ba169330d2534258c498c4d63776eacede5a0202662d72a9d71526b27cec70dea4ba160d9590c1f7aebeac322669650d5",
+            "ssdeep": "6144:KXVI63S7a1wUuld2ZtHL+Ev+HYpYT+VweipKlTj0EbP54jmUwJR:OVI63S7a1wU+delv+HYpYT+VIpKBBOmX",
+            "size": 338485
+        },
+        {
+            "at": 731,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libgcc_s_dw2-1.dll",
+            "name": "files/0x0007000000016d19-54.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "dbbe82805cb4e6f434d778c6f3bf4f72",
+            "sha1": "e3548d631acaec9e8f7d05c83efac02ef9302b52",
+            "sha256": "b28a31c879890f47d16d633fddc059018ea22af8611e6be439cd906a94002db1",
+            "sha512": "11f1f2d9e0db91105d7823d369136a7fdbe418f5f6d28ad72f361efb8ae152f0c6533b06145d4bf018f435efd113facbf2f42ab80d057cea3e6035dbc1291813",
+            "ssdeep": "3072:nti6N0WeF35Ro7hAWP6cagLSuf6LG3qSbKEK:ti6N2F33wGJVuHuL",
+            "size": 111855
+        },
+        {
+            "at": 731,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libgcc_s_dw2-1.dll",
+            "name": "files/0x0007000000016d19-55.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "36b10581f30cb30c554eb7eabc4c670b",
+            "sha1": "3d229259ba362d83ccb299b46678afe6abd7a5e3",
+            "sha256": "f29366592e49a98eab55a4d021e7fedfbf453b9ba101a2ed0898bf116539cacf",
+            "sha512": "3f025bc544555eaafffa0709d843835cdc883ae3cdbfb525d07eb258fe661b4534d05ec7fecb4d5c0ddf2e4668ca923c2fe88a329a261245d77f6b992a56c6a4",
+            "ssdeep": "3072:nti6N0WeF35Ro7hAWP6cagLSuf6LG3qSbV:ti6N2F33wGJVuHp",
+            "size": 103333
+        },
+        {
+            "at": 731,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libcurl.dll",
+            "name": "files/0x0036000000016c45-53.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "7948863bf814852070e724e4185d5f6f",
+            "sha1": "aa934395e2cdd6b0b3a628da3f449c91fbdf095c",
+            "sha256": "ddb24f791c2c92cd143b7ad03bca41f3271e5490cc6993ebbae0654daff50dc0",
+            "sha512": "277899d72035d21dd68fcd30eea47101c1154b82b0a5d9f0c856f3156dc4b35643db14bf99a833a7f32af6a1ece48d9e2769e162e8b473885e72df6cd0c2be55",
+            "ssdeep": "3072:Nck3jgivf9wVSyWiM1prVnLvyA9HiRapIZRmZZJjs6GaF:Kk3jgivfCVSRrLV7yAVzKZIjCbaF",
+            "size": 131072
+        },
+        {
+            "at": 747,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-57-0x000000006B280000-0x000000006B2A6000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1797783552,
+            "length": 155648
+        },
+        {
+            "at": 809,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-64-0x000000006B440000-0x000000006B4CF000-memory.dmp",
+            "kind": "region",
+            "origin": "protect",
+            "addr": 1799618560,
+            "length": 585728
+        },
+        {
+            "at": 918,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-65-0x000000006B440000-0x000000006B4CF000-memory.dmp",
+            "kind": "region",
+            "origin": "protect",
+            "addr": 1799618560,
+            "length": 585728
+        },
+        {
+            "at": 794,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-63.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "35ebd85e99be02afdf3dd27492eecbb6",
+            "sha1": "b54ade52c768bdd7d9bbefdbcc0fedbf6661111a",
+            "sha256": "26547168a07ba863030861b8c904ac330271b7c55ffb57f2bba8d998aa0529cb",
+            "sha512": "c286c93004c086854e56e610a7a207d81cb5cb11b27efac4012ee028f8ccb069f56dc868f1a4d167e8dc5f30fba4011d5ffd2fa45f662dceb52a15148c0a95d0",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdkFoHYpYpWH606FKU+h:KXVI63S7a1wUuld2ZtHL+Ev+HYpYT+h",
+            "size": 166134
+        },
+        {
+            "at": 794,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-62.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "fbe3222e3a2cdc2801e72d3590fdc713",
+            "sha1": "292ea3561e915c9671cc780fa442af23a8d8066e",
+            "sha256": "94e8f1216c5d33136981953fb23df3e640a064694d7987701d9066cab8244309",
+            "sha512": "d005ecf9bf4ee6e5e4406b9b58a9dd3ce0b2c12feadc8bfde08f5df5584cecbfe00af89e1bf2cc3419adc86751e8e5f07059586a7da97c025429f1fbacc7338b",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdkFoHYpYpZ:KXVI63S7a1wUuld2ZtHL+Ev+HYpYP",
+            "size": 131072
+        },
+        {
+            "at": 794,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-61.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "a76d24cc8ebc0e0770dc08653ba5db74",
+            "sha1": "c32d665194b37f5fb42b0b50380d1f4eb89e1785",
+            "sha256": "e6ff860221b27e1068ad3c59ffa3d6ddfff73bd79252cc7bad28c91fd5114571",
+            "sha512": "9b00533406300df67320dfadfc362b8e6ea5f8058c253e94d700df99fa4d0b2301bce4589879f2ab96e6b616cca937a29ed436e51a2c48712843282e25936899",
+            "ssdeep": "1536:KQwt/I63S7a1wUjkUw7YFv3la66K+VDArZ//F0q:KXt/I63S7a1wUof7aVa66d2Z90q",
+            "size": 60053
+        },
+        {
+            "at": 794,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-60.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "2f25846669d449412149b14bd19b8c9d",
+            "sha1": "a53438e5c5d2f4d2e21306c473ec3e47e14075da",
+            "sha256": "a6fa8aad2c2eb34b4899f176c4977d62bd8cff83b15d91f70ee36fb6e4cf4c9f",
+            "sha512": "bfd56a29ee69dce89f2140d1e3796fb3c643a8f53b1f75769b239186c3d921f382063160fa74085649670866ee445f9d77945fb0cde35258ea43b6bc13d9c885",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdM:KXVI63S7a1wUuld2ZtHL+Ex",
+            "size": 110725
+        },
+        {
+            "at": 794,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-59-0x000000006B440000-0x000000006B4CF000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1799618560,
+            "length": 585728
+        },
+        {
+            "at": 965,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-66-0x0000000064940000-0x0000000064959000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1687420928,
+            "length": 102400
+        },
+        {
+            "at": 747,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libstdc++-6.dll",
+            "name": "files/0x0007000000016d21-58.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "b37307262c3594626b85165454f97d20",
+            "sha1": "e214318567fa505f29eb082a560e2c5e428e3605",
+            "sha256": "b6c0e20442ddd4d91274d4e34a0b7a4519d93cbf2e1bc3037f06ac7e957592f4",
+            "sha512": "f21fd12f123f6a78553a7a45a3de6d3e2c7fe88949f5ac99a2d84d84cccba555aa407315c97983ca257907f2e2be598840cf841f676f3d2eb52d70a49a587814",
+            "ssdeep": "1536:DtzqwUO9L0Yt+h0Vml4iUerj1TUFdjlNF3TirSa8NoXhp5bGkJwNZVW7+:ZGwOYtamKvBpTUnjBWz8NwhpKVW7+",
+            "size": 102178
+        },
+        {
+            "at": 1028,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-68-0x000000006B440000-0x000000006B4CF000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1799618560,
+            "length": 585728
+        },
+        {
+            "at": 747,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libstdc++-6.dll",
+            "name": "files/0x0007000000016d21-56.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "4885a363ab7895c0185db3601e5a5703",
+            "sha1": "645eec85ef4cb067ba1cb1d7c4079b164fc1faeb",
+            "sha256": "d3bb8a3763a03891a7782d8bdbd4b61f97ca6a81bc6aa8f22b248f38db798640",
+            "sha512": "1a02bc2fc3b8ec34bb571ab30b69f08771455f290ce1bcc731760a06d233144ee6953a042701b4a7fcac3a928cd5ed81a185c02a40d8a6f23cbb90bca4519ba2",
+            "ssdeep": "6144:ZGW2vBmBWDhcVYYMj6efoGvmhWdvJh556VgZDQ5Apm5qSmCn5fjUikdmID/ZIm8M:ZGRoW1chMjnv+gvJhb6bmpPSmCnh41",
+            "size": 367636
+        },
+        {
+            "at": 731,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libcurl.dll",
+            "name": "files/0x0036000000016c45-52.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "a4cfc37c3d505e9060ebfe3311116604",
+            "sha1": "daeee40eed42bb43edaa049c16daad7e17fc4a6b",
+            "sha256": "577da830398ef4115ad54e2f342d4a0ef9418d72518f17c2e1347bc456f79738",
+            "sha512": "ef06430b23fd574e6137600496d385e8dfe1742864a7f9284860e71930a18833de617af47e141601c79a995818bcbbba52ab00f48a988bac18c9daad3a4f55a0",
+            "ssdeep": "6144:Kk3jgivfCVSRrLV7yAVzKZIjCbanUKWw+ba//PXg:30iH0iVPVzKOOunLWf2//g",
+            "size": 203959
+        },
+        {
+            "at": 1106,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-70-0x000000006FE40000-0x000000006FFC6000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1877213184,
+            "length": 1597440
+        },
+        {
+            "at": 731,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libcurlpp.dll",
+            "name": "files/0x0007000000016d08-51.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "e6e578373c2e416289a8da55f1dc5e8e",
+            "sha1": "b601a229b66ec3d19c2369b36216c6f6eb1c063e",
+            "sha256": "43e86d650a68f1f91fa2f4375aff2720e934aa78fa3d33e06363122bf5a9535f",
+            "sha512": "9df6a8c418113a77051f6cb02745ad48c521c13cdadb85e0e37f79e29041464c8c7d7ba8c558fdd877035eb8475b6f93e7fc62b38504ddfe696a61480cabac89",
+            "ssdeep": "768:W//WT2mbP+7x4Mx5KzVAn/QqvtdZs8LlR67diTNh4joK7qmQhyOl4UuGoxX9j3D:WHIK1R2VA/Qqvtzz67dbn1QhyOl4UuD",
+            "size": 55808
+        },
+        {
+            "at": 1277,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14cd569dce36.exe",
+            "name": "files/0x0005000000018770-80.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "173272a93c73342d979e122320ed98e9",
+            "sha1": "ae807e158df474b13fc8799f0d6dbe89d355bb6d",
+            "sha256": "812b57379888600f3a7f9a906c4d11a669843de95dcf59539acc4eefcc3a9cf9",
+            "sha512": "6acfcb46473f34fa0c4c4b0cdabcdcc4697b900d20a65383c945310a29365de8eb6953ef4a3220992159e58a6e1b5c922e2e49646b0129c703e9d0218da90302",
+            "ssdeep": "3072:sxV4QjgZ2U1S6d8a/sE7wFhP5l7CFWkeF2+3Rq4k1UkS/dBly/zeQ3AgI1PkoHXb:W5zpJnk4k13S/FSyUk1PkanIdNm",
+            "size": 228503
+        },
+        {
+            "at": 1277,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "name": "files/0x0008000000017495-81.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "8db0d0e5583cf0393789e43796e14e24",
+            "sha1": "6bc72e9eeb44fedb7923390e398d87a42fa116d9",
+            "sha256": "44f87a209b6980eab523895a4bd3ae22a335c5065ee4b1d56862416cde84b089",
+            "sha512": "b54387e7bdb66c9cabd771b19227d9527c8d982d423aaa0902738740a4c5186a55b99ef850f9d64b4c49af9ac7ccaf4a2866d28b66fc33d2c03712a64b31c0d5",
+            "ssdeep": "3072:hq5kKNDAP4cHdwvecEP+tYCjZ6YHitmhr3+96VgeCI6:h4JDAP4e1cEP+t7xHiYhy96Vgxh",
+            "size": 143114
+        },
+        {
+            "at": 1308,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14ea52090698.exe",
+            "name": "files/0x0006000000018c02-82.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "3f929019f863bc9b9e7013316d05ac40",
+            "sha1": "be25a82617e6e3eb891b1dce681a29034cea0192",
+            "sha256": "b6a600a7e8e526f116247357d0e8d1e08c6cf04d695944588380efcb391e3d20",
+            "sha512": "7513b6d3e33b05843e79f80c9c2446fa848e4361c1eeaae075c555ce8b289a28dfc971f59ebd387426652a262f49a4208e2852895bee2c2bf651a8da35ff7335",
+            "ssdeep": "768:Eh3qitxsLKP7GpnQ0ZnwF0yL9FGbrJ3puBc+5BrnyeN3H8RQNhPsYt/zoO29GhhD:03qRLK2Q0SJWkBcCpYQNtsYt/6O",
+            "size": 92294
+        },
+        {
+            "at": 1355,
+            "pid": 3028,
+            "procid": 31,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14af44d511d3.exe",
+            "name": "files/0x0005000000018665-85.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "cf2b379b7679f073235655b22227c9db",
+            "sha1": "80283c3f00883f2545f3d2a248b0e3e597a43122",
+            "sha256": "332da9b154a954db8047fe4b5ba352bbac3b1e959e7c8a5aba751bdb127cbacd",
+            "sha512": "1d1b16314124e342fa98f3799e632253e3fd42e1950c5e656ca66bd6aa6170dfce65b7e33255cf67c45740741e91db73b234dd792e0e6550b751afe58f5e8d78",
+            "ssdeep": "3072:qH50hX4B1I+Fe7UovWk07XFBbyzqRyZ34JI/:80JK1RkZGPi/",
+            "size": 102400
+        },
+        {
+            "at": 1371,
+            "pid": 2644,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14af44d511d3.exe",
+            "name": "files/0x0005000000018665-86.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "dcd67129f8927ecd8bc7013b27d6d8a8",
+            "sha1": "f6cc03360ee1bfc1bd89438e2d7ce3dae5df0442",
+            "sha256": "4057865effad1bc3aa6255ba1e96ddfa3770cc72a1fa76181f9e074dd89f6104",
+            "sha512": "c66c6ac1989335dbe87212da382bbab9fa42b070d30203491c5b08c6735c24a6392c7949e6c1a8dbf222615e195b76f6e1c00c0496f9e866bed13e4d71fe3c3e",
+            "ssdeep": "1536:PZItpJb1AjhnhXkMUBG02r+GwDe7nUZKvm3O307ZJF7izObY3VtqRsWEcdyEs8nV:qH50hX4B1I+Fe7UovWk07XFBbyzqRyE",
+            "size": 86248
+        },
+        {
+            "at": 1355,
+            "pid": 1032,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1400e35015ff26dd.exe",
+            "name": "files/0x0009000000016d87-88.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "acb7b73c5ea215781b9f3526b49dbd4b",
+            "sha1": "23a33253859f6dcbd651a9b8ec5f50eef0007d6c",
+            "sha256": "8f71e57cacecbaaaed90403ee9eb25ad802062c6ee737bee11c97b8614bf0c72",
+            "sha512": "ad737006244d196e753f0fc967e8ec8e77ba2f6fa771d30cf2ea64a29df0c1f615768efd965331cd435210b4a8fba7351eb173aa5ebd711d8571485a63ef63ad",
+            "ssdeep": "3072:+ilnFRCz8C7JEfle5z92Ywt6sI5/DuT61mf:LpFIILk92YU6sI5/0",
+            "size": 139832
+        },
+        {
+            "at": 1355,
+            "pid": 1032,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1400e35015ff26dd.exe",
+            "name": "files/0x0009000000016d87-87.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "d43c9f60c9c54a4cb7d75f3f465671b8",
+            "sha1": "2c70cf24dc0d90e363633f4f125d3a8f4d8a7c94",
+            "sha256": "371a75b3d5e3325add69c4cbf6b4183a4f317de194b40b7e7f941d356b0a5ef1",
+            "sha512": "03c830aef525722ddab51c47dc4721b3acf356a08b41367d6f78daffcd78f27e9a8745d3fb1e3e28bce9a6efb08ee741d40bbf45b2a3c98aa397a9b8dfd92dfa",
+            "ssdeep": "3072:+ilnFRCz8C7JEfle5z92Ywt6sI5/DuT61m:LpFIILk92YU6sI5/",
+            "size": 141312
+        },
+        {
+            "at": 1355,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat144adc22f2e612dc.exe",
+            "name": "files/0x0015000000018644-83.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "cf412fc8359e7a40d21daec1102d150e",
+            "sha1": "866d2a5e3f5b430bcd5f059d79c5da66c480e76c",
+            "sha256": "270d88b390a6ac4530ea434331fb324cd7a2a902d85b791c32c8ed89d743ba58",
+            "sha512": "d07a6a0b3299709c940971051462229d009418966ddb6c96892e215e08d50223ded3dbda38534362eaa89310bac1aebe626e3fe7b47791f50d168cb78dd29814",
+            "ssdeep": "1536:/KuLAh8KjlIKSb4Y7alcdijWlMdI2dR9VVi42++:/KWAh8tKSbr2cdijWlII2d9Vi42v",
+            "size": 61050
+        },
+        {
+            "at": 1340,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14546eea434751d.exe",
+            "name": "files/0x0005000000018664-84.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "a77b829d64bafe5201a6b25f24c52c60",
+            "sha1": "08c677a16f19120d527e6d926eca6bc92c9bdfea",
+            "sha256": "0ffeb3ae521273cc9a0ba2d4a6c89d797e3e0feb2bc7e9ea017d3f187e5a902e",
+            "sha512": "23876bb05a0e9f9bf5744b7ee264bfa601e97e14c04b820e015c4fcc7cede4138d184f6f5202331ec9f7962b9f029f0e9d52b79f9ae5cca0aa6a96315a6f4a20",
+            "ssdeep": "1536:QzBkXWENdrc8nlJTFa1eCWo8dO7KCDHLr/EIZVorPj6HRjpMoL:QVkzRzJacO97KCDHfHZVorCjD",
+            "size": 71643
+        },
+        {
+            "at": 1449,
+            "pid": 356,
+            "procid": 32,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14ea52090698.exe",
+            "name": "files/0x0006000000018c02-95.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "c3e9fe6565d6129e626f4fdc0cfacd24",
+            "sha1": "4204f01d77fdf160bea90baf7d1d091e04865907",
+            "sha256": "9cd4c4201558e4420355aaf318440fc9e8c72991de34a813b7b1bbdf73ce7073",
+            "sha512": "44de7b2ec683701fc442f9087a331bf36886019bddab541b027d69526c0f5f704cd4fdc5563e657912629e51b2c2513cee9cd1f7c0e81a6b82852f42fcced90f",
+            "ssdeep": "768:Eh3qitxsLKP7GpnQ0ZnwF0yL9FGbrJ3puBc+5BrnyeN3H8RQNhPsYt/zoO29Ghh0:03qRLK2Q0SJWkBcCpYQNtsYt/6O",
+            "size": 88142
+        },
+        {
+            "at": 1605,
+            "pid": 1764,
+            "procid": 33,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "name": "files/0x0008000000017495-104.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "bbefbfbc378eaa310f5d5f0aea786355",
+            "sha1": "2b5872eee672277f149124d02164620f911c709a",
+            "sha256": "075c86cb04bac49de8a5dfc829ff96dbaba60ae34e0813b12a8febf93c4d2d72",
+            "sha512": "58d82a5e14d48d732f21afcf1c03ded5ddfd1275d880594df6f13a539735f1f31c62dec2ca2ef6f44ffd1ab0b2b09b55aff60100b8a6b9c2a9151d992cee16f3",
+            "ssdeep": "768:hvEZ4nf2HYKZX5bEAQVKKvxFMEsba29/FfqkxBUrbxFOEKmzjGiN8dPUBamLO0kT:hvyHH5pUVJ+baKMkxKTFLBamanT",
+            "size": 52278
+        },
+        {
+            "at": 1605,
+            "pid": 1764,
+            "procid": 33,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "name": "files/0x0008000000017495-103.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "e4c3ec064c26ed50b0c9855850d7b849",
+            "sha1": "8931a32a40d1f1ec3ef6c35b101dadf9b495520c",
+            "sha256": "ee2ee4d6d73bf50cbd8ea59094c1a77a8f5bcc361df0d5d2dd73135c88e4d1fb",
+            "sha512": "f03a4d830242da47bda5dcee7726449eeb3a45cd81df996bbf709e0c75b1a881de0553135255e6ae464f0d7ea94c6a462a033c1e8dd44eb33d62f16577805f69",
+            "ssdeep": "1536:hvyHH5pUVJ+baKMkxKTFLBaman4P43MH7JS:hq5kKNDAP4cHdS",
+            "size": 69040
+        },
+        {
+            "at": 1652,
+            "pid": 2444,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat144adc22f2e612dc.exe",
+            "name": "files/0x0015000000018644-109.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "5599de0fc2743c63b4a956f3a9cd6ec2",
+            "sha1": "a3cb8ab77293eb970205980d2c4a8d00403125ea",
+            "sha256": "b66853ea6c95c7b101a30cb06ea251c22f2e87a947aeb8a8cd22fa2f50585ba0",
+            "sha512": "16bb603e6b577f7b223f476da4b1485d7e5d05790817e523df75d709eacee0a49a99f022a30adc70874b61f60a00a54d85381bf12704d41a388b36083a4985d2",
+            "ssdeep": "1536:/KuLAh8KjlIKSb4Y7alcdijWlMdI2dR9VV5:/KWAh8tKSbr2cdijWlII2d9V5",
+            "size": 57311
+        },
+        {
+            "at": 1636,
+            "pid": 1052,
+            "procid": 34,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14cd569dce36.exe",
+            "name": "files/0x0005000000018770-108.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "27fa4882bf881448d055bfd965f0db36",
+            "sha1": "464cda8bf976e8c95f03848a1c2ace673931dbd5",
+            "sha256": "cddbd3fff31e04fcc95bbd44bad5c4913abdf3ec46df7d4fd6dd50db73af1ed0",
+            "sha512": "eb5b1983519cbc8bdab4031eda42296b7142b28ff41eb495ccb62920315895177724fb1f23804ce5c62c29ff0b34823254cf2a4df1440cb59dbed47d640b7856",
+            "ssdeep": "3072:sxV4QjgZ2U1S6d8a/sE7wFhP5l7CFWkeF:W5zpJ",
+            "size": 98652
+        },
+        {
+            "at": 1636,
+            "pid": 1876,
+            "procid": 40,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "name": "files/0x0008000000017495-107.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "13ef6d3d29fec9bf10ee45b2ac477167",
+            "sha1": "4ab0ec34d613b0f74eec8525233da47eabc63ea8",
+            "sha256": "064f7ae7bc566faa048574198fdad725c20717de59454d7a61ebde74fad3d025",
+            "sha512": "0ee3519fa1705a5a331d535de07a0c3b789b869698c9e49428010d3c097177d88cab148813bf9a316917f62274da6e3b0577280f63ecedf3fc3b6099263f0212",
+            "ssdeep": "1536:hvyHH5pUVJ+baKMkxKTFLBaman4P43MH7JwveOy7cvsP+tW:hq5kKNDAP4cHdwvecEP+tW",
+            "size": 85666
+        },
+        {
+            "at": 1636,
+            "pid": 1876,
+            "procid": 40,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "name": "files/0x0008000000017495-106.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "340bdaf209e8be36394e052aa5577fdc",
+            "sha1": "32c9c464072ba07518200db400988cd39f200e9e",
+            "sha256": "5e3992b91a1acb649a82ce99f149dd4461e2d7a0c4f3d7ed9c14855cd3f6b913",
+            "sha512": "eb86a750304801a2cc58da50b5ad08386653b4690dea345746f64ae3ba54be4dc4ac34a0cefbb9a6611babd93e8b508c60975724b88fd83f83ea272c7972d42e",
+            "ssdeep": "1536:hvyHH5pUVJ+baKMkxKTFLBaman4P43MH7JwveOy7cvsP+1:hq5kKNDAP4cHdwvecEP+1",
+            "size": 83048
+        },
+        {
+            "at": 1636,
+            "pid": 1876,
+            "procid": 40,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1439757f36bcd2d5.exe",
+            "name": "files/0x0008000000017495-105.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "f0ce9e5cb9c735316792a39ed95919e4",
+            "sha1": "76a36fb19f392b8658376b349d18c07aeeaabe15",
+            "sha256": "6546eb4211d6eb38c77ac04f90553ebdde431a7785528269255d428a50112ec8",
+            "sha512": "f7341bdf5a03dcfecc8ca1e8d8071dc0b69871ca8696da48a967b7ab4916111edff8ca064f3806cf521a71ffad222f519323e34c9f2e82eb684b6efe3668c68a",
+            "ssdeep": "1536:hvyHH5pUVJ+baKMkxKTFLBaman4P43MH7JwveOy7cvsP+tn:hq5kKNDAP4cHdwvecEP+tn",
+            "size": 84902
+        },
+        {
+            "at": 1542,
+            "pid": 2912,
+            "procid": 38,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14546eea434751d.exe",
+            "name": "files/0x0005000000018664-102.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "235a69cd7515a4012a7e75afd6818446",
+            "sha1": "4f27ec22f1705cc0fb4f641c0b3863fc0487df8b",
+            "sha256": "ba1bc277ca9288ffdd4f457e61ee65308f37227a80660df721db1722f6c32a9b",
+            "sha512": "a547299424f3d7d7ed10d2e4324ae2ef7593f59e2c9a62e58abd311815f93d32f71497af8ca29ff9dd5aa0228bd0fa5508486b9e619dffd5097cdbe1a4a696e4",
+            "ssdeep": "3072:QVkzRzJacO97KCDHfHZVorCjxXTRuLjSPM:3lzwb9GCDHx2Wj",
+            "size": 134001
+        },
+        {
+            "at": 1527,
+            "pid": 1944,
+            "name": "memory/1944-101-0x0000000000400000-0x000000000046D000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 4194304,
+            "length": 446464
+        },
+        {
+            "at": 1823,
+            "pid": 2024,
+            "procid": 41,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat144adc22f2e612dc.exe",
+            "name": "files/0x0015000000018644-113.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "29c06da85e41bddf63eedbc0c277d0ec",
+            "sha1": "a17591ccb0c221ddea879719fe3fce0edf197719",
+            "sha256": "00d770fade1e353f094b0b738f789fa4a719f5969d0869f969ec9cf647b4864e",
+            "sha512": "c9a1aca357b3fbc466d15ac2cd108a022141bf532690cc6d1f2caef65a66179ea5e660391c89b5d7a0778db80bb32ea8cdafe396ec15343f5f1bece7b1353b37",
+            "ssdeep": "768:GuK5ILAZzLQ89jHmYwo01MSb4ALYWalcihoiCtsWC:/KuLAh8KjlIKSb4Y7alcdijWC",
+            "size": 40928
+        },
+        {
+            "at": 1823,
+            "pid": 2024,
+            "procid": 41,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat144adc22f2e612dc.exe",
+            "name": "files/0x0015000000018644-112.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "c73fdbb9f8f0a9d33fccde35fd1f70cd",
+            "sha1": "0f6eb13c94dc4cc5e9a46daeb7b76bc079c9d704",
+            "sha256": "6d7ddc563dcc5269e530c9306e585409678efeb69c1530cf7e22cba396180d5a",
+            "sha512": "0a447ddc7e311f29e26e355635ba3f67397fe3662ca96cc348f1bb4e6696b489f4e46ab843d5093ce2e72119a2503c738c8194658589715a298d380925a41dfb",
+            "ssdeep": "1536:/KuLAh8KjlIKSb4Y7alcdijWlMdI2dR9VVi42+8Xtq:/KWAh8tKSbr2cdijWlII2d9Vi42X4",
+            "size": 65536
+        },
+        {
+            "at": 1823,
+            "pid": 2204,
+            "procid": 39,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14cd569dce36.exe",
+            "name": "files/0x0005000000018770-110.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "901e7f3f00e9146d933fa7b173f259fb",
+            "sha1": "c1fbcdc18e531fb11973d196fd8e5fdfe2969eb3",
+            "sha256": "ee2be2b785550a9807d2da0157fe95365fbc4c0672fb43faaff8852f3702364f",
+            "sha512": "4cdd7b67f4484344b9e7ff248561bf58140a9db47dbb542671c237bdac527e20d6a687e2f3e2f16eefbf59d055131ce5e3d5553d6613155f7339bec848feb298",
+            "ssdeep": "1536:sxQ9QN4HAFjcxJNLv6066/p989wLiU1cIpM6d8a/i:sxV4QjgZ2U1S6d8a/i",
+            "size": 54960
+        },
+        {
+            "at": 1823,
+            "pid": 2024,
+            "procid": 41,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat144adc22f2e612dc.exe",
+            "name": "files/0x0015000000018644-111.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "b7921c08f8d8f320665b6813d5006a23",
+            "sha1": "a073c119e3de61b29d9b4bee124e90cf2c20cda6",
+            "sha256": "431af4d0c50c99bfc8ecd9f90f1c854eacf5e918a44c50353c09d44fa12a1386",
+            "sha512": "88d5f39c98c8ca73f129fafd060cc9530c5b11b3259f2c9d2c2c67493df3b786a63696a8607910139d5d528f21a95e1cc1e1f64c26376396ac8c191801f26f69",
+            "ssdeep": "768:GuK5ILAZzLQ89jHmYwo01MSb4ALYWalcihoiCtsW4Ga1MOSizV:/KuLAh8KjlIKSb4Y7alcdijWlMd5",
+            "size": 45912
+        },
+        {
+            "at": 1527,
+            "pid": 1944,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14ea52090698.exe",
+            "name": "files/0x0006000000018c02-99.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "c4707870b0035fdb80806c9298b2fa6c",
+            "sha1": "4ced9f6dba561f34e9168c7d43e063ec20124969",
+            "sha256": "c871c1cd0316de6f3a8fb4aef12fca9fbad988a85996c1f3301cf74c280fedea",
+            "sha512": "c5b43e164f0e518191d197fd30f9103bc62d503c5b6a8abe57d6a06b390d22d1b226080f1186ba9cd627ec9e7d5cf9167a27f43458dc21a0fd07856a50a68ae3",
+            "ssdeep": "768:Eh3qitxsLKP7GpnQ0ZnwF0yL9FGbrJ3puBc+5BrnyeN3H8RQNhPsYt/zoO29GhhD:03qRLK2Q0SJWkBcCpYQNtsYt/6O",
+            "size": 92285
+        },
+        {
+            "at": 1527,
+            "pid": 1944,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14ea52090698.exe",
+            "name": "files/0x0006000000018c02-98.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "1d1fe3a53ba3110507b9025cbe9e1d58",
+            "sha1": "7ee2de09112826938a46d78c7b97240b20fe3515",
+            "sha256": "230a1fc9efa17f2c4e453f0ca55d9a2f2fa85646a5410156272dd804fe667e92",
+            "sha512": "8ce6eb69842245f5836fba5f772d7b1f48df0767c62a4521e9125cf456fbdaf980c57eaa77b4912aa42c0e916ac5a749d51da43783add2fe697c9529a8621330",
+            "ssdeep": "768:Eh3qitxsLKP7GpnQ0ZnwF0yL9FGbrJ3puBc+5BrnyeN3H8RQNhPsYt/zoO29Ghht:03qRLK2Q0SJWkBcCpYQNtsYt/6OAkX",
+            "size": 112713
+        },
+        {
+            "at": 1527,
+            "pid": 1944,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14ea52090698.exe",
+            "name": "files/0x0006000000018c02-97.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "bfada45be0bc3ecadcac8d0d5f12713c",
+            "sha1": "4a7551522f079f72f601e732e5c42549e58a7b35",
+            "sha256": "7706948eda90c0d9eba4e1f8f1feb8aa5841847053c366ba694025299f2a1f4f",
+            "sha512": "a04ede67aa68f7ea3c6f705ecdbce9401c16239f848e6f0703ad510754425d0d97d8d4b361c7b33e5ba2f022b6602c84a8db8bf2bef5e4e1b7c909d14d788eb3",
+            "ssdeep": "768:Eh3qitxsLKP7GpnQ0ZnwF0yL9FGbrJ3puBc+5BrnyeN3H8RQNhPsYt/zoO29Ghht:03qRLK2Q0SJWkBcCpYQNtsYt/6OAkX",
+            "size": 138519
+        },
+        {
+            "at": 1527,
+            "pid": 1048,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14546eea434751d.exe",
+            "name": "files/0x0005000000018664-96.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "6d24f66614d1145ef379850e75aa684f",
+            "sha1": "876c5cb7b9feaacdc9db85a972aca9558accf4b4",
+            "sha256": "772a663558f5a2b1c854a4ac4200352b44d40442e5d0f729ed9cef05073f75d2",
+            "sha512": "fd3ff6a1be8f461bcd20b776808ea025878412e35631c4408930524a9682934f3759ac17c98804965ac9ea1c920460b700f5293aa48bf969c5996976ff21baf4",
+            "ssdeep": "1536:QzBkXWENdrc8nlJTFa1eCWo8dO7KCDHLr/EIZVorPj6HRjpMoC:QVkzRzJacO97KCDHfHZVorCj",
+            "size": 84867
+        },
+        {
+            "at": 1527,
+            "pid": 2792,
+            "procid": 35,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1400e35015ff26dd.exe",
+            "name": "files/0x0009000000016d87-92.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "e946a35a79e21fe4a89a047b344629f4",
+            "sha1": "2c1a5ec7d13a4f10d911c6c741a3d7bf4e509353",
+            "sha256": "44dff245973f7552df5379322778ad7260f8c42ff545f19f992de466a8fbd21a",
+            "sha512": "a5cba221856dfd262b9329a3d64f3bf177b14f5ad2845182bd044c5e2e423cb4038a5ef231a7e966adcb084553e773cc7b3bb3410f69f86a07582c705c4f07f6",
+            "ssdeep": "1536:+9iV1baOiWHDZkImmG+Z9zbz9jMSOb8CysJEfle5z98BY/4tbyu:+ilnFRCz8C7JEfle5z92Ywtp",
+            "size": 113754
+        },
+        {
+            "at": 1527,
+            "pid": 2792,
+            "procid": 35,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1400e35015ff26dd.exe",
+            "name": "files/0x0009000000016d87-91.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "b8c104904f9c3514822180e6a916bbcc",
+            "sha1": "6cd44b96aebdf296a35f460b86adab0372b5c1c3",
+            "sha256": "a7c402706616f9e7f7a82a24882b960faa66689ca7da5574700dfae1d98cb55a",
+            "sha512": "872260ec7547133215a8637e5dcd5afd980fcf64b3fe01c7abc91bfc771719b3d4426a9e9ebf45b7cb87991657054056c723ffbf9252d2f639ce89221701571d",
+            "ssdeep": "1536:+9iV1baOiWHDZkImmG+Z9zbz9jMSOb8CysJEfle5z98BY/4tby9:+ilnFRCz8C7JEfle5z92Ywti",
+            "size": 116624
+        },
+        {
+            "at": 1527,
+            "pid": 2792,
+            "procid": 35,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat1400e35015ff26dd.exe",
+            "name": "files/0x0009000000016d87-89.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "9e218048caa5ae1acef1e4351a1388df",
+            "sha1": "3b473682678625d19d2e09a64b4f47e4904ce86c",
+            "sha256": "37423d02b59e07b4f75bd557d1ca9ae5e80bed86924be92df2c7ff9f70f96d10",
+            "sha512": "7dde42db0bb8741d2d0c3c0ad3bc0d9ce251955511cfb9eeee9fb2e45201443f90997f31b9def2a634b8f3a847cd9cf2b9087cc164fd29cd972da199b134e5c8",
+            "ssdeep": "768:0psPf8iie13jv4EgyDiKIaH5FFu+Dtt7mWjkImDSG+Z9LcWWsgG9z:+9iV1baOiWHDZkImmG+Z9zbz9z",
+            "size": 48344
+        },
+        {
+            "at": 2042,
+            "pid": 2912,
+            "procid": 38,
+            "name": "memory/2912-115-0x0000000001240000-0x000000000126C000-memory.dmp",
+            "kind": "region",
+            "origin": "dotnet64",
+            "addr": 19136512,
+            "length": 180224
+        },
+        {
+            "at": 1262,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\Sat14af44d511d3.exe",
+            "name": "files/0x0005000000018665-78.dat",
+            "kind": "martian",
+            "origin": "martian",
+            "md5": "d1205b2c819cf05cfe2143303c1d1208",
+            "sha1": "87a64e92d02ab00b12933ef511f742d8bcf7bcd8",
+            "sha256": "d297fe5b8a2e63c9b059cd427de5bc7f2834576aaf49bf15962bb1d1b61ea66d",
+            "sha512": "44304e1beccd017ff2f609b7369db997b2bc9c372d7fab62f7599b806ea2787c2162926987bc04d806bff9de4dfb290d5414ae9e6ad11b625845f95391e8cc3a",
+            "ssdeep": "1536:PZItpJb1AjhnhXkMUBG02r+GwDe7nUZKvm3O307ZJF7izObY3VtqRsWEcdy/:qH50hX4B1I+Fe7UovWk07XFBbyzqRy/",
+            "size": 82792
+        },
+        {
+            "at": 1230,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-77-0x000000006B280000-0x000000006B2A6000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1797783552,
+            "length": 155648
+        },
+        {
+            "at": 1215,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-76-0x000000006B280000-0x000000006B2A6000-memory.dmp",
+            "kind": "region",
+            "origin": "protect",
+            "addr": 1797783552,
+            "length": 155648
+        },
+        {
+            "at": 1215,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-75-0x000000006B280000-0x000000006B2A6000-memory.dmp",
+            "kind": "region",
+            "origin": "protect",
+            "addr": 1797783552,
+            "length": 155648
+        },
+        {
+            "at": 1215,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-74-0x000000006FE40000-0x000000006FFC6000-memory.dmp",
+            "kind": "region",
+            "origin": "protect",
+            "addr": 1877213184,
+            "length": 1597440
+        },
+        {
+            "at": 1215,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-73-0x000000006FE40000-0x000000006FFC6000-memory.dmp",
+            "kind": "region",
+            "origin": "protect",
+            "addr": 1877213184,
+            "length": 1597440
+        },
+        {
+            "at": 1184,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-72-0x000000006FE40000-0x000000006FFC6000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1877213184,
+            "length": 1597440
+        },
+        {
+            "at": 716,
+            "pid": 2356,
+            "procid": 29,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\libwinpthread-1.dll",
+            "name": "files/0x0007000000016d2a-49.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "1e0d62c34ff2e649ebc5c372065732ee",
+            "sha1": "fcfaa36ba456159b26140a43e80fbd7e9d9af2de",
+            "sha256": "509cb1d1443b623a02562ac760bced540e327c65157ffa938a22f75e38155723",
+            "sha512": "3653f8ed8ad3476632f731a3e76c6aae97898e4bf14f70007c93e53bc443906835be29f861c4a123db5b11e0f3dd5013b2b3833469a062060825df9ee708dc61",
+            "ssdeep": "1536:xPCESXKWzkxTz8uLfdkWr2sUX8YNKykl1wwwwUXrMZE4cYdz:x6baWwxH8EzSHYZE4cYdz",
+            "size": 70656
+        },
+        {
+            "at": 700,
+            "pid": 2356,
+            "procid": 29,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-47.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "3f778ae7f8d5b39b02029292fac12504",
+            "sha1": "d78c44868ecfac25d375fd7f9f91ef00283a78b0",
+            "sha256": "01a4aa4f93b0ce775209b0c11404bde8b3458c763e7a66dc4122e34e5b550e45",
+            "sha512": "34c4bc3285fc85d2b4b2dec4c3cf902c9fcd6bd6d52bfeec883cb454956732f56adca2af6bd11936ee647a5e3019b78f69cb03676d18e4fce54910e68b3ea32a",
+            "ssdeep": "12288:OVI63S7a1wU+delv+HYpYT+VIpKBBOmpFbmzimbdPGuoxPo:Hslv+HYpYyqpKBBPbOiKPG/o",
+            "size": 622616
+        },
+        {
+            "at": 4054,
+            "pid": 2792,
+            "procid": 35,
+            "name": "memory/2792-119-0x0000000000250000-0x0000000000259000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 2424832,
+            "length": 36864
+        },
+        {
+            "at": 4179,
+            "pid": 1540,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-123.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sha512": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+        },
+        {
+            "at": 4179,
+            "pid": 1540,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-122.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "2c56d89469312b4c55ed857d79d8a33c",
+            "sha1": "3426a39a10526706c5a5a6670cdf8690d58694f4",
+            "sha256": "d9043f4bc356a6d107862f60c5e79309492abf122383509f8ab2de5ee096cae8",
+            "sha512": "bc8534a58246638fe1f88a37529217a74d510af29b95f46031d9af4670bbd517746eca716e259b66284014bf6b5bda31f48b6296549ffec54ce6bb7a5aa5ea36",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdkFoHYpYpWH606FKz:KXVI63S7a1wUuld2ZtHL+Ev+HYpYk",
+            "size": 155030
+        },
+        {
+            "at": 4179,
+            "pid": 1540,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-121.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "b390aeb75b4dd08a1681390b9fa0cbea",
+            "sha1": "44caf62b835da43426a8231b10135ab0c2db4956",
+            "sha256": "b28ffe33eb794644d342182750f523d2695b01dd9e1ba762338028be05fb564f",
+            "sha512": "a9f3e1e4b5b0d0a9e006ad3e19a73eee5c6c3835dc739b1fe2a73f77f86da7a658a9e86593dac2686e0edcfeb9406f8e7c98af381c0ae9b1e3d3f3a59d806103",
+            "ssdeep": "3072:KXt/I63S7a1wUof7aVa66d2Z90OtH36yDK30QdkFg:KXVI63S7a1wUuld2ZtHL+Evm",
+            "size": 114016
+        },
+        {
+            "at": 4179,
+            "pid": 2912,
+            "procid": 38,
+            "name": "memory/2912-120-0x00000000004C0000-0x00000000004E0000-memory.dmp",
+            "kind": "region",
+            "origin": "dotnet64",
+            "addr": 4980736,
+            "length": 131072
+        },
+        {
+            "at": 4241,
+            "pid": 2792,
+            "procid": 35,
+            "name": "memory/2792-124-0x0000000000400000-0x0000000001D70000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 4194304,
+            "length": 26673152
+        },
+        {
+            "at": 3976,
+            "pid": 2912,
+            "procid": 38,
+            "name": "memory/2912-118-0x000007FEF51A0000-0x000007FEF5B8C000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 8791615209472,
+            "length": 10403840
+        },
+        {
+            "at": 7736,
+            "pid": 2788,
+            "procid": 36,
+            "name": "memory/2788-126-0x0000000073360000-0x000000007390B000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 1932918784,
+            "length": 5943296
+        },
+        {
+            "at": 7642,
+            "pid": 1220,
+            "procid": 6,
+            "name": "memory/1220-125-0x0000000002550000-0x0000000002565000-memory.dmp",
+            "kind": "region",
+            "origin": "thread_injection",
+            "addr": 39124992,
+            "length": 86016
+        },
+        {
+            "at": 7954,
+            "pid": 2912,
+            "procid": 38,
+            "name": "memory/2912-131-0x000000001ADF0000-0x000000001AE70000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 450822144,
+            "length": 524288
+        },
+        {
+            "at": 7907,
+            "pid": 2792,
+            "procid": 35,
+            "name": "memory/2792-129-0x0000000001E30000-0x0000000001F30000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 31653888,
+            "length": 1048576
+        },
+        {
+            "at": 7907,
+            "pid": 2792,
+            "procid": 35,
+            "name": "memory/2792-127-0x0000000000400000-0x0000000001D70000-memory.dmp",
+            "kind": "region",
+            "origin": "pe_modified",
+            "addr": 4194304,
+            "length": 26673152
+        },
+        {
+            "at": 9155,
+            "pid": 1540,
+            "procid": 47,
+            "path": "\\Users\\Admin\\AppData\\Local\\Temp\\7zS87BE6206\\setup_install.exe",
+            "name": "files/0x0006000000018c12-132.dat",
+            "kind": "martian",
+            "origin": "imgload",
+            "md5": "189830df7797968c7130dcf888b69f4b",
+            "sha1": "8e2e776e3d2b832553d47355c750598c00f484c9",
+            "sha256": "ec36d74938e9ac04958e57cc22b05a0f7f7f0b6c7d89c128dd56551697cb7171",
+            "sha512": "7b637aba20135113b3eb7e5cdffcd5731d94ac0c55515f0d097f68943ce60c9ce18ff98c8ed6fa6c3729c8700a2809d2fffb60312c900b71c4fc48aa58ed6670",
+            "ssdeep": "6144:KXVI63S7a1wUuld2ZtHL+Ev+HYpYT+VweipKlTj0Ed:OVI63S7a1wU+delv+HYpYT+VIpKT",
+            "size": 245052
+        },
+        {
+            "at": 15068,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-133-0x0000000000400000-0x000000000051B000-memory.dmp",
+            "kind": "region",
+            "origin": "import_modified",
+            "addr": 4194304,
+            "length": 1159168
+        },
+        {
+            "at": 15114,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-134-0x0000000064940000-0x0000000064959000-memory.dmp",
+            "kind": "region",
+            "origin": "import_modified",
+            "addr": 1687420928,
+            "length": 102400
+        },
+        {
+            "at": 15192,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-135-0x000000006B280000-0x000000006B2A6000-memory.dmp",
+            "kind": "region",
+            "origin": "pe_modified",
+            "addr": 1797783552,
+            "length": 155648
+        },
+        {
+            "at": 15286,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-136-0x000000006B440000-0x000000006B4CF000-memory.dmp",
+            "kind": "region",
+            "origin": "pe_modified",
+            "addr": 1799618560,
+            "length": 585728
+        },
+        {
+            "at": 15380,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-137-0x000000006EB40000-0x000000006EB63000-memory.dmp",
+            "kind": "region",
+            "origin": "import_modified",
+            "addr": 1857290240,
+            "length": 143360
+        },
+        {
+            "at": 15473,
+            "pid": 2356,
+            "procid": 29,
+            "name": "memory/2356-138-0x000000006FE40000-0x000000006FFC6000-memory.dmp",
+            "kind": "region",
+            "origin": "pe_modified",
+            "addr": 1877213184,
+            "length": 1597440
+        },
+        {
+            "at": 28437,
+            "pid": 2912,
+            "procid": 38,
+            "name": "memory/2912-150-0x000007FEF51A0000-0x000007FEF5B8C000-memory.dmp",
+            "kind": "region",
+            "origin": "exception",
+            "addr": 8791615209472,
+            "length": 10403840
+        }
+    ],
+    "extracted": [
+        {
+            "dumped_file": "files/0x0006000000018c12-38.dat",
+            "resource": "behavioral1/files/0x0006000000018c12-38.dat",
+            "config": {
+                "family": "nullmixer",
+                "rule": "NullMixer",
+                "c2": [
+                    "http://sornx.xyz/"
+                ]
+            }
+        },
+        {
+            "dumped_file": "files/0x0015000000018644-83.dat",
+            "resource": "behavioral1/files/0x0015000000018644-83.dat",
+            "config": {
+                "family": "privateloader",
+                "tags": [
+                    "loader"
+                ],
+                "rule": "PrivateLoader",
+                "c2": [
+                    "http://37.0.10.214/proxies.txt",
+                    "http://37.0.10.244/server.txt",
+                    "http://wfsdragon.ru/api/setStats.php",
+                    "37.0.10.237"
+                ]
+            }
+        },
+        {
+            "dumped_file": "memory/2792-119-0x0000000000250000-0x0000000000259000-memory.dmp",
+            "resource": "behavioral1/memory/2792-119-0x0000000000250000-0x0000000000259000-memory.dmp",
+            "config": {
+                "family": "smokeloader",
+                "rule": "SmokeloaderSecondStage"
+            }
+        },
+        {
+            "dumped_file": "memory/1220-125-0x0000000002550000-0x0000000002565000-memory.dmp",
+            "resource": "behavioral1/memory/1220-125-0x0000000002550000-0x0000000002565000-memory.dmp",
+            "config": {
+                "family": "smokeloader",
+                "rule": "Smokeloader2018",
+                "c2": [
+                    "http://varmisende.com/upload/",
+                    "http://fernandomayol.com/upload/",
+                    "http://nextlytm.com/upload/",
+                    "http://people4jan.com/upload/",
+                    "http://asfaltwerk.com/upload/"
+                ],
+                "version": "2020",
+                "keys": [
+                    {
+                        "kind": "rc4.i32",
+                        "key": "req_key",
+                        "value": "0x3b22e540"
+                    },
+                    {
+                        "kind": "rc4.i32",
+                        "key": "http_key",
+                        "value": "0xa6b397e0"
+                    }
+                ]
+            }
+        }
+    ]
+}

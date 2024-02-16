@@ -1,0 +1,26 @@
+{
+    "id": "240202-3y8f7sefen",
+    "status": "reported",
+    "kind": "file",
+    "filename": "8adc5d57a26fc6ad44338a47a1a45dcb",
+    "private": false,
+    "tasks": [
+        {
+            "id": "static1",
+            "status": "reported"
+        },
+        {
+            "id": "behavioral1",
+            "status": "reported",
+            "target": "8adc5d57a26fc6ad44338a47a1a45dcb.exe"
+        },
+        {
+            "id": "behavioral2",
+            "status": "reported",
+            "target": "8adc5d57a26fc6ad44338a47a1a45dcb.exe"
+        }
+    ],
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:13Z",
+    "sha256": "7d50e22081955b574b989561277ce0e835117e716817736373ac8799774b6f03"
+}
