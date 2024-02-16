@@ -1,6 +1,7 @@
 Dockerfile
 .idea
 .git
+.github
 
 pipelines
 venv
