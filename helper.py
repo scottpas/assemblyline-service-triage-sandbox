@@ -184,7 +184,7 @@ class DynamicReport:
     analysis: dict
     signatures: List[dict]
     network: dict
-    processes: Optional[List[dict]] = []
+    processes: Optional[List[dict]] = None
     extracted: Optional[List[dict]] = None
     tags: Optional[List[dict]] = None
     dumped: Optional[List[dict]] = None
