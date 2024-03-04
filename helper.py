@@ -320,7 +320,8 @@ class DynamicReport:
                 families = [i.split(":")[-1].upper() for i in sig.get("tags", []) if i.startswith("family:")]
                 if sig.get("ttp", None):
                     for i in sig["ttp"]:
-                        attacks.append(attack_map[i])
+                        if attack_map.get(i, False):
+                            attacks.append(attack_map[i])
                 object_id = self.ontology.create_objectid(
                     ontology_id=oid,
                     tag=tag,
