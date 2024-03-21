@@ -272,7 +272,7 @@ class TriageSandbox(ServiceBase):
                             try:
                                 file = self.client._req_file(
                                     method="GET",
-                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/files/{i['name']}"
+                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/{i['name']}"
                                 )
                                 fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
                                 with os.fdopen(fd, "wb") as f:
