@@ -424,13 +424,13 @@ class Sample:
     id: str
     status: str
     kind: str
-    private: bool
     tasks: List[dict]
     submitted: str
     sha256: Optional[str] = None
     filename: Optional[str] = None
     completed: Optional[str] = None
     url: Optional[str] = None
+    private: Optional[bool] = None
 
     def get_task_reports(self, client: TriageClient, ontology: OntologyResults):
         self.task_reports = []
