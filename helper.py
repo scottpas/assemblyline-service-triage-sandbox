@@ -411,9 +411,12 @@ class DynamicReport:
             self.analysis["reported"].replace("Z", ""))
         self.session = f'{self.sample["id"]}/{self.task_id}'
         self.__add_sandbox()
-        self.__add_processes()
-        self.__add_network()
-        self.__add_signatures()
+        if self.processes:
+            self.__add_processes()
+        if self.network:
+            self.__add_network()
+        if self.signatures:
+            self.__add_signatures()
         self.malware_config = []
         if self.extracted:
             self.__add_extracted()
