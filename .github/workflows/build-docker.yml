@@ -10,7 +10,7 @@ jobs:
   test:
     uses: ./.github/workflows/python-tests.yml
   docker:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs:
       - test
     if: ${{ always() && !cancelled() && needs.test.result == 'success' }}
