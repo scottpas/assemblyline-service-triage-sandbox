@@ -41,6 +41,9 @@ EXTRA_CONFIG_FIELDS = [
     "attr"
 ]
 
+# There is currently no way to get classification of signatures from Triage
+DEFAULT_SIGNATURE_CLASSIFICATION = "TLP:CLEAR"
+
 
 @dataclass
 class Credentials:
@@ -333,7 +336,8 @@ class DynamicReport:
                     type="CUCKOO",
                     score=score,
                     attacks=attacks,
-                    malware_families=families
+                    malware_families=families,
+                    classification=DEFAULT_SIGNATURE_CLASSIFICATION
                 )
                 if not any(sig.__getattribute__("objectid").tag == tag for sig in self.ontology.get_signatures()):
                     self.ontology.add_signature(al_sig)
@@ -384,7 +388,8 @@ class DynamicReport:
                             name=name,
                             type="CUCKOO",
                             score=score,
-                            malware_families=families
+                            malware_families=families,
+                            classification=DEFAULT_SIGNATURE_CLASSIFICATION
                         )
                     if i.get("resource", False):
                         try:
