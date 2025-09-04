@@ -24,7 +24,7 @@ config:
   # root_url: https://private.tria.ge/api
 
   # Add your API key here
-  # api_key: null
+  api_key: ""
 
   allow_dynamic_submit: true # Set to false if you don't want to submit files.
 
