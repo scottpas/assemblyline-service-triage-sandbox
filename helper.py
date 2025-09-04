@@ -444,12 +444,24 @@ class Sample:
         self.task_reports = []
         for task in self.tasks:
             if task['id'].startswith("behavioral") and task['status'] != "failed":
+                # Get the API response
+                api_response = client._req_json(
+                    method="GET",
+                    path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json"
+                )
+                
+                # Filter out any fields that DynamicReport doesn't expect
+                # Keep only the fields that are defined in the DynamicReport class
+                expected_fields = {
+                    'version', 'sample', 'task', 'analysis', 'signatures', 
+                    'network', 'processes', 'extracted', 'tags', 'dumped', 'errors'
+                }
+                filtered_response = {k: v for k, v in api_response.items() if k in expected_fields}
+                
                 self.task_reports.append(DynamicReport(
                     task_id=task['id'],
-                    ontology=ontology, **client._req_json(
-                        method="GET",
-                        path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json"
-                    )
+                    ontology=ontology, 
+                    **filtered_response
                 )
                 )
         pass
