@@ -10,15 +10,15 @@ jobs:
   test:
     uses: ./.github/workflows/python-tests.yml
   docker:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs:
       - test
     if: ${{ always() && !cancelled() && needs.test.result == 'success' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
