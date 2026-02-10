@@ -31,7 +31,7 @@ jobs:
       run: |
         # Setup dependencies
         sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common libffi7 libfuzzy2 libmagic1 libldap-common libsasl2-2 build-essential libffi-dev libfuzzy-dev libldap2-dev libsasl2-dev libssl-dev
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common libmagic1 build-essential libffi-dev libfuzzy-dev libldap2-dev libsasl2-dev libssl-dev
         pip install flake8 pytest requests-mock
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
