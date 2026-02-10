@@ -24,16 +24,30 @@ jobs:
       uses: actions/setup-python@v6.2.0
       with:
         python-version: "3.12"
-    - name: Pin setuptools
+    - name: Create pip constraints
       run: |
-        python -m pip install "setuptools<82"
+        cat > constraints.txt <<'EOF'
+        setuptools<82
+        EOF
+
     - name: Install dependencies
+      env:
+        PIP_CONSTRAINT: constraints.txt
       run: |
-        # Setup dependencies
         sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common libmagic1 build-essential libffi-dev libfuzzy-dev libldap2-dev libsasl2-dev libssl-dev
-        pip install flake8 pytest requests-mock
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          software-properties-common \
+          libmagic1 \
+          build-essential \
+          libffi-dev \
+          libfuzzy-dev \
+          libldap2-dev \
+          libsasl2-dev \
+          libssl-dev
+
+        python -m pip install --upgrade pip wheel
+        python -m pip install flake8 pytest requests-mock
+        if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
