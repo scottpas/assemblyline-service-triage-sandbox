@@ -236,7 +236,12 @@ class DynamicReport:
         for header in headers or []:
             if ":" in header:
                 key, value = header.split(":", 1)
-                values[key.strip()] = value.strip()
+                key = key.strip()
+                value = value.strip()
+                if key in values:
+                    values[key] = f"{values[key]}, {value}"
+                else:
+                    values[key] = value
         return values
 
     @staticmethod

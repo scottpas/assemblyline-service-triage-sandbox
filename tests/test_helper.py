@@ -1,6 +1,6 @@
 import os
 
-from helper import TriageClient, TriageResult
+from helper import DynamicReport, TriageClient, TriageResult
 
 
 # Test TriageResult Class
@@ -41,3 +41,26 @@ def test_TriageResult(requests_mock):
         and i.get("http_details", {}).get("request_method")
         for i in network_connections
     )
+    assert any(
+        i.get("connection_type") == "http"
+        and i.get("http_details", {})
+        .get("response_headers", {})
+        .get("strict-transport-security")
+        == "max-age=604800, max-age=31536000"
+        for i in network_connections
+    )
+
+
+def test_headers_list_to_dict_merges_duplicate_headers():
+    merged = DynamicReport._DynamicReport__headers_list_to_dict(
+        [
+            "strict-transport-security: max-age=604800",
+            "content-type: text/html",
+            "strict-transport-security: max-age=31536000",
+            "malformed header entry",
+        ]
+    )
+
+    assert merged["strict-transport-security"] == "max-age=604800, max-age=31536000"
+    assert merged["content-type"] == "text/html"
+    assert "malformed header entry" not in merged
