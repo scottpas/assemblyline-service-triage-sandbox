@@ -23,4 +23,21 @@ def test_TriageResult(requests_mock):
                       text=behavioral2_data)
     client = TriageClient(token="TESTING")
     sample = client.sample_by_id("240202-3y8f7sefen")
-    TriageResult(client=client, sample=sample)
+    triage_result = TriageResult(client=client, sample=sample)
+
+    network_connections = []
+    for task in triage_result.sample.task_reports:
+        network_connections.extend([i.as_primitives() for i in task.ontology.get_network_connections()])
+
+    assert any(
+        i.get("connection_type") == "dns"
+        and i.get("dns_details", {}).get("domain")
+        and i.get("dns_details", {}).get("lookup_type")
+        for i in network_connections
+    )
+    assert any(
+        i.get("connection_type") == "http"
+        and i.get("http_details", {}).get("request_uri")
+        and i.get("http_details", {}).get("request_method")
+        for i in network_connections
+    )

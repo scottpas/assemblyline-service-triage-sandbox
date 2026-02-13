@@ -14,6 +14,8 @@ from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxM
 from assemblyline_service_utilities.common.dynamic_service_helper import (
     Attribute,
     NetworkConnection,
+    NetworkDNS,
+    NetworkHTTP,
     OntologyResults,
     Process,
     Sandbox,
@@ -228,6 +230,20 @@ class DynamicReport:
     def __relative_time_str(self, seconds: int) -> str:
         return (self.start_time + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S.%f")
 
+    @staticmethod
+    def __headers_list_to_dict(headers: Optional[List[str]]) -> dict:
+        values = {}
+        for header in headers or []:
+            if ":" in header:
+                key, value = header.split(":", 1)
+                values[key.strip()] = value.strip()
+        return values
+
+    @staticmethod
+    def __normalize_dns_lookup_type(lookup_type: str) -> str:
+        # Triage returns values like "IN A", while ontology expects just "A".
+        return lookup_type.split(" ")[-1].strip().upper()
+
     def __add_processes(self) -> None:
         self._id_pid_map = {}
         for process in self.processes:
@@ -260,6 +276,21 @@ class DynamicReport:
 
     def __add_network(self) -> None:
         if self.network:
+            network_requests = {}
+            for request in self.network.get("requests", []):
+                flow_id = request.get("flow", None)
+                if flow_id is None:
+                    continue
+                network_requests.setdefault(flow_id, {})
+                if request.get("http_request", None):
+                    network_requests[flow_id]["http_request"] = request["http_request"]
+                if request.get("http_response", None):
+                    network_requests[flow_id]["http_response"] = request["http_response"]
+                if request.get("dns_request", None):
+                    network_requests[flow_id]["dns_request"] = request["dns_request"]
+                if request.get("dns_response", None):
+                    network_requests[flow_id]["dns_response"] = request["dns_response"]
+
             self.flow_dict = {}
             for f in self.network.get("flows", []):
                 self.flow_dict[f['id']] = {
@@ -277,11 +308,50 @@ class DynamicReport:
                 }
                 if f.get("pid", False):
                     pass
-                # TODO: #1 add connection details
-                # if any(proto.startswith("http") for proto in f["protocols"]):
-                #     self.flow_dict[f["id"]]["connection_type"] = "http"
-                # elif any(proto == "dns" for proto in f["protocols"]):
-                #     self.flow_dict[f["id"]]["connection_type"] = "dns"
+
+                flow_id = f["id"]
+                flow_request = network_requests.get(flow_id, {})
+                protocols = f.get("protocols", [])
+                if flow_request.get("http_request", None) or any(proto.startswith("http") for proto in protocols):
+                    self.flow_dict[flow_id]["connection_type"] = "http"
+                    http_request = flow_request.get("http_request", {})
+                    http_response = flow_request.get("http_response", {})
+                    request_uri = http_request.get("url", None)
+                    request_method = http_request.get("method", None)
+                    if request_uri and request_method:
+                        http_details = {
+                            "request_uri": request_uri,
+                            "request_method": request_method.upper(),
+                            "request_headers": self.__headers_list_to_dict(http_request.get("headers", [])),
+                            "response_headers": self.__headers_list_to_dict(http_response.get("headers", [])),
+                        }
+                        if http_request.get("request", None):
+                            http_details["request_body"] = http_request["request"]
+                        if http_response.get("status", None):
+                            http_details["response_status_code"] = int(http_response["status"])
+                        if http_response.get("response", None):
+                            http_details["response_body"] = http_response["response"]
+                        self.flow_dict[flow_id]["http_details"] = http_details
+                elif flow_request.get("dns_request", None) or any(proto == "dns" for proto in protocols):
+                    self.flow_dict[flow_id]["connection_type"] = "dns"
+                    dns_request = flow_request.get("dns_request", {})
+                    dns_response = flow_request.get("dns_response", {})
+                    domain = (dns_request.get("domains", [None]) or [None])[0] or f.get("domain", None)
+                    questions = dns_request.get("questions", [])
+                    lookup_type = None
+                    if questions:
+                        lookup_type = self.__normalize_dns_lookup_type(questions[0].get("type", ""))
+                    if domain and lookup_type:
+                        dns_details = {
+                            "domain": domain,
+                            "lookup_type": lookup_type
+                        }
+                        if dns_response.get("ip", None):
+                            dns_details["resolved_ips"] = dns_response["ip"]
+                        if dns_response.get("domains", None):
+                            dns_details["resolved_domains"] = dns_response["domains"]
+                        self.flow_dict[flow_id]["dns_details"] = dns_details
+
                 if ip_address(self.flow_dict[f["id"]]["source_ip"]).is_private and ip_address(
                         self.flow_dict[f["id"]]["destination_ip"]).is_global:
                     self.flow_dict[f["id"]]["direction"] = "outbound"
@@ -298,10 +368,32 @@ class DynamicReport:
                     **v)
                 object_id.assign_guid()
                 v.pop("time_observed", None)
+                network_connection_args = v.copy()
+                dns_details = network_connection_args.get("dns_details")
+                if dns_details:
+                    network_connection_args["dns_details"] = NetworkDNS(
+                        domain=dns_details["domain"],
+                        resolved_ips=dns_details.get("resolved_ips"),
+                        resolved_domains=dns_details.get("resolved_domains"),
+                        lookup_type=dns_details["lookup_type"],
+                    )
+                http_details = network_connection_args.get("http_details")
+                if http_details:
+                    request_headers = http_details.get("request_headers") or None
+                    response_headers = http_details.get("response_headers") or None
+                    network_connection_args["http_details"] = NetworkHTTP(
+                        request_uri=http_details["request_uri"],
+                        request_method=http_details["request_method"],
+                        request_headers=request_headers,
+                        response_headers=response_headers,
+                        request_body=http_details.get("request_body"),
+                        response_status_code=http_details.get("response_status_code"),
+                        response_body=http_details.get("response_body"),
+                    )
                 self.ontology.add_network_connection(
                     NetworkConnection(
                         objectid=object_id,
-                        **v
+                        **network_connection_args
                     ))
 
     def __add_signatures(self) -> None:
