@@ -236,7 +236,7 @@ class DynamicReport:
         for header in headers or []:
             if ":" in header:
                 key, value = header.split(":", 1)
-                key = key.strip()
+                key = key.strip().lower()
                 value = value.strip()
                 if key in values:
                     values[key] = f"{values[key]}, {value}"
@@ -248,6 +248,25 @@ class DynamicReport:
     def __normalize_dns_lookup_type(lookup_type: str) -> str:
         # Triage returns values like "IN A", while ontology expects just "A".
         return lookup_type.split(" ")[-1].strip().upper()
+
+    @staticmethod
+    def __extract_resolved_domains_from_answers(answers: Optional[List[dict]]) -> List[str]:
+        resolved_domains = []
+        for answer in answers or []:
+            value = answer.get("value")
+            if not isinstance(value, str):
+                continue
+            value = value.strip()
+            if not value:
+                continue
+            try:
+                ip_address(value)
+                continue
+            except ValueError:
+                pass
+            if value not in resolved_domains:
+                resolved_domains.append(value)
+        return resolved_domains
 
     def __add_processes(self) -> None:
         self._id_pid_map = {}
@@ -286,19 +305,34 @@ class DynamicReport:
                 flow_id = request.get("flow", None)
                 if flow_id is None:
                     continue
-                network_requests.setdefault(flow_id, {})
+                flow_requests = network_requests.setdefault(flow_id, {"dns_events": [], "dns_events_by_index": {}})
                 if request.get("http_request", None):
-                    network_requests[flow_id]["http_request"] = request["http_request"]
+                    flow_requests["http_request"] = request["http_request"]
                 if request.get("http_response", None):
-                    network_requests[flow_id]["http_response"] = request["http_response"]
+                    flow_requests["http_response"] = request["http_response"]
                 if request.get("dns_request", None):
-                    network_requests[flow_id]["dns_request"] = request["dns_request"]
+                    flow_requests["dns_request"] = request["dns_request"]
                 if request.get("dns_response", None):
-                    network_requests[flow_id]["dns_response"] = request["dns_response"]
+                    flow_requests["dns_response"] = request["dns_response"]
+                if request.get("dns_request", None) or request.get("dns_response", None):
+                    request_index = request.get("index", None)
+                    if request_index is not None:
+                        dns_event = flow_requests["dns_events_by_index"].get(request_index, None)
+                        if dns_event is None:
+                            dns_event = {}
+                            flow_requests["dns_events_by_index"][request_index] = dns_event
+                            flow_requests["dns_events"].append(dns_event)
+                    else:
+                        dns_event = {}
+                        flow_requests["dns_events"].append(dns_event)
+                    if request.get("dns_request", None):
+                        dns_event["dns_request"] = request["dns_request"]
+                    if request.get("dns_response", None):
+                        dns_event["dns_response"] = request["dns_response"]
 
-            self.flow_dict = {}
+            flow_connection_payloads = []
             for f in self.network.get("flows", []):
-                self.flow_dict[f['id']] = {
+                base_flow = {
                     "destination_ip": f["dst"].split(":")[0],
                     "destination_port": int(f["dst"].split(":")[1]),
                     "transport_layer_protocol": f["proto"],
@@ -311,14 +345,14 @@ class DynamicReport:
                         else self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f")
                     ][0]
                 }
-                if f.get("pid", False):
-                    pass
 
                 flow_id = f["id"]
                 flow_request = network_requests.get(flow_id, {})
                 protocols = f.get("protocols", [])
+                flow_payloads = []
                 if flow_request.get("http_request", None) or any(proto.startswith("http") for proto in protocols):
-                    self.flow_dict[flow_id]["connection_type"] = "http"
+                    flow_payload = base_flow.copy()
+                    flow_payload["connection_type"] = "http"
                     http_request = flow_request.get("http_request", {})
                     http_response = flow_request.get("http_response", {})
                     request_uri = http_request.get("url", None)
@@ -336,34 +370,71 @@ class DynamicReport:
                             http_details["response_status_code"] = int(http_response["status"])
                         if http_response.get("response", None):
                             http_details["response_body"] = http_response["response"]
-                        self.flow_dict[flow_id]["http_details"] = http_details
+                        flow_payload["http_details"] = http_details
+                    flow_payloads.append(flow_payload)
                 elif flow_request.get("dns_request", None) or any(proto == "dns" for proto in protocols):
-                    self.flow_dict[flow_id]["connection_type"] = "dns"
-                    dns_request = flow_request.get("dns_request", {})
-                    dns_response = flow_request.get("dns_response", {})
-                    domain = (dns_request.get("domains", [None]) or [None])[0] or f.get("domain", None)
-                    questions = dns_request.get("questions", [])
-                    lookup_type = None
-                    if questions:
-                        lookup_type = self.__normalize_dns_lookup_type(questions[0].get("type", ""))
-                    if domain and lookup_type:
-                        dns_details = {
-                            "domain": domain,
-                            "lookup_type": lookup_type
-                        }
-                        if dns_response.get("ip", None):
-                            dns_details["resolved_ips"] = dns_response["ip"]
-                        if dns_response.get("domains", None):
-                            dns_details["resolved_domains"] = dns_response["domains"]
-                        self.flow_dict[flow_id]["dns_details"] = dns_details
+                    dns_events = flow_request.get("dns_events", [])
+                    if dns_events:
+                        for dns_event in dns_events:
+                            flow_payload = base_flow.copy()
+                            flow_payload["connection_type"] = "dns"
+                            dns_request = dns_event.get("dns_request", {})
+                            dns_response = dns_event.get("dns_response", {})
+                            domain = (dns_request.get("domains", [None]) or [None])[0] or f.get("domain", None)
+                            questions = dns_request.get("questions", [])
+                            lookup_type = None
+                            if questions:
+                                lookup_type = self.__normalize_dns_lookup_type(questions[0].get("type", ""))
+                            if domain and lookup_type:
+                                dns_details = {
+                                    "domain": domain,
+                                    "lookup_type": lookup_type
+                                }
+                                if dns_response.get("ip", None):
+                                    dns_details["resolved_ips"] = dns_response["ip"]
+                                resolved_domains = self.__extract_resolved_domains_from_answers(
+                                    dns_response.get("answers", [])
+                                )
+                                if resolved_domains:
+                                    dns_details["resolved_domains"] = resolved_domains
+                                flow_payload["dns_details"] = dns_details
+                            flow_payloads.append(flow_payload)
+                    else:
+                        flow_payload = base_flow.copy()
+                        flow_payload["connection_type"] = "dns"
+                        dns_request = flow_request.get("dns_request", {})
+                        dns_response = flow_request.get("dns_response", {})
+                        domain = (dns_request.get("domains", [None]) or [None])[0] or f.get("domain", None)
+                        questions = dns_request.get("questions", [])
+                        lookup_type = None
+                        if questions:
+                            lookup_type = self.__normalize_dns_lookup_type(questions[0].get("type", ""))
+                        if domain and lookup_type:
+                            dns_details = {
+                                "domain": domain,
+                                "lookup_type": lookup_type
+                            }
+                            if dns_response.get("ip", None):
+                                dns_details["resolved_ips"] = dns_response["ip"]
+                            resolved_domains = self.__extract_resolved_domains_from_answers(
+                                dns_response.get("answers", [])
+                            )
+                            if resolved_domains:
+                                dns_details["resolved_domains"] = resolved_domains
+                            flow_payload["dns_details"] = dns_details
+                        flow_payloads.append(flow_payload)
+                else:
+                    flow_payloads.append(base_flow.copy())
 
-                if ip_address(self.flow_dict[f["id"]]["source_ip"]).is_private and ip_address(
-                        self.flow_dict[f["id"]]["destination_ip"]).is_global:
-                    self.flow_dict[f["id"]]["direction"] = "outbound"
-                if f.get("pid", None):
-                    self.flow_dict[f["id"]]["process"] = self.ontology.get_process_by_pid(
-                        f["pid"])
-            for k, v in self.flow_dict.items():
+                for flow_payload in flow_payloads:
+                    if ip_address(flow_payload["source_ip"]).is_private and ip_address(
+                            flow_payload["destination_ip"]).is_global:
+                        flow_payload["direction"] = "outbound"
+                    if f.get("pid", None):
+                        flow_payload["process"] = self.ontology.get_process_by_pid(f["pid"])
+                    flow_connection_payloads.append(flow_payload)
+
+            for v in flow_connection_payloads:
                 oid = NetworkConnectionModel.get_oid(v)
                 tag = NetworkConnectionModel.get_tag(v)
                 object_id = self.ontology.create_objectid(
@@ -372,8 +443,8 @@ class DynamicReport:
                     session=self.session,
                     **v)
                 object_id.assign_guid()
-                v.pop("time_observed", None)
                 network_connection_args = v.copy()
+                network_connection_args.pop("time_observed", None)
                 dns_details = network_connection_args.get("dns_details")
                 if dns_details:
                     network_connection_args["dns_details"] = NetworkDNS(
