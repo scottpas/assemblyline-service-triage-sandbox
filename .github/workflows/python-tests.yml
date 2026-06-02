@@ -24,15 +24,7 @@ jobs:
       uses: actions/setup-python@v6.2.0
       with:
         python-version: "3.12"
-    - name: Create pip constraints
-      run: |
-        cat > constraints.txt <<'EOF'
-        setuptools<82
-        EOF
-
     - name: Install dependencies
-      env:
-        PIP_CONSTRAINT: constraints.txt
       run: |
         sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -45,15 +37,11 @@ jobs:
           libsasl2-dev \
           libssl-dev
 
-        python -m pip install --upgrade pip wheel
-        python -m pip install flake8 pytest requests-mock
-        if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
-    - name: Lint with flake8
+        pip install uv
+        uv sync --no-install-project
+    - name: Lint with ruff
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-line-length=127 --statistics --ignore=E203,W503
+        uv run ruff check .
     - name: Test with pytest
       run: |
-        pytest
+        uv run pytest

@@ -12,10 +12,11 @@ USER assemblyline
 
 WORKDIR /opt/al_service
 
-COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir --user --requirement requirements.txt && rm -rf ~/.cache/pip
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir --user . && rm -rf ~/.cache/pip
 
-COPY . .
+COPY src/ ./
+COPY service_manifest.yml ./
 
 # Patch version in manifest
 ARG version=4.4.1.dev1

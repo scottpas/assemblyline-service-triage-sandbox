@@ -38,7 +38,7 @@ EXTRA_CONFIG_FIELDS = [
     "listen_port",
     "listen_for",
     "shellcode",
-    "attr"
+    "attr",
 ]
 
 # There is currently no way to get classification of signatures from Triage
@@ -55,18 +55,17 @@ class Credentials:
     port: Optional[int] = None
 
     def create_MalwareConfig(self):
-        data = {
-            "config_extractor": SERVICE_NAME,
-            "family": ["UNKNOWN"]
-        }
+        data = {"config_extractor": SERVICE_NAME, "family": ["UNKNOWN"]}
         if self.protocol == "ftp":
             data["ftp"] = [
-                FTP(data={
-                    "username": self.username,
-                    "password": self.password,
-                    "hostname": self.host,
-                    "port": int(self.port)
-                }).as_primitives()
+                FTP(
+                    data={
+                        "username": self.username,
+                        "password": self.password,
+                        "hostname": self.host,
+                        "port": int(self.port),
+                    }
+                ).as_primitives()
             ]
         malware_config = MalwareConfig(data=data)
         return malware_config
@@ -85,6 +84,7 @@ class Ransom:
         Note    string   `json:"note"`
     }
     """
+
     note: str
     family: Optional[str] = None
     emails: Optional[List[str]] = None
@@ -93,16 +93,11 @@ class Ransom:
     contact: Optional[List[str]] = None
 
     def create_MalwareConfig(self):
-        data = {
-            "config_extractor": SERVICE_NAME,
-            "family": [self.family.upper()],
-            "category": "RANSOMWARE"
-        }
+        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": "RANSOMWARE"}
         if self.wallets:
             data["cryptocurrency"] = []
             for wallet in self.wallets:
-                data["cryptocurrency"] += Cryptocurrency(
-                    data={"address": wallet, "usage": "ransomware"})
+                data["cryptocurrency"] += Cryptocurrency(data={"address": wallet, "usage": "ransomware"})
         malware_config = MalwareConfig(data=data)
         return malware_config
 
@@ -133,14 +128,11 @@ class Config:
     raw: Optional[str] = None
 
     def create_MalwareConfig(self):
-        data = {
-            "config_extractor": "TriageSandbox",
-            "family": [self.family.upper()]
-        }
+        data = {"config_extractor": "TriageSandbox", "family": [self.family.upper()]}
         if self.version:
             data["version"] = self.version
         if self.campaign:
-            data['campaign_id'] = [self.campaign]
+            data["campaign_id"] = [self.campaign]
         if self.botnet:
             data["identifier"] = [self.botnet]
         if self.mutex:
@@ -154,16 +146,14 @@ class Config:
             # tcp = []
             # udp = []
         if self.wallet:
-            data["cryptocurrency"] = [Cryptocurrency(
-                data={"address": i}) for i in self.wallet]
+            data["cryptocurrency"] = [Cryptocurrency(data={"address": i}) for i in self.wallet]
         if self.credentials:
             data["ftp"] = [
-                FTP(data={
-                    "password": i.get("password", None),
-                    "host": i.get("host", None),
-                    "port": i.get("port", None)
-                }
-                ) for i in self.credentials if i.get("protocol", None) == "ftp"
+                FTP(
+                    data={"password": i.get("password", None), "host": i.get("host", None), "port": i.get("port", None)}
+                )
+                for i in self.credentials
+                if i.get("protocol", None) == "ftp"
             ]
             # If creds don't have a family, call it UNKNOWN
             if not self.family:
@@ -172,7 +162,7 @@ class Config:
         for i in EXTRA_CONFIG_FIELDS:
             if self.__getattribute__(i):
                 other[i] = self.__getattribute__(i)
-        data['other'] = other
+        data["other"] = other
         malware_config = MalwareConfig(data=data)
         return malware_config
 
@@ -200,24 +190,18 @@ class DynamicReport:
                 "sandbox_version": self.version,
                 "analysis_metadata": {
                     "start_time": self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
-                    "end_time": self.end_time.strftime("%Y-%m-%d %H:%M:%S.%f")
-                }
+                    "end_time": self.end_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
+                },
             }
         )
-        object_id = self.ontology.create_objectid(
-            ontology_id=oid,
-            tag=SERVICE_NAME,
-            session=self.session
-        )
+        object_id = self.ontology.create_objectid(ontology_id=oid, tag=SERVICE_NAME, session=self.session)
         object_id.assign_guid()
         sandbox = self.ontology.create_sandbox(
             objectid=object_id,
             analysis_metadata=Sandbox.AnalysisMetadata(
                 start_time=self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
                 end_time=self.end_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
-                machine_metadata=Sandbox.AnalysisMetadata.MachineMetadata(
-                    hostname=self.analysis["resource"]
-                )
+                machine_metadata=Sandbox.AnalysisMetadata.MachineMetadata(hostname=self.analysis["resource"]),
             ),
             sandbox_name=SERVICE_NAME,
             sandbox_version=self.version,
@@ -244,7 +228,7 @@ class DynamicReport:
                 tag=Process.create_objectid_tag(process["image"]),
                 ontology_id=p_oid,
                 time_observed=self.__relative_time_str(process["started"]),
-                session=self.session
+                session=self.session,
             )
             object_id.assign_guid()
             self.ontology.update_process(
@@ -254,15 +238,21 @@ class DynamicReport:
                 image=process["image"],
                 command_line=process["cmd"],
                 start_time=self.__relative_time_str(process["started"]),
-                end_time=[self.__relative_time_str(process["terminated"])
-                          if process.get("terminated", None) else "9999-12-31 23:59:59.999999"][0])
+                end_time=[
+                    (
+                        self.__relative_time_str(process["terminated"])
+                        if process.get("terminated", None)
+                        else "9999-12-31 23:59:59.999999"
+                    )
+                ][0],
+            )
         pass
 
     def __add_network(self) -> None:
         if self.network:
             self.flow_dict = {}
             for f in self.network.get("flows", []):
-                self.flow_dict[f['id']] = {
+                self.flow_dict[f["id"]] = {
                     "destination_ip": f["dst"].split(":")[0],
                     "destination_port": int(f["dst"].split(":")[1]),
                     "transport_layer_protocol": f["proto"],
@@ -270,10 +260,12 @@ class DynamicReport:
                     "source_ip": f["src"].split(":")[0],
                     "source_port": int(f["src"].split(":")[1]),
                     "time_observed": [
-                        self.__relative_time_str(f["first_seen"])
-                        if f.get("first_seen", None)
-                        else self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f")
-                    ][0]
+                        (
+                            self.__relative_time_str(f["first_seen"])
+                            if f.get("first_seen", None)
+                            else self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f")
+                        )
+                    ][0],
                 }
                 if f.get("pid", False):
                     pass
@@ -282,37 +274,33 @@ class DynamicReport:
                 #     self.flow_dict[f["id"]]["connection_type"] = "http"
                 # elif any(proto == "dns" for proto in f["protocols"]):
                 #     self.flow_dict[f["id"]]["connection_type"] = "dns"
-                if ip_address(self.flow_dict[f["id"]]["source_ip"]).is_private and ip_address(
-                        self.flow_dict[f["id"]]["destination_ip"]).is_global:
+                if (
+                    ip_address(self.flow_dict[f["id"]]["source_ip"]).is_private
+                    and ip_address(self.flow_dict[f["id"]]["destination_ip"]).is_global
+                ):
                     self.flow_dict[f["id"]]["direction"] = "outbound"
                 if f.get("pid", None):
-                    self.flow_dict[f["id"]]["process"] = self.ontology.get_process_by_pid(
-                        f["pid"])
+                    self.flow_dict[f["id"]]["process"] = self.ontology.get_process_by_pid(f["pid"])
             for k, v in self.flow_dict.items():
                 oid = NetworkConnectionModel.get_oid(v)
                 tag = NetworkConnectionModel.get_tag(v)
-                object_id = self.ontology.create_objectid(
-                    tag=tag,
-                    ontology_id=oid,
-                    session=self.session,
-                    **v)
+                object_id = self.ontology.create_objectid(tag=tag, ontology_id=oid, session=self.session, **v)
                 object_id.assign_guid()
                 v.pop("time_observed", None)
-                self.ontology.add_network_connection(
-                    NetworkConnection(
-                        objectid=object_id,
-                        **v
-                    ))
+                self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **v))
 
     def __add_signatures(self) -> None:
         for sig in self.signatures:
-            name = sig.get("label", sig.get("name", "").replace("Suspicious behavior: ",
-                           "").replace("use of ", "").replace(" ", "_").lower())
+            name = sig.get(
+                "label",
+                sig.get("name", "")
+                .replace("Suspicious behavior: ", "")
+                .replace("use of ", "")
+                .replace(" ", "_")
+                .lower(),
+            )
             if name != "":
-                data = {
-                    "name": name,
-                    "type": "CUCKOO"
-                }
+                data = {"name": name, "type": "CUCKOO"}
                 tag = SignatureModel.get_tag(data)
                 oid = SignatureModel.get_oid(data)
                 if sig.get("score", None):
@@ -337,18 +325,20 @@ class DynamicReport:
                     score=score,
                     attacks=attacks,
                     malware_families=families,
-                    classification=DEFAULT_SIGNATURE_CLASSIFICATION
+                    classification=DEFAULT_SIGNATURE_CLASSIFICATION,
                 )
                 if not any(sig.__getattribute__("objectid").tag == tag for sig in self.ontology.get_signatures()):
                     self.ontology.add_signature(al_sig)
                 else:
-                    al_sig = [sig for sig in self.ontology.get_signatures()
-                              if sig.__getattribute__("objectid").tag == tag][0]
+                    al_sig = [
+                        sig for sig in self.ontology.get_signatures() if sig.__getattribute__("objectid").tag == tag
+                    ][0]
                 for i in sig.get("indicators", []):
                     if i.get("procid", None):
                         try:
                             source_process = self.ontology.get_process_by_pid(
-                                self._id_pid_map[i["procid"]]).__getattribute__("objectid")
+                                self._id_pid_map[i["procid"]]
+                            ).__getattribute__("objectid")
                             source_process = source_process
                             attr = Attribute(source=source_process)
                             al_sig.add_attribute(attr)
@@ -365,19 +355,12 @@ class DynamicReport:
                 self.malware_config.append(Config(**i["config"]).create_MalwareConfig())
                 if i["config"].get("rule", False):
                     name = i["config"]["rule"]
-                    data = {
-                        "name": name,
-                        "type": "CUCKOO"
-                    }
+                    data = {"name": name, "type": "CUCKOO"}
                     tag = SignatureModel.get_tag(data)
                     oid = SignatureModel.get_oid(data)
                     score = 1000  # Assume malicious because it's a malware config
                     families = [i["config"].get("family", "UNKNOWN").upper()]
-                    object_id = self.ontology.create_objectid(
-                        ontology_id=oid,
-                        tag=tag,
-                        session=self.session
-                    )
+                    object_id = self.ontology.create_objectid(ontology_id=oid, tag=tag, session=self.session)
                     object_id.assign_guid()
                     al_sig = [i for i in self.ontology.get_signatures() if i.as_primitives()["objectid"]["tag"] == tag]
                     if len(al_sig) == 1:
@@ -389,12 +372,11 @@ class DynamicReport:
                             type="CUCKOO",
                             score=score,
                             malware_families=families,
-                            classification=DEFAULT_SIGNATURE_CLASSIFICATION
+                            classification=DEFAULT_SIGNATURE_CLASSIFICATION,
                         )
                     if i.get("resource", False):
                         try:
-                            source = self.ontology.get_process_by_pid(
-                                int(i["resource"].split("/")[-1].split("-")[0]))
+                            source = self.ontology.get_process_by_pid(int(i["resource"].split("/")[-1].split("-")[0]))
                             if source:
                                 attr = Attribute(source=source.objectid)
                                 al_sig.add_attribute(attr)
@@ -410,11 +392,9 @@ class DynamicReport:
         pass
 
     def __post_init__(self) -> None:
-        self.start_time = datetime.fromisoformat(
-            self.analysis["submitted"].replace("Z", ""))
-        self.end_time = datetime.fromisoformat(
-            self.analysis["reported"].replace("Z", ""))
-        self.session = f'{self.sample["id"]}/{self.task_id}'
+        self.start_time = datetime.fromisoformat(self.analysis["submitted"].replace("Z", ""))
+        self.end_time = datetime.fromisoformat(self.analysis["reported"].replace("Z", ""))
+        self.session = f"{self.sample['id']}/{self.task_id}"
         self.__add_sandbox()
         if self.processes:
             self.__add_processes()
@@ -443,32 +423,34 @@ class Sample:
     def get_task_reports(self, client: TriageClient, ontology: OntologyResults):
         self.task_reports = []
         for task in self.tasks:
-            if task['id'].startswith("behavioral") and task['status'] != "failed":
+            if task["id"].startswith("behavioral") and task["status"] != "failed":
                 # Get the API response
                 api_response = client._req_json(
-                    method="GET",
-                    path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json"
+                    method="GET", path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json"
                 )
-                
+
                 # Filter out any fields that DynamicReport doesn't expect
                 # Keep only the fields that are defined in the DynamicReport class
                 expected_fields = {
-                    'version', 'sample', 'task', 'analysis', 'signatures', 
-                    'network', 'processes', 'extracted', 'tags', 'dumped', 'errors'
+                    "version",
+                    "sample",
+                    "task",
+                    "analysis",
+                    "signatures",
+                    "network",
+                    "processes",
+                    "extracted",
+                    "tags",
+                    "dumped",
+                    "errors",
                 }
                 filtered_response = {k: v for k, v in api_response.items() if k in expected_fields}
-                
-                self.task_reports.append(DynamicReport(
-                    task_id=task['id'],
-                    ontology=ontology, 
-                    **filtered_response
-                )
-                )
+
+                self.task_reports.append(DynamicReport(task_id=task["id"], ontology=ontology, **filtered_response))
         pass
 
 
 class TriageResult:
-
     def __init__(self, client: TriageClient, sample):
         self.sample = Sample(**sample)
         # self.ontology_results = OntologyResults(service_name=SERVICE_NAME)

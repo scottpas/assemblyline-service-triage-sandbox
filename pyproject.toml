@@ -1,0 +1,89 @@
+[project]
+name = "assemblyline-service-triage-sandbox"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11.0,<3.13.0"
+dependencies = [
+    "assemblyline-service-utilities>=4.6.1.2",
+    "hatching-triage>=0.2.0",
+    "retrying>=1.4.2",
+]
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+skip-string-normalization = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src"]
+exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+]
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = ["E203"]
+
+[tool.ruff.format]
+line-ending = "auto"
+quote-style = "double"
+indent-style = "space"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+src_paths = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+strict = true
+warn_unused_configs = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.pyright]
+typeCheckingMode = "strict"
+include = ["src"]
+exclude = [
+    "**/__pycache__",
+    "**/.*",
+    "**/node_modules",
+    ".venv",
+]
+
+[tool.pylint.main]
+ignore = [".venv"]
+source-roots = ["src"]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.bandit]
+targets = ["src"]
+exclude_dirs = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "requests-mock",
+    "ruff",
+]
