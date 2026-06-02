@@ -41,6 +41,7 @@ EXTRA_CONFIG_FIELDS = [
     "attr",
 ]
 
+
 def _split_addr(addr: str):
     """Parse 'ip:port' or '[ipv6]:port' into (ip_str, port_int)."""
     if addr.startswith("["):
@@ -161,7 +162,11 @@ class Config:
         if self.credentials:
             data["ftp"] = [
                 FTP(
-                    data={"password": i.get("password", None), "hostname": i.get("host", None), "port": i.get("port", None)}
+                    data={
+                        "password": i.get("password", None),
+                        "hostname": i.get("host", None),
+                        "port": i.get("port", None),
+                    }
                 )
                 for i in self.credentials
                 if i.get("protocol", None) == "ftp"
@@ -330,11 +335,13 @@ class DynamicReport:
                 if sig.get("ttp", None):
                     for i in sig["ttp"]:
                         if attack_map.get(i, False):
-                            attacks.append({
-                                "attack_id": i,
-                                "pattern": attack_map[i]["name"],
-                                "categories": attack_map[i]["categories"],
-                            })
+                            attacks.append(
+                                {
+                                    "attack_id": i,
+                                    "pattern": attack_map[i]["name"],
+                                    "categories": attack_map[i]["categories"],
+                                }
+                            )
                 object_id = self.ontology.create_objectid(
                     ontology_id=oid,
                     tag=tag,
