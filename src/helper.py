@@ -41,6 +41,18 @@ EXTRA_CONFIG_FIELDS = [
     "attr",
 ]
 
+
+def _split_addr(addr: str):
+    """Parse 'ip:port' or '[ipv6]:port' into (ip_str, port_int)."""
+    if addr.startswith("["):
+        ip = addr[1 : addr.index("]")]
+        port = int(addr[addr.index("]") + 2 :])
+    else:
+        ip, port_str = addr.rsplit(":", 1)
+        port = int(port_str)
+    return ip, port
+
+
 # There is currently no way to get classification of signatures from Triage
 DEFAULT_SIGNATURE_CLASSIFICATION = "TLP:CLEAR"
 
@@ -93,11 +105,11 @@ class Ransom:
     contact: Optional[List[str]] = None
 
     def create_MalwareConfig(self):
-        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": "RANSOMWARE"}
+        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": ["ransomware"]}
         if self.wallets:
             data["cryptocurrency"] = []
             for wallet in self.wallets:
-                data["cryptocurrency"] += Cryptocurrency(data={"address": wallet, "usage": "ransomware"})
+                data["cryptocurrency"].append(Cryptocurrency(data={"address": wallet, "usage": "ransomware"}))
         malware_config = MalwareConfig(data=data)
         return malware_config
 
@@ -150,14 +162,18 @@ class Config:
         if self.credentials:
             data["ftp"] = [
                 FTP(
-                    data={"password": i.get("password", None), "host": i.get("host", None), "port": i.get("port", None)}
+                    data={
+                        "password": i.get("password", None),
+                        "hostname": i.get("host", None),
+                        "port": i.get("port", None),
+                    }
                 )
                 for i in self.credentials
                 if i.get("protocol", None) == "ftp"
             ]
             # If creds don't have a family, call it UNKNOWN
             if not self.family:
-                data["family"] = "UNKNOWN"
+                data["family"] = ["UNKNOWN"]
         other = {}
         for i in EXTRA_CONFIG_FIELDS:
             if self.__getattribute__(i):
@@ -252,13 +268,15 @@ class DynamicReport:
         if self.network:
             self.flow_dict = {}
             for f in self.network.get("flows", []):
+                _dst_ip, _dst_port = _split_addr(f["dst"])
+                _src_ip, _src_port = _split_addr(f["src"])
                 self.flow_dict[f["id"]] = {
-                    "destination_ip": f["dst"].split(":")[0],
-                    "destination_port": int(f["dst"].split(":")[1]),
+                    "destination_ip": _dst_ip,
+                    "destination_port": _dst_port,
                     "transport_layer_protocol": f["proto"],
                     "direction": "unknown",
-                    "source_ip": f["src"].split(":")[0],
-                    "source_port": int(f["src"].split(":")[1]),
+                    "source_ip": _src_ip,
+                    "source_port": _src_port,
                     "time_observed": [
                         (
                             self.__relative_time_str(f["first_seen"])
@@ -284,7 +302,12 @@ class DynamicReport:
             for k, v in self.flow_dict.items():
                 oid = NetworkConnectionModel.get_oid(v)
                 tag = NetworkConnectionModel.get_tag(v)
-                object_id = self.ontology.create_objectid(tag=tag, ontology_id=oid, session=self.session, **v)
+                object_id = self.ontology.create_objectid(
+                    tag=tag,
+                    ontology_id=oid,
+                    session=self.session,
+                    time_observed=v.get("time_observed"),
+                )
                 object_id.assign_guid()
                 v.pop("time_observed", None)
                 self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **v))
@@ -312,7 +335,13 @@ class DynamicReport:
                 if sig.get("ttp", None):
                     for i in sig["ttp"]:
                         if attack_map.get(i, False):
-                            attacks.append(attack_map[i])
+                            attacks.append(
+                                {
+                                    "attack_id": i,
+                                    "pattern": attack_map[i]["name"],
+                                    "categories": attack_map[i]["categories"],
+                                }
+                            )
                 object_id = self.ontology.create_objectid(
                     ontology_id=oid,
                     tag=tag,

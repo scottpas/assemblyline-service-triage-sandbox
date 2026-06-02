@@ -2,9 +2,13 @@ import json
 import os
 import tempfile
 
+from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
+from assemblyline.odm.models.ontology.results import Process as ProcessModel
+from assemblyline.odm.models.ontology.results import Sandbox as SandboxModel
+from assemblyline.odm.models.ontology.results import Signature as SignatureModel
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
 from assemblyline_service_utilities.common.dynamic_service_helper import (
-    attach_dynamic_ontology,
+    OntologyResults,
     extract_iocs_from_text_blob,
 )
 from assemblyline_v4_service.common.base import ServiceBase
@@ -15,6 +19,27 @@ from triage import Client as TriageClient
 from triage.client import ServerError
 
 from helper import TriageResult
+
+_PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
+
+
+def _filter_process_prims(prims: dict) -> dict:
+    """Strip fields unknown to the ODM ProcessModel from a process primitives dict."""
+    return {k: v for k, v in prims.items() if k in _PROCESS_MODEL_FIELDS}
+
+
+def _attach_dynamic_ontology(service: ServiceBase, ontres: OntologyResults) -> None:
+    for process in ontres.get_processes():
+        service.ontology.add_result_part(ProcessModel, _filter_process_prims(process.as_primitives()))
+    for sandbox in ontres.get_sandboxes():
+        service.ontology.add_result_part(SandboxModel, sandbox.as_primitives())
+    for sig in ontres.get_signatures():
+        service.ontology.add_result_part(SignatureModel, sig.as_primitives())
+    for nc in ontres.get_network_connections():
+        nc_prims = nc.as_primitives()
+        if nc_prims.get("process"):
+            nc_prims["process"] = _filter_process_prims(nc_prims["process"])
+        service.ontology.add_result_part(NetworkConnectionModel, nc_prims)
 
 # Ontology Result Constants
 SANDBOX_NAME = "Triage Sandbox"
@@ -128,15 +153,17 @@ class TriageSandbox(ServiceBase):
         return submission
 
     def submit_triage(self, request: ServiceRequest):
+        submission = None
         if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
             submission = self.client.submit_sample_url(url=request.task.fileinfo.uri_info.uri)
         elif request.file_type in SUPPORTED_FILE_TYPES:
-            submission = self.client.submit_sample_file(
-                filename=request.file_name,
-                file=open(request.file_path, "rb"),
-                network=request.get_param("network"),
-                timeout=request.get_param("analysis_timeout_in_seconds"),
-            )
+            with open(request.file_path, "rb") as fh:
+                submission = self.client.submit_sample_file(
+                    filename=request.file_name,
+                    file=fh,
+                    network=request.get_param("network"),
+                    timeout=request.get_param("analysis_timeout_in_seconds"),
+                )
         return submission
 
     def start(self):
@@ -185,7 +212,7 @@ class TriageSandbox(ServiceBase):
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             for task in triage_result.sample.task_reports:
-                attach_dynamic_ontology(self, task.ontology)
+                _attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {task.task_id}")
                 task_section.add_line(f"URL: {self.web_url}/{task.session}")
                 process_tree = task.ontology.get_process_tree_result_section()
@@ -212,7 +239,7 @@ class TriageSandbox(ServiceBase):
                                 s.set_heuristic(3, signature=name)
                             elif sig.score >= 100 and sig.score < 500:
                                 s.set_heuristic(2, signature=name)
-                            elif sig.score >= 0 and sig.score < 100:
+                            else:
                                 s.set_heuristic(1, signature=name)
                         for attr in sig.attributes:
                             if attr.source.ontology_id.startswith("process_"):
@@ -231,6 +258,7 @@ class TriageSandbox(ServiceBase):
                         s = ResultSection(title_text=t)
                         s.set_heuristic(10, attack_id=t)
                         ttp_section.add_subsection(s)
+                    task_section.add_subsection(ttp_section)
                 if task.extracted:
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
                     for e in task.extracted:
