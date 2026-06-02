@@ -297,7 +297,12 @@ class DynamicReport:
             for k, v in self.flow_dict.items():
                 oid = NetworkConnectionModel.get_oid(v)
                 tag = NetworkConnectionModel.get_tag(v)
-                object_id = self.ontology.create_objectid(tag=tag, ontology_id=oid, session=self.session, **v)
+                object_id = self.ontology.create_objectid(
+                    tag=tag,
+                    ontology_id=oid,
+                    session=self.session,
+                    time_observed=v.get("time_observed"),
+                )
                 object_id.assign_guid()
                 v.pop("time_observed", None)
                 self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **v))
@@ -325,7 +330,11 @@ class DynamicReport:
                 if sig.get("ttp", None):
                     for i in sig["ttp"]:
                         if attack_map.get(i, False):
-                            attacks.append(attack_map[i])
+                            attacks.append({
+                                "attack_id": i,
+                                "pattern": attack_map[i]["name"],
+                                "categories": attack_map[i]["categories"],
+                            })
                 object_id = self.ontology.create_objectid(
                     ontology_id=oid,
                     tag=tag,

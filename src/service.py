@@ -2,9 +2,13 @@ import json
 import os
 import tempfile
 
+from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
+from assemblyline.odm.models.ontology.results import Process as ProcessModel
+from assemblyline.odm.models.ontology.results import Sandbox as SandboxModel
+from assemblyline.odm.models.ontology.results import Signature as SignatureModel
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
 from assemblyline_service_utilities.common.dynamic_service_helper import (
-    attach_dynamic_ontology,
+    OntologyResults,
     extract_iocs_from_text_blob,
 )
 from assemblyline_v4_service.common.base import ServiceBase
@@ -15,6 +19,27 @@ from triage import Client as TriageClient
 from triage.client import ServerError
 
 from helper import TriageResult
+
+_PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
+
+
+def _filter_process_prims(prims: dict) -> dict:
+    """Strip fields unknown to the ODM ProcessModel from a process primitives dict."""
+    return {k: v for k, v in prims.items() if k in _PROCESS_MODEL_FIELDS}
+
+
+def _attach_dynamic_ontology(service: ServiceBase, ontres: OntologyResults) -> None:
+    for process in ontres.get_processes():
+        service.ontology.add_result_part(ProcessModel, _filter_process_prims(process.as_primitives()))
+    for sandbox in ontres.get_sandboxes():
+        service.ontology.add_result_part(SandboxModel, sandbox.as_primitives())
+    for sig in ontres.get_signatures():
+        service.ontology.add_result_part(SignatureModel, sig.as_primitives())
+    for nc in ontres.get_network_connections():
+        nc_prims = nc.as_primitives()
+        if nc_prims.get("process"):
+            nc_prims["process"] = _filter_process_prims(nc_prims["process"])
+        service.ontology.add_result_part(NetworkConnectionModel, nc_prims)
 
 # Ontology Result Constants
 SANDBOX_NAME = "Triage Sandbox"
@@ -187,7 +212,7 @@ class TriageSandbox(ServiceBase):
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             for task in triage_result.sample.task_reports:
-                attach_dynamic_ontology(self, task.ontology)
+                _attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {task.task_id}")
                 task_section.add_line(f"URL: {self.web_url}/{task.session}")
                 process_tree = task.ontology.get_process_tree_result_section()
