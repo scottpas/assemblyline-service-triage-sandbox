@@ -6,6 +6,9 @@ on:
       - 'v*.stable*'
       - 'v*.dev*'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     uses: ./.github/workflows/python-tests.yml
