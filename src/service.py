@@ -10,10 +10,11 @@ from assemblyline_service_utilities.common.dynamic_service_helper import (
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
 from assemblyline_v4_service.common.result import Result, ResultSection, ResultTableSection
-from helper import TriageResult
 from retrying import RetryError, retry
 from triage import Client as TriageClient
 from triage.client import ServerError
+
+from helper import TriageResult
 
 # Ontology Result Constants
 SANDBOX_NAME = "Triage Sandbox"
@@ -75,7 +76,7 @@ SUPPORTED_FILE_TYPES = [
     "executable/windows/pe64",
     "java/jar",
     "shortcut/web",
-    "shortcut/windows"
+    "shortcut/windows",
 ]
 
 TRIAGE_POLL_DELAY = 10
@@ -101,11 +102,11 @@ def _retry_on_not_found(exception: Exception) -> bool:
     stop_max_delay=MAX_ANALYSIS_TIMEOUT * 1000,
     stop_max_attempt_number=(MAX_ANALYSIS_TIMEOUT / TRIAGE_POLL_DELAY),
     retry_on_result=_is_submission_not_reported,
-    retry_on_exception=_retry_on_not_found
+    retry_on_exception=_retry_on_not_found,
 )
 def wait_for_submission(service, submission_id):
     submission = service.client.sample_by_id(submission_id)
-    service.log.info(f'{submission["id"]} status: {submission["status"]}')
+    service.log.info(f"{submission['id']} status: {submission['status']}")
     return submission
 
 
@@ -131,9 +132,11 @@ class TriageSandbox(ServiceBase):
             submission = self.client.submit_sample_url(url=request.task.fileinfo.uri_info.uri)
         elif request.file_type in SUPPORTED_FILE_TYPES:
             submission = self.client.submit_sample_file(
-                filename=request.file_name, file=open(request.file_path, "rb"),
+                filename=request.file_name,
+                file=open(request.file_path, "rb"),
                 network=request.get_param("network"),
-                timeout=request.get_param("analysis_timeout_in_seconds"))
+                timeout=request.get_param("analysis_timeout_in_seconds"),
+            )
         return submission
 
     def start(self):
@@ -145,11 +148,11 @@ class TriageSandbox(ServiceBase):
 
     def execute(self, request: ServiceRequest) -> None:
         self.client = TriageClient(
-            token=request.get_param("api_key") or self.config.get("api_key"),
-            root_url=self.config.get("root_url")
+            token=request.get_param("api_key") or self.config.get("api_key"), root_url=self.config.get("root_url")
         )
-        self.allow_dynamic_submit = request.get_param(
-            "allow_dynamic_submit") and self.config.get("allow_dynamic_submit")
+        self.allow_dynamic_submit = request.get_param("allow_dynamic_submit") and self.config.get(
+            "allow_dynamic_submit"
+        )
         try:
             submission = None
             if request.get_param("use_existing_submission"):
@@ -178,15 +181,13 @@ class TriageSandbox(ServiceBase):
                 self.ontology.add_result_part(MalwareConfig, i.as_primitives(strip_null=True))
             result = Result()
             sandbox_section = ResultSection("Sandbox Information")
-            sandbox_section.add_line(
-                f'URL: {self.web_url}/{triage_result.sample.id}')
+            sandbox_section.add_line(f"URL: {self.web_url}/{triage_result.sample.id}")
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             for task in triage_result.sample.task_reports:
                 attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {task.task_id}")
-                task_section.add_line(
-                    f'URL: {self.web_url}/{task.session}')
+                task_section.add_line(f"URL: {self.web_url}/{task.session}")
                 process_tree = task.ontology.get_process_tree_result_section()
                 process_tree.auto_collapse = True
                 sigs_section = ResultSection(title_text="Signatures", auto_collapse=True)
@@ -196,10 +197,7 @@ class TriageSandbox(ServiceBase):
                     if sig_subsections.get(name, False):
                         for attr in sig.attributes:
                             if attr.source.ontology_id.startswith("process_"):
-                                sig_subsections[name].add_tag(
-                                    tag_type="dynamic.processtree_id",
-                                    value=attr.source.tag
-                                )
+                                sig_subsections[name].add_tag(tag_type="dynamic.processtree_id", value=attr.source.tag)
                     else:
                         s = ResultSection(title_text=name)
                         s.add_tag(tag_type="dynamic.signature.name", value=name)
@@ -237,15 +235,18 @@ class TriageSandbox(ServiceBase):
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
                     for e in task.extracted:
                         if e.get("config", {}).get("c2", False):
-                            m = ResultTableSection(title_text=f'{e["config"]["family"].upper()}')
+                            m = ResultTableSection(title_text=f"{e['config']['family'].upper()}")
                             extract_iocs_from_text_blob(blob=json.dumps(e["config"]), result_section=m)
                             m.set_heuristic(100, signature=e["config"]["family"].upper())
                             m.add_tag(tag_type="attribution.family", value=e["config"]["family"].upper())
                             m.add_subsection(
                                 ResultSection(
-                                    title_text="Raw Config", body_format="JSON",
+                                    title_text="Raw Config",
+                                    body_format="JSON",
                                     body=json.dumps(e["config"]),
-                                    auto_collapse=True))
+                                    auto_collapse=True,
+                                )
+                            )
                             malware_section.add_subsection(m)
                     if len(malware_section.subsections) > 0:
                         task_section.add_subsection(malware_section)
@@ -253,8 +254,7 @@ class TriageSandbox(ServiceBase):
                 if request.get_param("extract_pcap"):
                     try:
                         pcap = self.client._req_file(
-                            method="GET",
-                            path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/dump.pcapng"
+                            method="GET", path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/dump.pcapng"
                         )
                         fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
                         with os.fdopen(fd, "wb") as f:
@@ -262,7 +262,7 @@ class TriageSandbox(ServiceBase):
                         request.add_extracted(
                             path=temp_path,
                             name=f"{triage_result.sample.id}-{task.task_id}-dump.pcapng",
-                            description=f"PCAP file from task {triage_result.sample.id}-{task.task_id}"
+                            description=f"PCAP file from task {triage_result.sample.id}-{task.task_id}",
                         )
                     except Exception as e:
                         self.log.error(e)
@@ -273,7 +273,7 @@ class TriageSandbox(ServiceBase):
                             try:
                                 file = self.client._req_file(
                                     method="GET",
-                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/{i['name']}"
+                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/{i['name']}",
                                 )
                                 fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
                                 with os.fdopen(fd, "wb") as f:
@@ -281,7 +281,7 @@ class TriageSandbox(ServiceBase):
                                 request.add_extracted(
                                     path=temp_path,
                                     name=i["name"],
-                                    description=f"Memdump file from task {triage_result.sample.id}-{task.task_id}"
+                                    description=f"Memdump file from task {triage_result.sample.id}-{task.task_id}",
                                 )
                             except Exception as e:
                                 self.log.error(e)
@@ -290,7 +290,7 @@ class TriageSandbox(ServiceBase):
                             try:
                                 file = self.client._req_file(
                                     method="GET",
-                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/{i['name']}"
+                                    path=f"/v0/samples/{triage_result.sample.id}/{task.task_id}/{i['name']}",
                                 )
                                 fd, temp_path = tempfile.mkstemp(dir=self.working_directory)
                                 with os.fdopen(fd, "wb") as f:
@@ -298,7 +298,7 @@ class TriageSandbox(ServiceBase):
                                 request.add_extracted(
                                     path=temp_path,
                                     name=i["name"],
-                                    description=f"Dropped file from task {triage_result.sample.id}-{task.task_id}"
+                                    description=f"Dropped file from task {triage_result.sample.id}-{task.task_id}",
                                 )
                             except Exception as e:
                                 self.log.error(e)

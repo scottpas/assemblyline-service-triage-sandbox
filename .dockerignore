@@ -1,16 +1,41 @@
-Dockerfile
-.idea
+# Version control
 .git
+.gitignore
 .github
 
+# IDE
+.idea
+.vscode
+
+# Python cache and build artifacts
+__pycache__
+*.py[cod]
+*.egg-info/
+.venv
+.pytest_cache
+.ruff_cache
+
+# uv / tooling config (not needed at runtime)
+.python-version
+.flake8
+
+# CI / dev tooling
 pipelines
 venv
 env
+Dockerfile
+
+# Tests
 test
 tests
 exemples
 docs
 
+# Docs and licence
+README.md
+LICENSE
+
+# Logs and coverage
 pip-log.txt
 pip-delete-this-directory.txt
 .tox
@@ -19,5 +44,5 @@ pip-delete-this-directory.txt
 .cache
 nosetests.xml
 coverage.xml
-*,cover
+*.cover
 *.log
