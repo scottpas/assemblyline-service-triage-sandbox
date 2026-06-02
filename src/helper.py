@@ -161,14 +161,14 @@ class Config:
         if self.credentials:
             data["ftp"] = [
                 FTP(
-                    data={"password": i.get("password", None), "host": i.get("host", None), "port": i.get("port", None)}
+                    data={"password": i.get("password", None), "hostname": i.get("host", None), "port": i.get("port", None)}
                 )
                 for i in self.credentials
                 if i.get("protocol", None) == "ftp"
             ]
             # If creds don't have a family, call it UNKNOWN
             if not self.family:
-                data["family"] = "UNKNOWN"
+                data["family"] = ["UNKNOWN"]
         other = {}
         for i in EXTRA_CONFIG_FIELDS:
             if self.__getattribute__(i):
