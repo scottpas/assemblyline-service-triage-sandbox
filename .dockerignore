@@ -16,7 +16,6 @@ __pycache__
 .ruff_cache
 
 # uv / tooling config (not needed at runtime)
-uv.lock
 .python-version
 .flake8
 

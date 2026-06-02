@@ -1,8 +1,6 @@
 [project]
 name = "assemblyline-service-triage-sandbox"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
 requires-python = ">=3.11.0,<3.13.0"
 dependencies = [
     "assemblyline-service-utilities>=4.6.1.2",
