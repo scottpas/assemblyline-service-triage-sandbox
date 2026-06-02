@@ -214,7 +214,7 @@ class TriageSandbox(ServiceBase):
                                 s.set_heuristic(3, signature=name)
                             elif sig.score >= 100 and sig.score < 500:
                                 s.set_heuristic(2, signature=name)
-                            elif sig.score >= 0 and sig.score < 100:
+                            else:
                                 s.set_heuristic(1, signature=name)
                         for attr in sig.attributes:
                             if attr.source.ontology_id.startswith("process_"):
