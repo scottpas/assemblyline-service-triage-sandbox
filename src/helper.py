@@ -41,6 +41,17 @@ EXTRA_CONFIG_FIELDS = [
     "attr",
 ]
 
+def _split_addr(addr: str):
+    """Parse 'ip:port' or '[ipv6]:port' into (ip_str, port_int)."""
+    if addr.startswith("["):
+        ip = addr[1 : addr.index("]")]
+        port = int(addr[addr.index("]") + 2 :])
+    else:
+        ip, port_str = addr.rsplit(":", 1)
+        port = int(port_str)
+    return ip, port
+
+
 # There is currently no way to get classification of signatures from Triage
 DEFAULT_SIGNATURE_CLASSIFICATION = "TLP:CLEAR"
 
@@ -252,13 +263,15 @@ class DynamicReport:
         if self.network:
             self.flow_dict = {}
             for f in self.network.get("flows", []):
+                _dst_ip, _dst_port = _split_addr(f["dst"])
+                _src_ip, _src_port = _split_addr(f["src"])
                 self.flow_dict[f["id"]] = {
-                    "destination_ip": f["dst"].split(":")[0],
-                    "destination_port": int(f["dst"].split(":")[1]),
+                    "destination_ip": _dst_ip,
+                    "destination_port": _dst_port,
                     "transport_layer_protocol": f["proto"],
                     "direction": "unknown",
-                    "source_ip": f["src"].split(":")[0],
-                    "source_port": int(f["src"].split(":")[1]),
+                    "source_ip": _src_ip,
+                    "source_port": _src_port,
                     "time_observed": [
                         (
                             self.__relative_time_str(f["first_seen"])
