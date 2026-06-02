@@ -104,11 +104,11 @@ class Ransom:
     contact: Optional[List[str]] = None
 
     def create_MalwareConfig(self):
-        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": "RANSOMWARE"}
+        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": ["ransomware"]}
         if self.wallets:
             data["cryptocurrency"] = []
             for wallet in self.wallets:
-                data["cryptocurrency"] += Cryptocurrency(data={"address": wallet, "usage": "ransomware"})
+                data["cryptocurrency"].append(Cryptocurrency(data={"address": wallet, "usage": "ransomware"}))
         malware_config = MalwareConfig(data=data)
         return malware_config
 
