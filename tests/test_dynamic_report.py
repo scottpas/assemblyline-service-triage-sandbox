@@ -5,15 +5,10 @@ Each DynamicReport is exercised via construction: __post_init__ runs all
 the private __add_* methods automatically.
 
 OntologyResults accessors used:
-  - ontology.get_sandboxes()          → list[Sandbox]
-  - ontology.get_processes()          → list[Process]
-  - ontology.get_network_connections() → list[NetworkConnection]
-  - ontology.get_signatures()         → list[Signature]
-
-Known-bug tests assert CORRECT expected behaviour.  They are expected to go
-red because the source has unfixed bugs.  Each such assertion is labelled
-with an inline comment of the form:
-  # EXPECTED FAILURE — Bug N: <description>
+  - ontology.get_sandboxes()          -> list[Sandbox]
+  - ontology.get_processes()          -> list[Process]
+  - ontology.get_network_connections() -> list[NetworkConnection]
+  - ontology.get_signatures()         -> list[Signature]
 """
 
 from datetime import datetime
@@ -99,7 +94,7 @@ def test_add_processes_builds_id_pid_map():
     procs = dr.ontology.get_processes()
     assert len(procs) == 2
 
-    # procid 1 has no 'terminated' → end_time should be the sentinel value
+    # procid 1 has no 'terminated' -> end_time should be the sentinel value
     proc_a = next(p for p in procs if p.pid == 100)
     assert proc_a.end_time == "9999-12-31 23:59:59.999999"
 
@@ -119,7 +114,6 @@ def test_add_network_ipv4_flow():
     assert flow["destination_port"] == 53
     assert flow["source_ip"] == "10.0.0.5"
     assert flow["source_port"] == 1234
-    # Private src + global dst → outbound
     assert flow["direction"] == "outbound"
 
     conns = dr.ontology.get_network_connections()
@@ -127,19 +121,14 @@ def test_add_network_ipv4_flow():
 
 
 # ---------------------------------------------------------------------------
-# 5. __add_network — IPv6 flow (Bug 7)
+# 5. __add_network — IPv6 flow
 # ---------------------------------------------------------------------------
 
 
 def test_add_network_ipv6_flow():
-    """
-    EXPECTED FAILURE — Bug 7: helper.py split(":") mangles IPv6.
-    dst="[2001:db8::1]:443" split on ":" gives "[2001" / "db8" / …
-    int("db8") raises ValueError before flow_dict is fully built.
-    Correct behaviour would parse destination_ip="2001:db8::1" port=443.
-    """
+    """Test that __add_network correctly parses IPv6 addresses in flow 'dst' and 'src' fields."""
     network = {"flows": [{"id": 1, "dst": "[2001:db8::1]:443", "src": "10.0.0.5:1234", "proto": "tcp"}]}
-    dr = make_report(network=network)  # EXPECTED FAILURE — Bug 7: split(":") mangles IPv6 → int(...) ValueError
+    dr = make_report(network=network)
     assert dr.flow_dict[1]["destination_ip"] == "2001:db8::1"
     assert dr.flow_dict[1]["destination_port"] == 443
 
@@ -228,22 +217,17 @@ def test_add_extracted_config_and_rule_signature():
 
 
 # ---------------------------------------------------------------------------
-# 12. __add_extracted — ransom config (Bug 1 / Bug 2)
+# 12. __add_extracted — ransom config
 # ---------------------------------------------------------------------------
 
 
 def test_add_extracted_ransom():
     """
-    EXPECTED FAILURE — Bug 2 (primary) and Bug 1 (secondary): Ransom.create_MalwareConfig.
-    Bug 2 fires first: data["cryptocurrency"] += Cryptocurrency(...) — the wallets loop runs
-    before MalwareConfig construction; list.__iadd__ iterates the right-hand operand, and
-    Cryptocurrency.__getitem__(0) raises KeyError: 0.
-    Bug 1 would fire next if Bug 2 were fixed: category="RANSOMWARE" fails model validation
-    because the ODM iterates the string and 'R' is not a valid enum value (must be "ransomware").
-    Correct behaviour: dr.malware_config has 1 entry with family ["CONTI"].
+    Test that a ransom config in the extracted data produces a MalwareConfig with
+    family from the ransom's 'family' field.
     """
     extracted = [{"ransom": {"note": "n", "family": "conti", "wallets": ["w"]}}]
-    dr = make_report(extracted=extracted)  # EXPECTED FAILURE — Bug 1/Bug 2: Ransom.create_MalwareConfig
+    dr = make_report(extracted=extracted)
     assert len(dr.malware_config) == 1
     prim = dr.malware_config[0].as_primitives(strip_null=True)
     assert prim["family"] == ["CONTI"]

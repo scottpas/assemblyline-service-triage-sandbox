@@ -205,7 +205,6 @@ def test_execute_attack_techniques_section_attached(triage_service, make_request
 
     sandbox_section = req.result.sections[0]
     for task_section in sandbox_section.subsections:
-        # EXPECTED FAILURE — Bug 4: ttp_section built but never add_subsection'd, so ATT&CK section is dropped
         ttp = find_subsection(task_section, "ATT&CK Techniques")
         assert ttp is not None, f"ATT&CK Techniques subsection missing from {task_section.title_text}"
 
