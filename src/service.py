@@ -233,6 +233,7 @@ class TriageSandbox(ServiceBase):
                         s = ResultSection(title_text=t)
                         s.set_heuristic(10, attack_id=t)
                         ttp_section.add_subsection(s)
+                    task_section.add_subsection(ttp_section)
                 if task.extracted:
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
                     for e in task.extracted:
