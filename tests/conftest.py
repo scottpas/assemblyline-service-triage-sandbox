@@ -58,6 +58,11 @@ def build_sample() -> Dict[str, Any]:
 
 def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
     """Build a minimal synthetic Triage task report (GET /v0/samples/{id}/{task_id}/report_triage.json)."""
+    # Use task-specific PIDs so process tree isolation tests can distinguish tasks.
+    # behavioral1 owns 2104/2356; behavioral2 owns 3104/3356.
+    parent_pid = 2104 if task_id == "behavioral1" else 3104
+    child_pid = 2356 if task_id == "behavioral1" else 3356
+
     return {
         "version": "0.3.0",
         "sample": {
@@ -101,7 +106,7 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
             {
                 "procid": 1,
                 "procid_parent": 0,
-                "pid": 2104,
+                "pid": parent_pid,
                 "ppid": 1220,
                 "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\sample.exe",
                 "cmd": '"C:\\Users\\Admin\\AppData\\Local\\Temp\\sample.exe"',
@@ -112,8 +117,8 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
             {
                 "procid": 2,
                 "procid_parent": 1,
-                "pid": 2356,
-                "ppid": 2104,
+                "pid": child_pid,
+                "ppid": parent_pid,
                 "image": "C:\\Users\\Admin\\AppData\\Local\\Temp\\child.exe",
                 "cmd": "child.exe",
                 "orig": False,
@@ -145,7 +150,7 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
                     "src": "10.127.0.103:59655",
                     "dst": "8.8.8.8:53",
                     "proto": "udp",
-                    "pid": 2104,
+                    "pid": parent_pid,
                     "procid": 1,
                     "first_seen": 3343,
                     "last_seen": 3395,
@@ -157,7 +162,7 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
                     "src": "10.127.0.103:49000",
                     "dst": "93.184.216.34:80",
                     "proto": "tcp",
-                    "pid": 2104,
+                    "pid": parent_pid,
                     "procid": 1,
                     "first_seen": 3400,
                     "protocols": ["http"],
@@ -179,9 +184,9 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
         "dumped": [
             {
                 "at": 747,
-                "pid": 2356,
+                "pid": child_pid,
                 "procid": 2,
-                "name": f"memory/2356-{task_id}-0x6B280000-memory.dmp",
+                "name": f"memory/{child_pid}-{task_id}-0x6B280000-memory.dmp",
                 "kind": "region",
                 "origin": "exception",
                 "addr": 1797783552,
@@ -189,7 +194,7 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
             },
             {
                 "at": 435,
-                "pid": 2104,
+                "pid": parent_pid,
                 "procid": 1,
                 "path": "\\Users\\Admin\\AppData\\Local\\Temp\\setup.exe",
                 "name": f"files/0x1-2-{task_id}.dat",

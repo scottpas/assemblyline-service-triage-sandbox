@@ -450,17 +450,14 @@ class Sample:
     url: Optional[str] = None
     private: Optional[bool] = None
 
-    def get_task_reports(self, client: TriageClient, ontology: OntologyResults):
+    def get_task_reports(self, client: TriageClient):
         self.task_reports = []
         for task in self.tasks:
             if task["id"].startswith("behavioral") and task["status"] != "failed":
-                # Get the API response
                 api_response = client._req_json(
                     method="GET", path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json"
                 )
 
-                # Filter out any fields that DynamicReport doesn't expect
-                # Keep only the fields that are defined in the DynamicReport class
                 expected_fields = {
                     "version",
                     "sample",
@@ -476,15 +473,19 @@ class Sample:
                 }
                 filtered_response = {k: v for k, v in api_response.items() if k in expected_fields}
 
-                self.task_reports.append(DynamicReport(task_id=task["id"], ontology=ontology, **filtered_response))
+                self.task_reports.append(
+                    DynamicReport(
+                        task_id=task["id"],
+                        ontology=OntologyResults(service_name=SERVICE_NAME),
+                        **filtered_response,
+                    )
+                )
         pass
 
 
 class TriageResult:
     def __init__(self, client: TriageClient, sample):
         self.sample = Sample(**sample)
-        # self.ontology_results = OntologyResults(service_name=SERVICE_NAME)
-        # self.sample.get_task_reports(client, ontology=self.ontology_results)
-        self.sample.get_task_reports(client, ontology=OntologyResults(service_name=SERVICE_NAME))
+        self.sample.get_task_reports(client)
         self.malware_config = list(itertools.chain(*[i.malware_config for i in self.sample.task_reports]))
         pass
