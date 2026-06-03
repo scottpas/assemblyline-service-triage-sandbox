@@ -8,7 +8,13 @@ import regex
 from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Signature as SignatureModel
-from assemblyline.odm.models.ontology.results.malware_config import FTP, HTTP, Cryptocurrency, GeneralConnection, MalwareConfig
+from assemblyline.odm.models.ontology.results.malware_config import (
+    FTP,
+    HTTP,
+    Cryptocurrency,
+    GeneralConnection,
+    MalwareConfig,
+)
 from assemblyline.odm.models.ontology.results.network import NetworkConnection as NetworkConnectionModel
 from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxModel
 from assemblyline_service_utilities.common.dynamic_service_helper import (
@@ -166,10 +172,16 @@ class Config:
                             continue
                         try:
                             ip_address(host)
-                            tcp.append(GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"}))
+                            tcp.append(
+                                GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"})
+                            )
                         except ValueError:
                             try:
-                                tcp.append(GeneralConnection(data={"server_domain": host, "server_port": port_int, "usage": "c2"}))
+                                tcp.append(
+                                    GeneralConnection(
+                                        data={"server_domain": host, "server_port": port_int, "usage": "c2"}
+                                    )
+                                )
                             except Exception:
                                 continue
             if http:
