@@ -105,7 +105,8 @@ class Ransom:
     contact: Optional[List[str]] = None
 
     def create_MalwareConfig(self):
-        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": ["ransomware"]}
+        family = self.family.upper() if self.family else "UNKNOWN"
+        data = {"config_extractor": SERVICE_NAME, "family": [family], "category": ["ransomware"]}
         if self.wallets:
             data["cryptocurrency"] = []
             for wallet in self.wallets:
@@ -413,8 +414,8 @@ class DynamicReport:
                             # resource is not related to a process
                             pass
                     self.ontology.add_signature(al_sig)
-            if i.get("ransom", False):
-                self.malware_config.append(Ransom(**i["ransom"]).create_MalwareConfig())
+            if i.get("ransom_note", False):
+                self.malware_config.append(Ransom(**i["ransom_note"]).create_MalwareConfig())
             # TODO: make credentials work
             if i.get("credentials", False):
                 self.malware_config.append(Credentials(**i["credentials"]).create_MalwareConfig())
