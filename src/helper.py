@@ -163,7 +163,7 @@ class Config:
                 if regex.match(pattern="^https?://", string=i):
                     http.append(HTTP(data={"uri": i}))
                 else:
-                    parts = i.rsplit(":", 1)
+                    parts = regex.sub(r"^\w+://", "", i).rsplit(":", 1)
                     if len(parts) == 2:
                         host, port_str = parts
                         try:
