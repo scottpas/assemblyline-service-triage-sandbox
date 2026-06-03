@@ -221,16 +221,22 @@ def test_add_extracted_config_and_rule_signature():
 # ---------------------------------------------------------------------------
 
 
-def test_add_extracted_ransom():
-    """
-    Test that a ransom config in the extracted data produces a MalwareConfig with
-    family from the ransom's 'family' field.
-    """
-    extracted = [{"ransom": {"note": "n", "family": "conti", "wallets": ["w"]}}]
+def test_add_extracted_ransom_note():
+    extracted = [{"ransom_note": {"note": "n", "family": "conti", "wallets": ["w"]}}]
     dr = make_report(extracted=extracted)
     assert len(dr.malware_config) == 1
     prim = dr.malware_config[0].as_primitives(strip_null=True)
     assert prim["family"] == ["CONTI"]
+
+
+def test_add_extracted_ransom_note_no_family():
+    """Real Triage ransom_note objects often omit 'family'; should default to UNKNOWN."""
+    extracted = [{"ransom_note": {"note": "pay up", "wallets": ["w1"], "emails": ["x@evil.com"]}}]
+    dr = make_report(extracted=extracted)
+    assert len(dr.malware_config) == 1
+    prim = dr.malware_config[0].as_primitives(strip_null=True)
+    assert prim["family"] == ["UNKNOWN"]
+    assert prim.get("category") == ["ransomware"]
 
 
 # ---------------------------------------------------------------------------

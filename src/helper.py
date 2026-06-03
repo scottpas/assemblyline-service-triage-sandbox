@@ -8,7 +8,13 @@ import regex
 from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Signature as SignatureModel
-from assemblyline.odm.models.ontology.results.malware_config import FTP, HTTP, Cryptocurrency, MalwareConfig
+from assemblyline.odm.models.ontology.results.malware_config import (
+    FTP,
+    HTTP,
+    Cryptocurrency,
+    GeneralConnection,
+    MalwareConfig,
+)
 from assemblyline.odm.models.ontology.results.network import NetworkConnection as NetworkConnectionModel
 from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxModel
 from assemblyline_service_utilities.common.dynamic_service_helper import (
@@ -99,13 +105,15 @@ class Ransom:
 
     note: str
     family: Optional[str] = None
+    target: Optional[str] = None
     emails: Optional[List[str]] = None
     wallets: Optional[List[str]] = None
     urls: Optional[List[str]] = None
     contact: Optional[List[str]] = None
 
     def create_MalwareConfig(self):
-        data = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()], "category": ["ransomware"]}
+        family = self.family.upper() if self.family else "UNKNOWN"
+        data = {"config_extractor": SERVICE_NAME, "family": [family], "category": ["ransomware"]}
         if self.wallets:
             data["cryptocurrency"] = []
             for wallet in self.wallets:
@@ -150,13 +158,34 @@ class Config:
         if self.mutex:
             data["mutex"] = self.mutex
         if self.c2:
-            data["http"] = []
+            http = []
+            tcp = []
             for i in self.c2:
                 if regex.match(pattern="^https?://", string=i):
-                    data["http"].append(HTTP(data={"uri": i}))
-            # TODO: add TCP/UDP configs
-            # tcp = []
-            # udp = []
+                    http.append(HTTP(data={"uri": i}))
+                else:
+                    try:
+                        host, port_int = _split_addr(regex.sub(r"^\w+://", "", i))
+                    except (ValueError, IndexError):
+                        continue
+                    try:
+                        ip_address(host)
+                        tcp.append(
+                            GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"})
+                        )
+                    except ValueError:
+                        try:
+                            tcp.append(
+                                GeneralConnection(
+                                    data={"server_domain": host, "server_port": port_int, "usage": "c2"}
+                                )
+                            )
+                        except Exception:
+                            continue
+            if http:
+                data["http"] = http
+            if tcp:
+                data["tcp"] = tcp
         if self.wallet:
             data["cryptocurrency"] = [Cryptocurrency(data={"address": i}) for i in self.wallet]
         if self.credentials:
@@ -413,8 +442,8 @@ class DynamicReport:
                             # resource is not related to a process
                             pass
                     self.ontology.add_signature(al_sig)
-            if i.get("ransom", False):
-                self.malware_config.append(Ransom(**i["ransom"]).create_MalwareConfig())
+            if i.get("ransom_note", False):
+                self.malware_config.append(Ransom(**i["ransom_note"]).create_MalwareConfig())
             # TODO: make credentials work
             if i.get("credentials", False):
                 self.malware_config.append(Credentials(**i["credentials"]).create_MalwareConfig())
@@ -449,17 +478,14 @@ class Sample:
     url: Optional[str] = None
     private: Optional[bool] = None
 
-    def get_task_reports(self, client: TriageClient, ontology: OntologyResults):
+    def get_task_reports(self, client: TriageClient):
         self.task_reports = []
         for task in self.tasks:
             if task["id"].startswith("behavioral") and task["status"] != "failed":
-                # Get the API response
                 api_response = client._req_json(
                     method="GET", path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json"
                 )
 
-                # Filter out any fields that DynamicReport doesn't expect
-                # Keep only the fields that are defined in the DynamicReport class
                 expected_fields = {
                     "version",
                     "sample",
@@ -475,15 +501,19 @@ class Sample:
                 }
                 filtered_response = {k: v for k, v in api_response.items() if k in expected_fields}
 
-                self.task_reports.append(DynamicReport(task_id=task["id"], ontology=ontology, **filtered_response))
+                self.task_reports.append(
+                    DynamicReport(
+                        task_id=task["id"],
+                        ontology=OntologyResults(service_name=SERVICE_NAME),
+                        **filtered_response,
+                    )
+                )
         pass
 
 
 class TriageResult:
     def __init__(self, client: TriageClient, sample):
         self.sample = Sample(**sample)
-        # self.ontology_results = OntologyResults(service_name=SERVICE_NAME)
-        # self.sample.get_task_reports(client, ontology=self.ontology_results)
-        self.sample.get_task_reports(client, ontology=OntologyResults(service_name=SERVICE_NAME))
+        self.sample.get_task_reports(client)
         self.malware_config = list(itertools.chain(*[i.malware_config for i in self.sample.task_reports]))
         pass
