@@ -163,27 +163,24 @@ class Config:
                 if regex.match(pattern="^https?://", string=i):
                     http.append(HTTP(data={"uri": i}))
                 else:
-                    parts = regex.sub(r"^\w+://", "", i).rsplit(":", 1)
-                    if len(parts) == 2:
-                        host, port_str = parts
+                    try:
+                        host, port_int = _split_addr(regex.sub(r"^\w+://", "", i))
+                    except (ValueError, IndexError):
+                        continue
+                    try:
+                        ip_address(host)
+                        tcp.append(
+                            GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"})
+                        )
+                    except ValueError:
                         try:
-                            port_int = int(port_str)
-                        except ValueError:
-                            continue
-                        try:
-                            ip_address(host)
                             tcp.append(
-                                GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"})
-                            )
-                        except ValueError:
-                            try:
-                                tcp.append(
-                                    GeneralConnection(
-                                        data={"server_domain": host, "server_port": port_int, "usage": "c2"}
-                                    )
+                                GeneralConnection(
+                                    data={"server_domain": host, "server_port": port_int, "usage": "c2"}
                                 )
-                            except Exception:
-                                continue
+                            )
+                        except Exception:
+                            continue
             if http:
                 data["http"] = http
             if tcp:
