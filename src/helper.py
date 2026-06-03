@@ -8,7 +8,7 @@ import regex
 from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Signature as SignatureModel
-from assemblyline.odm.models.ontology.results.malware_config import FTP, HTTP, Cryptocurrency, MalwareConfig
+from assemblyline.odm.models.ontology.results.malware_config import FTP, HTTP, Cryptocurrency, GeneralConnection, MalwareConfig
 from assemblyline.odm.models.ontology.results.network import NetworkConnection as NetworkConnectionModel
 from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxModel
 from assemblyline_service_utilities.common.dynamic_service_helper import (
@@ -151,13 +151,31 @@ class Config:
         if self.mutex:
             data["mutex"] = self.mutex
         if self.c2:
-            data["http"] = []
+            http = []
+            tcp = []
             for i in self.c2:
                 if regex.match(pattern="^https?://", string=i):
-                    data["http"].append(HTTP(data={"uri": i}))
-            # TODO: add TCP/UDP configs
-            # tcp = []
-            # udp = []
+                    http.append(HTTP(data={"uri": i}))
+                else:
+                    parts = i.rsplit(":", 1)
+                    if len(parts) == 2:
+                        host, port_str = parts
+                        try:
+                            port_int = int(port_str)
+                        except ValueError:
+                            continue
+                        try:
+                            ip_address(host)
+                            tcp.append(GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"}))
+                        except ValueError:
+                            try:
+                                tcp.append(GeneralConnection(data={"server_domain": host, "server_port": port_int, "usage": "c2"}))
+                            except Exception:
+                                continue
+            if http:
+                data["http"] = http
+            if tcp:
+                data["tcp"] = tcp
         if self.wallet:
             data["cryptocurrency"] = [Cryptocurrency(data={"address": i}) for i in self.wallet]
         if self.credentials:
