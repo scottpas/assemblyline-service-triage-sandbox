@@ -105,6 +105,7 @@ class Ransom:
 
     note: str
     family: Optional[str] = None
+    target: Optional[str] = None
     emails: Optional[List[str]] = None
     wallets: Optional[List[str]] = None
     urls: Optional[List[str]] = None
