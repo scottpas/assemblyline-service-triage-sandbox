@@ -251,6 +251,8 @@ class TriageSandbox(ServiceBase):
                 task_section.add_subsection(sigs_section)
                 ioc_section = ResultTableSection(title_text="Network IOCs", auto_collapse=True)
                 extract_iocs_from_text_blob(blob=json.dumps(task.network), result_section=ioc_section)
+                for tag_type, value in task.network_tags:
+                    ioc_section.add_tag(tag_type=tag_type, value=value)
                 task_section.add_subsection(ioc_section)
                 if task.analysis.get("ttp"):
                     ttp_section = ResultSection("ATT&CK Techniques", auto_collapse=True)

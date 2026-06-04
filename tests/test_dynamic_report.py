@@ -15,7 +15,7 @@ from datetime import datetime
 
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
-from helper import DynamicReport
+from helper import DynamicReport, _get_connection_type
 
 # ---------------------------------------------------------------------------
 # Construction helper
@@ -251,3 +251,153 @@ def test_add_extracted_credentials():
     assert len(dr.malware_config) == 1
     prim = dr.malware_config[0].as_primitives(strip_null=True)
     assert prim["family"] == ["UNKNOWN"]
+
+
+# ---------------------------------------------------------------------------
+# _get_connection_type
+# ---------------------------------------------------------------------------
+
+
+def test_connection_type_dns():
+    assert _get_connection_type(["dns"]) == "dns"
+
+
+def test_connection_type_http_wins_over_tls():
+    assert _get_connection_type(["tls", "http"]) == "http"
+
+
+def test_connection_type_http2_normalizes_to_http():
+    assert _get_connection_type(["tls", "http2"]) == "http"
+
+
+def test_connection_type_tls_only():
+    assert _get_connection_type(["tls"]) == "tls"
+
+
+def test_connection_type_empty_returns_none():
+    assert _get_connection_type([]) is None
+
+
+def test_network_flow_no_connection_type_without_details():
+    """AL ODM only allows connection_type with matching details; flows without request details have none."""
+    network = {
+        "flows": [
+            {"id": 1, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000",
+             "proto": "udp", "protocols": ["dns"]}
+        ]
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    assert conns[0].as_primitives().get("connection_type") is None
+
+
+# ---------------------------------------------------------------------------
+# flow.domain + TLS fingerprints → network_tags
+# ---------------------------------------------------------------------------
+
+
+def test_flow_domain_added_to_network_tags():
+    network = {
+        "flows": [
+            {"id": 1, "dst": "1.2.3.4:443", "src": "10.0.0.1:5000",
+             "proto": "tcp", "domain": "evil.example.com"}
+        ]
+    }
+    dr = make_report(network=network)
+    assert ("network.dynamic.domain", "evil.example.com") in dr.network_tags
+
+
+def test_flow_domain_ip_tagged_as_network_dynamic_ip():
+    # Triage sets flow.domain to the raw destination IP when no hostname is
+    # resolved. AL rejects IP values in network.dynamic.domain, so they must
+    # be routed to network.dynamic.ip instead.
+    network = {
+        "flows": [
+            {"id": 1, "dst": "5.180.253.105:80", "src": "10.0.0.1:5000",
+             "proto": "tcp", "domain": "5.180.253.105"}
+        ]
+    }
+    dr = make_report(network=network)
+    assert ("network.dynamic.ip", "5.180.253.105") in dr.network_tags
+    assert ("network.dynamic.domain", "5.180.253.105") not in dr.network_tags
+
+
+def test_tls_fingerprints_added_to_network_tags():
+    network = {
+        "flows": [
+            {"id": 1, "dst": "1.2.3.4:443", "src": "10.0.0.1:5000",
+             "proto": "tcp", "tls_ja3": "aabbcc", "tls_ja3s": "ddeeff", "tls_sni": "evil.com"}
+        ]
+    }
+    dr = make_report(network=network)
+    assert ("network.tls.ja3_hash", "aabbcc") in dr.network_tags
+    assert ("network.tls.ja3s_hash", "ddeeff") in dr.network_tags
+    assert ("network.tls.sni", "evil.com") in dr.network_tags
+
+
+# ---------------------------------------------------------------------------
+# HTTP and DNS request details from network.requests[]
+# ---------------------------------------------------------------------------
+
+
+def test_http_request_details_mapped_to_connection():
+    network = {
+        "flows": [
+            {"id": 1, "dst": "1.2.3.4:80", "src": "10.0.0.1:5000", "proto": "tcp"}
+        ],
+        "requests": [{
+            "flow": 1,
+            "index": 0,
+            "http_request": {
+                "method": "GET",
+                "url": "http://evil.com/beacon",
+                "headers": ["Host: evil.com"],
+            },
+            "http_response": {
+                "status": 200,
+                "headers": ["Content-Type: text/plain"],
+            },
+        }],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    assert len(conns) == 1
+    prim = conns[0].as_primitives()
+    assert prim["connection_type"] == "http"
+    assert prim["http_details"]["request_uri"] == "http://evil.com/beacon"
+    assert prim["http_details"]["request_method"] == "GET"
+    assert prim["http_details"]["request_headers"] == {"Host": "evil.com"}
+    assert prim["http_details"]["response_status_code"] == 200
+    assert prim["http_details"]["response_headers"] == {"Content-Type": "text/plain"}
+
+
+def test_dns_request_details_mapped_to_connection():
+    network = {
+        "flows": [
+            {"id": 2, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp"}
+        ],
+        "requests": [{
+            "flow": 2,
+            "index": 0,
+            "dns_request": {
+                "domains": ["target.com"],
+                "questions": [{"name": "target.com", "type": "A"}],
+            },
+            "dns_response": {
+                "ip": ["9.9.9.9"],
+                "domains": ["target.com"],
+            },
+        }],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    prim = conns[0].as_primitives()
+    assert prim["connection_type"] == "dns"
+    assert prim["dns_details"]["domain"] == "target.com"
+    assert prim["dns_details"]["resolved_ips"] == ["9.9.9.9"]
+    assert prim["dns_details"]["lookup_type"] == "A"
+
+
+def test_empty_network_initializes_empty_network_tags():
+    dr = make_report(network={})
+    assert dr.network_tags == []

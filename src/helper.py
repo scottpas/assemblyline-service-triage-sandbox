@@ -20,6 +20,8 @@ from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxM
 from assemblyline_service_utilities.common.dynamic_service_helper import (
     Attribute,
     NetworkConnection,
+    NetworkDNS,
+    NetworkHTTP,
     OntologyResults,
     Process,
     Sandbox,
@@ -57,6 +59,34 @@ def _split_addr(addr: str):
         ip, port_str = addr.rsplit(":", 1)
         port = int(port_str)
     return ip, port
+
+
+_PROTO_PRIORITY: dict = {"dns": 0, "http": 1, "http2": 1, "tls": 2}
+
+
+def _parse_http_headers(headers) -> dict:
+    """Parse Triage HTTP headers (list of 'name: value' strings) into a dict."""
+    result = {}
+    for h in (headers or []):
+        if isinstance(h, dict):
+            result[h.get("name", "")] = h.get("value", "")
+        elif isinstance(h, str):
+            name, _, value = h.partition(": ")
+            if name:
+                result[name] = value
+    return result
+
+
+def _get_connection_type(protocols: list) -> Optional[str]:
+    """Return AL connection_type for a Triage flow. Priority: dns > http/http2 > tls."""
+    best_rank = None
+    best = None
+    for p in protocols:
+        rank = _PROTO_PRIORITY.get(p)
+        if rank is not None and (best_rank is None or rank < best_rank):
+            best_rank = rank
+            best = "http" if p in ("http", "http2") else p
+    return best
 
 
 # There is currently no way to get classification of signatures from Triage
@@ -295,6 +325,42 @@ class DynamicReport:
 
     def __add_network(self) -> None:
         if self.network:
+            # Pre-process network.requests[] into a flow_id → details map
+            request_details: dict = {}
+            for req in self.network.get("requests", []):
+                flow_id = req.get("flow")
+                if flow_id is None:
+                    continue
+                if "dns_request" in req:
+                    dns_req = req["dns_request"]
+                    dns_res = req.get("dns_response", {})
+                    questions = dns_req.get("questions", [])
+                    domain = (dns_req.get("domains") or [None])[0]
+                    if not domain and questions:
+                        domain = questions[0].get("name", "")
+                    lookup_type = questions[0].get("type", "A") if questions else "A"
+                    if domain:
+                        request_details[flow_id] = {
+                            "dns_details": {
+                                "domain": domain,
+                                "resolved_ips": dns_res.get("ip") or None,
+                                "resolved_domains": dns_res.get("domains") or None,
+                                "lookup_type": lookup_type,
+                            }
+                        }
+                elif "http_request" in req:
+                    http_req = req["http_request"]
+                    http_res = req.get("http_response", {})
+                    request_details[flow_id] = {
+                        "http_details": {
+                            "request_uri": http_req.get("url", ""),
+                            "request_method": http_req.get("method", "GET"),
+                            "request_headers": _parse_http_headers(http_req.get("headers")) or None,
+                            "response_headers": _parse_http_headers(http_res.get("headers")) or None,
+                            "response_status_code": http_res.get("status"),
+                        }
+                    }
+
             self.flow_dict = {}
             for f in self.network.get("flows", []):
                 _dst_ip, _dst_port = _split_addr(f["dst"])
@@ -314,13 +380,6 @@ class DynamicReport:
                         )
                     ][0],
                 }
-                if f.get("pid", False):
-                    pass
-                # TODO: #1 add connection details
-                # if any(proto.startswith("http") for proto in f["protocols"]):
-                #     self.flow_dict[f["id"]]["connection_type"] = "http"
-                # elif any(proto == "dns" for proto in f["protocols"]):
-                #     self.flow_dict[f["id"]]["connection_type"] = "dns"
                 if (
                     ip_address(self.flow_dict[f["id"]]["source_ip"]).is_private
                     and ip_address(self.flow_dict[f["id"]]["destination_ip"]).is_global
@@ -328,6 +387,34 @@ class DynamicReport:
                     self.flow_dict[f["id"]]["direction"] = "outbound"
                 if f.get("pid", None):
                     self.flow_dict[f["id"]]["process"] = self.ontology.get_process_by_pid(f["pid"])
+
+                # Triage sets flow.domain to the raw destination IP when no hostname
+                # is resolved; AL rejects IPs in network.dynamic.domain
+                if f.get("domain"):
+                    try:
+                        ip_address(f["domain"])
+                        self.network_tags.append(("network.dynamic.ip", f["domain"]))
+                    except ValueError:
+                        self.network_tags.append(("network.dynamic.domain", f["domain"]))
+
+                # TLS fingerprints → network tags
+                for triage_key, tag_type in (
+                    ("tls_ja3", "network.tls.ja3_hash"),
+                    ("tls_ja3s", "network.tls.ja3s_hash"),
+                    ("tls_sni", "network.tls.sni"),
+                ):
+                    if f.get(triage_key):
+                        self.network_tags.append((tag_type, f[triage_key]))
+
+                # Attach http/dns details from requests[] (also sets connection_type)
+                req_detail = request_details.get(f["id"], {})
+                if "http_details" in req_detail:
+                    self.flow_dict[f["id"]]["http_details"] = req_detail["http_details"]
+                    self.flow_dict[f["id"]]["connection_type"] = "http"
+                if "dns_details" in req_detail:
+                    self.flow_dict[f["id"]]["dns_details"] = req_detail["dns_details"]
+                    self.flow_dict[f["id"]]["connection_type"] = "dns"
+
             for k, v in self.flow_dict.items():
                 oid = NetworkConnectionModel.get_oid(v)
                 tag = NetworkConnectionModel.get_tag(v)
@@ -339,6 +426,24 @@ class DynamicReport:
                 )
                 object_id.assign_guid()
                 v.pop("time_observed", None)
+                # get_oid/get_tag consume plain dicts; convert to ODM objects before construction
+                if isinstance(v.get("http_details"), dict):
+                    d = v["http_details"]
+                    v["http_details"] = NetworkHTTP(
+                        request_uri=d["request_uri"],
+                        request_method=d["request_method"],
+                        request_headers=d.get("request_headers"),
+                        response_headers=d.get("response_headers"),
+                        response_status_code=d.get("response_status_code"),
+                    )
+                if isinstance(v.get("dns_details"), dict):
+                    d = v["dns_details"]
+                    v["dns_details"] = NetworkDNS(
+                        domain=d["domain"],
+                        resolved_ips=d.get("resolved_ips"),
+                        resolved_domains=d.get("resolved_domains"),
+                        lookup_type=d.get("lookup_type", "A"),
+                    )
                 self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **v))
 
     def __add_signatures(self) -> None:
@@ -453,6 +558,7 @@ class DynamicReport:
         self.start_time = datetime.fromisoformat(self.analysis["submitted"].replace("Z", ""))
         self.end_time = datetime.fromisoformat(self.analysis["reported"].replace("Z", ""))
         self.session = f"{self.sample['id']}/{self.task_id}"
+        self.network_tags: List[tuple] = []
         self.__add_sandbox()
         if self.processes:
             self.__add_processes()
