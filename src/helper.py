@@ -2,7 +2,7 @@ import itertools
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from ipaddress import ip_address
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 import regex
 from assemblyline.common.attack_map import attack_map
@@ -67,7 +67,7 @@ _PROTO_PRIORITY: dict = {"dns": 0, "http": 1, "http2": 1, "tls": 2}
 def _parse_http_headers(headers) -> dict:
     """Parse Triage HTTP headers (list of 'name: value' strings) into a dict."""
     result = {}
-    for h in (headers or []):
+    for h in headers or []:
         if isinstance(h, dict):
             result[h.get("name", "")] = h.get("value", "")
         elif isinstance(h, str):
@@ -103,18 +103,16 @@ class Credentials:
     port: Optional[int] = None
 
     def create_MalwareConfig(self):
-        data = {"config_extractor": SERVICE_NAME, "family": ["UNKNOWN"]}
+        data: dict[str, Any] = {"config_extractor": SERVICE_NAME, "family": ["UNKNOWN"]}
         if self.protocol == "ftp":
-            data["ftp"] = [
-                FTP(
-                    data={
-                        "username": self.username,
-                        "password": self.password,
-                        "hostname": self.host,
-                        "port": int(self.port),
-                    }
-                ).as_primitives()
-            ]
+            ftp_data: dict[str, Any] = {
+                "username": self.username,
+                "password": self.password,
+                "hostname": self.host,
+            }
+            if self.port is not None:
+                ftp_data["port"] = int(self.port)
+            data["ftp"] = [FTP(data=ftp_data).as_primitives()]
         malware_config = MalwareConfig(data=data)
         return malware_config
 
@@ -143,7 +141,7 @@ class Ransom:
 
     def create_MalwareConfig(self):
         family = self.family.upper() if self.family else "UNKNOWN"
-        data = {"config_extractor": SERVICE_NAME, "family": [family], "category": ["ransomware"]}
+        data: dict[str, Any] = {"config_extractor": SERVICE_NAME, "family": [family], "category": ["ransomware"]}
         if self.wallets:
             data["cryptocurrency"] = []
             for wallet in self.wallets:
@@ -178,7 +176,7 @@ class Config:
     raw: Optional[str] = None
 
     def create_MalwareConfig(self):
-        data = {"config_extractor": "TriageSandbox", "family": [self.family.upper()]}
+        data: dict[str, Any] = {"config_extractor": "TriageSandbox", "family": [self.family.upper()]}
         if self.version:
             data["version"] = self.version
         if self.campaign:
@@ -200,15 +198,11 @@ class Config:
                         continue
                     try:
                         ip_address(host)
-                        tcp.append(
-                            GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"})
-                        )
+                        tcp.append(GeneralConnection(data={"server_ip": host, "server_port": port_int, "usage": "c2"}))
                     except ValueError:
                         try:
                             tcp.append(
-                                GeneralConnection(
-                                    data={"server_domain": host, "server_port": port_int, "usage": "c2"}
-                                )
+                                GeneralConnection(data={"server_domain": host, "server_port": port_int, "usage": "c2"})
                             )
                         except Exception:
                             continue
@@ -289,7 +283,7 @@ class DynamicReport:
 
     def __add_processes(self) -> None:
         self._id_pid_map = {}
-        for process in self.processes:
+        for process in self.processes or []:
             self._id_pid_map[process["procid"]] = process["pid"]
             p_oid = ProcessModel.get_oid(
                 {
@@ -326,7 +320,7 @@ class DynamicReport:
     def __add_network(self) -> None:
         if self.network:
             # Pre-process network.requests[] into a flow_id → details map
-            request_details: dict = {}
+            request_details: dict[Any, dict[str, Any]] = {}
             for req in self.network.get("requests", []):
                 flow_id = req.get("flow")
                 if flow_id is None:
@@ -361,7 +355,7 @@ class DynamicReport:
                         }
                     }
 
-            self.flow_dict = {}
+            self.flow_dict: dict[Any, dict[str, Any]] = {}
             for f in self.network.get("flows", []):
                 _dst_ip, _dst_port = _split_addr(f["dst"])
                 _src_ip, _src_port = _split_addr(f["src"])
@@ -428,7 +422,7 @@ class DynamicReport:
                 v.pop("time_observed", None)
                 # get_oid/get_tag consume plain dicts; convert to ODM objects before construction
                 if isinstance(v.get("http_details"), dict):
-                    d = v["http_details"]
+                    d = cast(dict[str, Any], v["http_details"])
                     v["http_details"] = NetworkHTTP(
                         request_uri=d["request_uri"],
                         request_method=d["request_method"],
@@ -437,11 +431,11 @@ class DynamicReport:
                         response_status_code=d.get("response_status_code"),
                     )
                 if isinstance(v.get("dns_details"), dict):
-                    d = v["dns_details"]
+                    d = cast(dict[str, Any], v["dns_details"])
                     v["dns_details"] = NetworkDNS(
                         domain=d["domain"],
-                        resolved_ips=d.get("resolved_ips"),
-                        resolved_domains=d.get("resolved_domains"),
+                        resolved_ips=d.get("resolved_ips") or [],
+                        resolved_domains=d.get("resolved_domains") or [],
                         lookup_type=d.get("lookup_type", "A"),
                     )
                 self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **v))
@@ -513,7 +507,7 @@ class DynamicReport:
         pass
 
     def __add_extracted(self):
-        for i in self.extracted:
+        for i in self.extracted or []:
             if i.get("config", False):
                 self.malware_config.append(Config(**i["config"]).create_MalwareConfig())
                 if i["config"].get("rule", False):
@@ -541,7 +535,7 @@ class DynamicReport:
                         try:
                             source = self.ontology.get_process_by_pid(int(i["resource"].split("/")[-1].split("-")[0]))
                             if source:
-                                attr = Attribute(source=source.objectid)
+                                attr = Attribute(source=cast(Any, source).objectid)
                                 al_sig.add_attribute(attr)
                         except ValueError:
                             # resource is not related to a process

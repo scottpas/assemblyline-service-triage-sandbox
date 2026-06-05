@@ -94,10 +94,8 @@ def test_get_task_reports_ontologies_are_isolated(triage_client, sample_json):
     b2_pids = _collect_pids(b2_tree.section_body._data)
 
     # behavioral1 PIDs 2104/2356 must not appear in behavioral2's tree and vice versa
-    assert not {3104, 3356} & b1_pids, \
-        f"behavioral1 process tree must not contain behavioral2 PIDs; got {b1_pids}"
-    assert not {2104, 2356} & b2_pids, \
-        f"behavioral2 process tree must not contain behavioral1 PIDs; got {b2_pids}"
+    assert not {3104, 3356} & b1_pids, f"behavioral1 process tree must not contain behavioral2 PIDs; got {b1_pids}"
+    assert not {2104, 2356} & b2_pids, f"behavioral2 process tree must not contain behavioral1 PIDs; got {b2_pids}"
 
 
 # ---------------------------------------------------------------------------

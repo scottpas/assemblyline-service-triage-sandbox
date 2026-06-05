@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from typing import Any, cast
 
 from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
@@ -30,16 +31,17 @@ def _filter_process_prims(prims: dict) -> dict:
 
 def _attach_dynamic_ontology(service: ServiceBase, ontres: OntologyResults) -> None:
     for process in ontres.get_processes():
-        service.ontology.add_result_part(ProcessModel, _filter_process_prims(process.as_primitives()))
+        service.ontology.add_result_part(cast(Any, ProcessModel), _filter_process_prims(process.as_primitives()))
     for sandbox in ontres.get_sandboxes():
-        service.ontology.add_result_part(SandboxModel, sandbox.as_primitives())
+        service.ontology.add_result_part(cast(Any, SandboxModel), sandbox.as_primitives())
     for sig in ontres.get_signatures():
-        service.ontology.add_result_part(SignatureModel, sig.as_primitives())
+        service.ontology.add_result_part(cast(Any, SignatureModel), sig.as_primitives())
     for nc in ontres.get_network_connections():
         nc_prims = nc.as_primitives()
         if nc_prims.get("process"):
             nc_prims["process"] = _filter_process_prims(nc_prims["process"])
-        service.ontology.add_result_part(NetworkConnectionModel, nc_prims)
+        service.ontology.add_result_part(cast(Any, NetworkConnectionModel), nc_prims)
+
 
 # Ontology Result Constants
 SANDBOX_NAME = "Triage Sandbox"
@@ -111,7 +113,7 @@ except KeyError:
     MAX_ANALYSIS_TIMEOUT = 600  # Default to 600 seconds
 
 
-def _is_submission_not_reported(submission: dict) -> bool:
+def _is_submission_not_reported(submission: dict | None) -> bool:
     if not submission:
         return True
     else:
@@ -205,7 +207,7 @@ class TriageSandbox(ServiceBase):
             wait_for_submission(service=self, submission_id=submission["id"])
             triage_result = TriageResult(self.client, self.client.sample_by_id(sample_id=submission["id"]))
             for i in triage_result.malware_config:
-                self.ontology.add_result_part(MalwareConfig, i.as_primitives(strip_null=True))
+                self.ontology.add_result_part(cast(Any, MalwareConfig), i.as_primitives(strip_null=True))
             result = Result()
             sandbox_section = ResultSection("Sandbox Information")
             sandbox_section.add_line(f"URL: {self.web_url}/{triage_result.sample.id}")
@@ -220,6 +222,7 @@ class TriageSandbox(ServiceBase):
                 sigs_section = ResultSection(title_text="Signatures", auto_collapse=True)
                 sig_subsections = {}
                 for sig in task.ontology.get_signatures():
+                    sig = cast(Any, sig)
                     name = sig.name.upper()
                     if sig_subsections.get(name, False):
                         for attr in sig.attributes:
