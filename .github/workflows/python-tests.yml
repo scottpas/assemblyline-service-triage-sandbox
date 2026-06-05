@@ -11,7 +11,7 @@ on:
     branches: [ "main" ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: python-tests-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
