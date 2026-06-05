@@ -10,6 +10,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+concurrency:
+  group: python-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -20,10 +24,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
-    - name: Set up Python 3.12
+    - name: Set up Python
       uses: actions/setup-python@v6.2.0
       with:
-        python-version: "3.12"
+        python-version-file: ".python-version"
+    - name: Install uv
+      uses: astral-sh/setup-uv@v8.1.0
+      with:
+        version: "0.11.19"
+        enable-cache: true
     - name: Install dependencies
       run: |
         sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
@@ -37,11 +46,16 @@ jobs:
           libsasl2-dev \
           libssl-dev
 
-        pip install uv
-        uv sync --no-install-project
+        uv sync --locked --no-install-project
     - name: Lint with ruff
       run: |
         uv run ruff check .
+    - name: Check formatting
+      run: |
+        uv run ruff format --check .
+    - name: Type check with ty
+      run: |
+        uv run ty check
     - name: Test with pytest
       run: |
         uv run pytest
