@@ -37,14 +37,6 @@ profile = "black"
 line_length = 120
 src_paths = ["src"]
 
-[tool.mypy]
-python_version = "3.12"
-mypy_path = "src"
-strict = true
-warn_unused_configs = true
-warn_return_any = true
-warn_unused_ignores = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -58,26 +50,21 @@ source = ["src"]
 show_missing = true
 skip_covered = false
 
-[tool.pyright]
-typeCheckingMode = "strict"
-include = ["src"]
-exclude = [
-    "**/__pycache__",
-    "**/.*",
-    "**/node_modules",
-    ".venv",
-]
-
-[tool.pylint.main]
-ignore = [".venv"]
-source-roots = ["src"]
-
-[tool.pylint.format]
-max-line-length = 120
-
 [tool.bandit]
 targets = ["src"]
 exclude_dirs = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.12"
+python-platform = "linux"
+root = ["./src"]
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.terminal]
+output-format = "github"
+error-on-warning = true
 
 [dependency-groups]
 dev = [
@@ -85,4 +72,5 @@ dev = [
     "pytest",
     "requests-mock",
     "ruff",
+    "ty",
 ]
