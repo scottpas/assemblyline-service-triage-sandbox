@@ -12,6 +12,7 @@ OntologyResults accessors used:
 """
 
 from datetime import datetime
+from typing import Any
 
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
@@ -23,7 +24,7 @@ from helper import DynamicReport, _get_connection_type
 
 
 def make_report(**over):
-    base = dict(
+    base: dict[str, Any] = dict(
         ontology=OntologyResults(service_name="Triage"),
         task_id="behavioral1",
         version="1.0",
@@ -280,12 +281,7 @@ def test_connection_type_empty_returns_none():
 
 def test_network_flow_no_connection_type_without_details():
     """AL ODM only allows connection_type with matching details; flows without request details have none."""
-    network = {
-        "flows": [
-            {"id": 1, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000",
-             "proto": "udp", "protocols": ["dns"]}
-        ]
-    }
+    network = {"flows": [{"id": 1, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp", "protocols": ["dns"]}]}
     dr = make_report(network=network)
     conns = dr.ontology.get_network_connections()
     assert conns[0].as_primitives().get("connection_type") is None
@@ -298,10 +294,7 @@ def test_network_flow_no_connection_type_without_details():
 
 def test_flow_domain_added_to_network_tags():
     network = {
-        "flows": [
-            {"id": 1, "dst": "1.2.3.4:443", "src": "10.0.0.1:5000",
-             "proto": "tcp", "domain": "evil.example.com"}
-        ]
+        "flows": [{"id": 1, "dst": "1.2.3.4:443", "src": "10.0.0.1:5000", "proto": "tcp", "domain": "evil.example.com"}]
     }
     dr = make_report(network=network)
     assert ("network.dynamic.domain", "evil.example.com") in dr.network_tags
@@ -313,8 +306,7 @@ def test_flow_domain_ip_tagged_as_network_dynamic_ip():
     # be routed to network.dynamic.ip instead.
     network = {
         "flows": [
-            {"id": 1, "dst": "5.180.253.105:80", "src": "10.0.0.1:5000",
-             "proto": "tcp", "domain": "5.180.253.105"}
+            {"id": 1, "dst": "5.180.253.105:80", "src": "10.0.0.1:5000", "proto": "tcp", "domain": "5.180.253.105"}
         ]
     }
     dr = make_report(network=network)
@@ -325,8 +317,15 @@ def test_flow_domain_ip_tagged_as_network_dynamic_ip():
 def test_tls_fingerprints_added_to_network_tags():
     network = {
         "flows": [
-            {"id": 1, "dst": "1.2.3.4:443", "src": "10.0.0.1:5000",
-             "proto": "tcp", "tls_ja3": "aabbcc", "tls_ja3s": "ddeeff", "tls_sni": "evil.com"}
+            {
+                "id": 1,
+                "dst": "1.2.3.4:443",
+                "src": "10.0.0.1:5000",
+                "proto": "tcp",
+                "tls_ja3": "aabbcc",
+                "tls_ja3s": "ddeeff",
+                "tls_sni": "evil.com",
+            }
         ]
     }
     dr = make_report(network=network)
@@ -342,22 +341,22 @@ def test_tls_fingerprints_added_to_network_tags():
 
 def test_http_request_details_mapped_to_connection():
     network = {
-        "flows": [
-            {"id": 1, "dst": "1.2.3.4:80", "src": "10.0.0.1:5000", "proto": "tcp"}
+        "flows": [{"id": 1, "dst": "1.2.3.4:80", "src": "10.0.0.1:5000", "proto": "tcp"}],
+        "requests": [
+            {
+                "flow": 1,
+                "index": 0,
+                "http_request": {
+                    "method": "GET",
+                    "url": "http://evil.com/beacon",
+                    "headers": ["Host: evil.com"],
+                },
+                "http_response": {
+                    "status": 200,
+                    "headers": ["Content-Type: text/plain"],
+                },
+            }
         ],
-        "requests": [{
-            "flow": 1,
-            "index": 0,
-            "http_request": {
-                "method": "GET",
-                "url": "http://evil.com/beacon",
-                "headers": ["Host: evil.com"],
-            },
-            "http_response": {
-                "status": 200,
-                "headers": ["Content-Type: text/plain"],
-            },
-        }],
     }
     dr = make_report(network=network)
     conns = dr.ontology.get_network_connections()
@@ -373,21 +372,21 @@ def test_http_request_details_mapped_to_connection():
 
 def test_dns_request_details_mapped_to_connection():
     network = {
-        "flows": [
-            {"id": 2, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp"}
+        "flows": [{"id": 2, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp"}],
+        "requests": [
+            {
+                "flow": 2,
+                "index": 0,
+                "dns_request": {
+                    "domains": ["target.com"],
+                    "questions": [{"name": "target.com", "type": "A"}],
+                },
+                "dns_response": {
+                    "ip": ["9.9.9.9"],
+                    "domains": ["target.com"],
+                },
+            }
         ],
-        "requests": [{
-            "flow": 2,
-            "index": 0,
-            "dns_request": {
-                "domains": ["target.com"],
-                "questions": [{"name": "target.com", "type": "A"}],
-            },
-            "dns_response": {
-                "ip": ["9.9.9.9"],
-                "domains": ["target.com"],
-            },
-        }],
     }
     dr = make_report(network=network)
     conns = dr.ontology.get_network_connections()
