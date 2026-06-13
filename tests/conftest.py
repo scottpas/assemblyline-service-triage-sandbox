@@ -3,9 +3,8 @@ Shared pytest fixtures for the TriageSandbox service test suite.
 
 Key architectural notes:
 - TriageSandbox(ServiceBase) reads service_manifest.yml from the repo root at
-  construction time (via get_service_attributes()), so no special constructor
-  args are required; a plain `TriageSandbox()` call succeeds in the test
-  environment as long as the CWD is the repo root.
+  construction time (via get_service_attributes()), so the triage_service
+  fixture changes CWD to the repo root before construction.
 - ServiceRequest is mocked with MagicMock so tests remain independent of the
   full assemblyline task machinery.
 - The Triage HTTP client is requests-based; requests_mock intercepts all calls
@@ -18,6 +17,7 @@ Key architectural notes:
 """
 
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import MagicMock
 
@@ -30,6 +30,8 @@ from requests import utils as req_utils
 
 SAMPLE_ID = "240202-3y8f7sefen"
 SHA256 = "7d50e22081955b574b989561277ce0e835117e716817736373ac8799774b6f03"
+
+_SERVICE_ROOT = Path(__file__).parents[1]
 
 
 # ---------------------------------------------------------------------------
@@ -361,28 +363,19 @@ def make_request(sample_json):
 
 
 @pytest.fixture
-def triage_service():
+def triage_service(monkeypatch):
     """
     Instantiate a TriageSandbox ready for execute() calls.
 
     Construction recipe
     -------------------
-    TriageSandbox() with no arguments works because ServiceBase.__init__
-    calls get_service_attributes() which reads service_manifest.yml from the
-    current working directory (the repo root when pytest is invoked).
-
-    The resulting object has:
-      svc.config       = {'root_url': 'https://api.tria.ge', 'api_key': '', …}
-      svc.web_url      = 'https://tria.ge'
-      svc.log          = standard Python logger
-      svc.ontology     = OntologyHelper instance (from assemblyline_v4_service)
-      svc.working_directory  -> auto-created temp dir on first access
-
-    execute() also instantiates svc.client (TriageClient) from request params,
-    so tests that mock at the HTTP level (via requests_mock) do not need to
-    pre-set svc.client.
+    ServiceBase.__init__ calls get_service_attributes() which searches for
+    service_manifest.yml. We point SERVICE_MANIFEST_PATH at our actual manifest
+    so the correct heuristics and config are loaded regardless of CWD or any
+    pre-existing /tmp/service_manifest.yml from the AL4 test infrastructure.
     """
-    from service import TriageSandbox
+    monkeypatch.setenv("SERVICE_MANIFEST_PATH", str(_SERVICE_ROOT / "service_manifest.yml"))
+    from triage_sandbox.service import TriageSandbox
 
     return TriageSandbox()
 
