@@ -1,5 +1,5 @@
 """
-Tests for helper.Sample.get_task_reports and helper.TriageResult.
+Tests for triage_sandbox.report.Sample.get_task_reports and TriageResult.
 
 Uses the `triage_client` fixture from conftest.py which registers all
 tria.ge API endpoints on requests_mock and returns a TriageClient.
@@ -7,7 +7,7 @@ tria.ge API endpoints on requests_mock and returns a TriageClient.
 
 import copy
 
-from helper import DynamicReport, Sample, TriageResult
+from triage_sandbox.report import DynamicReport, Sample, TriageResult
 
 SAMPLE_ID = "240202-3y8f7sefen"
 

@@ -1,5 +1,5 @@
 """
-Unit tests for helper.DynamicReport and its private mapping methods.
+Unit tests for triage_sandbox.report.DynamicReport and its private mapping methods.
 
 Each DynamicReport is exercised via construction: __post_init__ runs all
 the private __add_* methods automatically.
@@ -16,7 +16,8 @@ from typing import Any
 
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
-from helper import DynamicReport, _get_connection_type
+from triage_sandbox.network import _get_connection_type
+from triage_sandbox.report import DynamicReport
 
 # ---------------------------------------------------------------------------
 # Construction helper
@@ -395,6 +396,30 @@ def test_dns_request_details_mapped_to_connection():
     assert prim["dns_details"]["domain"] == "target.com"
     assert prim["dns_details"]["resolved_ips"] == ["9.9.9.9"]
     assert prim["dns_details"]["lookup_type"] == "A"
+
+
+def test_dns_request_without_response_does_not_raise():
+    # DNS query with no response (resolved_ips=None) must not crash — empty list
+    # was previously passed to NetworkDNS which rejected it as not "legitimate".
+    network = {
+        "flows": [{"id": 2, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp"}],
+        "requests": [
+            {
+                "flow": 2,
+                "index": 0,
+                "dns_request": {
+                    "domains": ["target.com"],
+                    "questions": [{"name": "target.com", "type": "A"}],
+                },
+            }
+        ],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    prim = conns[0].as_primitives()
+    assert prim["connection_type"] == "dns"
+    assert prim["dns_details"]["domain"] == "target.com"
+    assert prim["dns_details"].get("resolved_ips") is None
 
 
 def test_empty_network_initializes_empty_network_tags():

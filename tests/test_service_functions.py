@@ -1,11 +1,11 @@
-"""Unit tests for module-level functions in service.py."""
+"""Unit tests for module-level functions in triage_sandbox.service."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from triage.client import ServerError
 
-from service import _is_submission_not_reported, _retry_on_not_found, wait_for_submission
+from triage_sandbox.service import _is_submission_not_reported, _retry_on_not_found, wait_for_submission
 
 
 def make_server_error(status: int) -> ServerError:

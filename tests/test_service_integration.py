@@ -303,7 +303,7 @@ def test_execute_retry_error_reraised(triage_service, make_request, mock_triage_
     def _raise_retry(*args, **kwargs):
         raise retry_err
 
-    monkeypatch.setattr("service.wait_for_submission", _raise_retry)
+    monkeypatch.setattr("triage_sandbox.service.wait_for_submission", _raise_retry)
 
     req = make_request()
     with pytest.raises(RetryError):

@@ -1,5 +1,9 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "assemblyline-service-triage-sandbox"
+name = "triage_sandbox"
 version = "0.1.0"
 requires-python = ">=3.11.0,<3.13.0"
 dependencies = [
@@ -8,10 +12,8 @@ dependencies = [
     "retrying>=1.4.2",
 ]
 
-[tool.black]
-line-length = 120
-target-version = ["py312"]
-skip-string-normalization = false
+[tool.hatch.build.targets.wheel]
+packages = ["src/triage_sandbox"]
 
 [tool.ruff]
 line-length = 120
@@ -31,11 +33,6 @@ ignore = ["E203"]
 line-ending = "auto"
 quote-style = "double"
 indent-style = "space"
-
-[tool.isort]
-profile = "black"
-line_length = 120
-src_paths = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
