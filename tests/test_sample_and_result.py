@@ -197,7 +197,7 @@ def test_overview_config_recovered_when_behavioral_has_none(requests_mock, sampl
 
 def test_overview_config_skipped_when_already_in_behavioral(requests_mock, sample_json):
     """
-    When a config from the overview has the same family+c2 as one already
+    When a config from the overview is identical (same filtered content) to one already
     extracted from behavioral reports, it must NOT be added again (no double-scoring).
     """
     from triage import Client as TriageClient
@@ -230,7 +230,7 @@ def test_overview_config_skipped_when_already_in_behavioral(requests_mock, sampl
     client = TriageClient(token="TESTING")
     tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
 
-    # No overview configs should be added (behavioral1 already has fabookie with same c2)
+    # No overview configs should be added (identical to behavioral1's fabookie config)
     assert tr.overview_configs == []
     # Total malware_config count must equal only what behavioral reports produced (2 tasks)
     behavioral_total = sum(len(r.malware_config) for r in tr.sample.task_reports)

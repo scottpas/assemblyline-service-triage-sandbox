@@ -1,4 +1,5 @@
 import itertools
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from ipaddress import ip_address
@@ -443,13 +444,13 @@ class TriageResult:
         self.sample.get_task_reports(client)
         self.malware_config = list(itertools.chain.from_iterable(r.malware_config for r in self.sample.task_reports))
 
-        # Configs already recovered from behavioral reports (dedup key: family + sorted c2 list)
-        behavioral_config_keys: set[tuple] = set()
+        # Configs already recovered from behavioral reports (dedup key: canonical JSON of filtered config)
+        behavioral_config_keys: set[str] = set()
         for report in self.sample.task_reports:
             for item in report.extracted or []:
                 cfg = item.get("config") or {}
                 if cfg.get("family"):
-                    key = (cfg["family"].lower(), tuple(sorted(cfg.get("c2") or [])))
+                    key = json.dumps(_filter_config(cfg), sort_keys=True)
                     behavioral_config_keys.add(key)
 
         # Collect seen signature names across all behavioral tasks (for overview dedup)
@@ -474,10 +475,10 @@ class TriageResult:
                 family = cfg.get("family", "")
                 if not family:
                     continue
-                key = (family.lower(), tuple(sorted(cfg.get("c2") or [])))
+                filtered = _filter_config(cfg)
+                key = json.dumps(filtered, sort_keys=True)
                 if key in behavioral_config_keys:
                     continue  # already extracted from a behavioral report
-                filtered = _filter_config(cfg)
                 try:
                     mc = Config(**filtered).create_MalwareConfig()
                     self.malware_config.append(mc)

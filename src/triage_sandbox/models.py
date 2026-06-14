@@ -174,7 +174,7 @@ class Config:
             except ValueError:
                 dns_entries.append(DNS(data={"hostname": dns_str, "usage": "c2"}))
         # Map config.attr → paths[], sleep_delay, encryption[] (additive; attr stays in other for full context)
-        attr = self.attr or {}
+        attr = self.attr if isinstance(self.attr, dict) else {}
         paths: list[Path] = []
         _INSTALL_PATH_KEYS = ("install_folder", "install_file", "install_name", "subdirectory")
         for path_key in _INSTALL_PATH_KEYS:
