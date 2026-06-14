@@ -294,6 +294,11 @@ def triage_client(requests_mock, sample_text, behavioral1_text, behavioral2_text
         text=behavioral2_text,
     )
     requests_mock.get(search_url, text=search_body)
+    # Overview endpoint — return empty by default so existing TriageResult tests are unaffected
+    requests_mock.get(
+        f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json",
+        text=json.dumps({}),
+    )
 
     return TriageClient(token="TESTING")
 
@@ -397,5 +402,9 @@ def mock_triage_api(requests_mock, sample_text, behavioral1_text, behavioral2_te
     requests_mock.get(
         f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
         text=json.dumps({"data": [{"id": SAMPLE_ID}], "next": None}),
+    )
+    requests_mock.get(
+        f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json",
+        text=json.dumps({}),
     )
     return requests_mock

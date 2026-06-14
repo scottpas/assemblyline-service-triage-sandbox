@@ -3,6 +3,7 @@ import os
 import tempfile
 from typing import Any, cast
 
+from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Sandbox as SandboxModel
@@ -139,6 +140,57 @@ class TriageSandbox(ServiceBase):
             sandbox_section.add_line(f"URL: {self.web_url}/{triage_result.sample.id}")
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
+            # Single Overview section: signatures + malware config from overview report
+            if triage_result.overview_signatures or triage_result.overview_configs:
+                overview_section = ResultSection(title_text="Overview", auto_collapse=True)
+                if triage_result.overview_signatures:
+                    overview_sigs = ResultSection(title_text="Signatures", auto_collapse=True)
+                    for sig in triage_result.overview_signatures:
+                        raw_name = sig.get("label") or sig.get("name", "")
+                        name = raw_name.upper()
+                        s = ResultSection(title_text=name)
+                        s.add_tag(tag_type="dynamic.signature.name", value=name)
+                        families = [t.split(":")[-1].upper() for t in sig.get("tags", []) if t.startswith("family:")]
+                        for f in families:
+                            s.add_tag(tag_type="attribution.family", value=f)
+                        score = (sig.get("score") or 0) * 100
+                        if score >= 1000:
+                            s.set_heuristic(5, signature=name)
+                        elif score >= 800:
+                            s.set_heuristic(4, signature=name)
+                        elif score >= 500:
+                            s.set_heuristic(3, signature=name)
+                        elif score >= 100:
+                            s.set_heuristic(2, signature=name)
+                        else:
+                            s.set_heuristic(1, signature=name)
+                        for ttp_id in sig.get("ttp", []):
+                            if attack_map.get(ttp_id):
+                                s.heuristic.add_attack_id(ttp_id)
+                        if sig.get("desc"):
+                            s.add_line(sig["desc"])
+                        overview_sigs.add_subsection(s)
+                    overview_section.add_subsection(overview_sigs)
+                if triage_result.overview_configs:
+                    overview_mc = ResultSection(title_text="Malware Config", auto_collapse=True)
+                    for cfg in triage_result.overview_configs:
+                        family_upper = cfg.get("family", "UNKNOWN").upper()
+                        m = ResultTableSection(title_text=family_upper)
+                        extract_iocs_from_text_blob(blob=json.dumps(cfg), result_section=m)
+                        m.set_heuristic(100, signature=family_upper)
+                        m.add_tag(tag_type="attribution.family", value=family_upper)
+                        m.add_subsection(
+                            ResultSection(
+                                title_text="Raw Config",
+                                body_format="JSON",
+                                body=json.dumps(cfg),
+                                auto_collapse=True,
+                            )
+                        )
+                        overview_mc.add_subsection(m)
+                    overview_section.add_subsection(overview_mc)
+                sandbox_section.add_subsection(overview_section)
+
             for task in triage_result.sample.task_reports:
                 _attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {task.task_id}")
@@ -154,6 +206,8 @@ class TriageSandbox(ServiceBase):
                         for attr in sig.attributes:
                             if attr.source.ontology_id.startswith("process_"):
                                 sig_subsections[name].add_tag(tag_type="dynamic.processtree_id", value=attr.source.tag)
+                        for attack in sig.attacks:
+                            sig_subsections[name].heuristic.add_attack_id(attack["attack_id"])
                     else:
                         s = ResultSection(title_text=name)
                         s.add_tag(tag_type="dynamic.signature.name", value=name)
@@ -170,9 +224,15 @@ class TriageSandbox(ServiceBase):
                             s.set_heuristic(2, signature=name)
                         else:
                             s.set_heuristic(1, signature=name)
+                        for attack in sig.attacks:
+                            s.heuristic.add_attack_id(attack["attack_id"])
                         for attr in sig.attributes:
                             if attr.source.ontology_id.startswith("process_"):
                                 s.add_tag(tag_type="dynamic.processtree_id", value=attr.source.tag)
+                        # Surface the human-readable description when present
+                        desc = task.signature_descriptions.get(sig.name)
+                        if desc:
+                            s.add_line(desc)
                         sig_subsections[name] = s
                 for sig_section in reversed(sorted(sig_subsections.values(), key=lambda s: s.heuristic.heur_id)):
                     sigs_section.add_subsection(sig_section)
@@ -183,13 +243,6 @@ class TriageSandbox(ServiceBase):
                 for tag_type, value in task.network_tags:
                     ioc_section.add_tag(tag_type=tag_type, value=value)
                 task_section.add_subsection(ioc_section)
-                if task.analysis.get("ttp"):
-                    ttp_section = ResultSection("ATT&CK Techniques", auto_collapse=True)
-                    for t in task.analysis["ttp"]:
-                        ttp_sub = ResultSection(title_text=t)
-                        ttp_sub.set_heuristic(10, attack_id=t)
-                        ttp_section.add_subsection(ttp_sub)
-                    task_section.add_subsection(ttp_section)
                 if task.extracted:
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
                     for e in task.extracted:

@@ -4,11 +4,14 @@ from typing import Any, List, Optional
 
 import regex
 from assemblyline.odm.models.ontology.results.malware_config import (
+    DNS,
     FTP,
     HTTP,
     Cryptocurrency,
+    Encryption,
     GeneralConnection,
     MalwareConfig,
+    Path,
 )
 
 from .constants import EXTRA_CONFIG_FIELDS, SERVICE_NAME
@@ -146,6 +149,54 @@ class Config:
             ]
             if not self.family:
                 data["family"] = ["UNKNOWN"]
+        # Map config.keys[] → MalwareConfig.encryption[]
+        encryptions: list[Encryption] = []
+        for key_entry in self.keys or []:
+            kind = key_entry.get("kind", "") or ""
+            raw_value = key_entry.get("value")
+            if raw_value is None:
+                continue
+            encryptions.append(
+                Encryption(
+                    data={
+                        "algorithm": kind.split(".")[0] if kind else None,
+                        "key": str(raw_value),
+                        "usage": "config",
+                    }
+                )
+            )
+        # Map config.dns[] → MalwareConfig.dns[]
+        dns_entries: list[DNS] = []
+        for dns_str in self.dns or []:
+            try:
+                ip_address(dns_str)
+                dns_entries.append(DNS(data={"ip": dns_str, "usage": "c2"}))
+            except ValueError:
+                dns_entries.append(DNS(data={"hostname": dns_str, "usage": "c2"}))
+        # Map config.attr → paths[], sleep_delay, encryption[] (additive; attr stays in other for full context)
+        attr = self.attr or {}
+        paths: list[Path] = []
+        _INSTALL_PATH_KEYS = ("install_folder", "install_file", "install_name", "subdirectory")
+        for path_key in _INSTALL_PATH_KEYS:
+            if attr.get(path_key):
+                paths.append(Path(data={"path": str(attr[path_key]), "usage": "install"}))
+        if attr.get("log_directory"):
+            paths.append(Path(data={"path": str(attr["log_directory"]), "usage": "logs"}))
+        for delay_key in ("delay", "reconnect_delay", "sleep_delay"):
+            if isinstance(attr.get(delay_key), int):
+                data["sleep_delay"] = attr[delay_key]
+                break
+        if attr.get("encryption_key"):
+            enc_data: dict[str, Any] = {"key": str(attr["encryption_key"]), "usage": "config"}
+            if attr.get("key_salt"):
+                enc_data["salt"] = str(attr["key_salt"])
+            encryptions.append(Encryption(data=enc_data))
+        if encryptions:
+            data["encryption"] = encryptions
+        if dns_entries:
+            data["dns"] = dns_entries
+        if paths:
+            data["paths"] = paths
         other: dict[str, Any] = {}
         for field in EXTRA_CONFIG_FIELDS:
             value = getattr(self, field)
