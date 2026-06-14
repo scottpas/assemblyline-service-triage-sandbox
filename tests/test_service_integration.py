@@ -197,16 +197,37 @@ def test_execute_malware_config_section(triage_service, make_request, mock_triag
         assert family_table.heuristic.heur_id == 100
 
 
-def test_execute_attack_techniques_section_attached(triage_service, make_request, mock_triage_api):
-    """Each task section should contain an ATT&CK Techniques subsection (analysis.ttp is present)."""
+def test_execute_attack_ids_on_signature_heuristics(triage_service, make_request, mock_triage_api):
+    """
+    ATT&CK techniques from signatures with TTPs must be attached to their signature
+    subsection heuristics, NOT in a standalone 'ATT&CK Techniques' section.
+
+    The fixture family signature carries ttp:['T1082'] (conftest.py:140-146).
+    After execution: at least one signature subsection in each task must have T1082
+    in its heuristic attack_ids, and no standalone 'ATT&CK Techniques' section may exist.
+    """
     svc = triage_service
     req = make_request()
     svc.execute(req)
 
     sandbox_section = req.result.sections[0]
     for task_section in sandbox_section.subsections:
-        ttp = find_subsection(task_section, "ATT&CK Techniques")
-        assert ttp is not None, f"ATT&CK Techniques subsection missing from {task_section.title_text}"
+        # Standalone section must be gone
+        ttp_standalone = find_subsection(task_section, "ATT&CK Techniques")
+        assert ttp_standalone is None, (
+            f"Standalone 'ATT&CK Techniques' section must not exist in {task_section.title_text}"
+        )
+
+        # At least one signature subsection must carry T1082 on its heuristic
+        sigs = find_subsection(task_section, "Signatures")
+        assert sigs is not None, f"No Signatures subsection in {task_section.title_text}"
+        attack_ids_found = set()
+        for sig_sub in sigs.subsections:
+            if sig_sub.heuristic and sig_sub.heuristic.attack_ids:
+                attack_ids_found.update(sig_sub.heuristic.attack_ids)
+        assert "T1082" in attack_ids_found, (
+            f"Expected T1082 in signature heuristic attack_ids for {task_section.title_text}; got {attack_ids_found}"
+        )
 
 
 def test_execute_pcap_extraction(triage_service, make_request, mock_triage_api):

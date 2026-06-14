@@ -6,8 +6,11 @@ tria.ge API endpoints on requests_mock and returns a TriageClient.
 """
 
 import copy
+import json
 
 from triage_sandbox.report import DynamicReport, Sample, TriageResult
+
+OVERVIEW_URL = "https://api.tria.ge/v1/samples/{id}/overview.json"
 
 SAMPLE_ID = "240202-3y8f7sefen"
 
@@ -115,9 +118,227 @@ def test_triageresult(triage_client):
 def test_triageresult_malware_config_chaining(triage_client):
     """
     TriageResult.malware_config must equal the union of per-task malware_config
-    lists, confirming itertools.chain(*...) wiring.
+    lists when the overview returns no additional configs.
     """
     tr = TriageResult(triage_client, triage_client.sample_by_id(SAMPLE_ID))
 
     expected_total = sum(len(r.malware_config) for r in tr.sample.task_reports)
     assert len(tr.malware_config) == expected_total
+
+
+# ---------------------------------------------------------------------------
+# TriageResult overview recovery tests
+# ---------------------------------------------------------------------------
+
+
+def _make_quasar_overview(sample_id: str) -> dict:
+    """Overview shaped like the real quasar sample: config absent from behavioral reports."""
+    return {
+        "analysis": {"family": ["quasar"], "score": 10, "tags": ["family:quasar"]},
+        "extracted": [
+            {
+                "config": {
+                    "family": "quasar",
+                    "rule": "Quasar",
+                    "c2": ["5.75.188.31:4782", "95.179.201.247:4782"],
+                    "botnet": "Admin@Quasar",
+                    "mutex": ["QSR_MUTEX_1ab34ef"],
+                    "attr": {
+                        "encryption_key": "B9190F8255DE3C0B619CB5B7719B9B61206842F7",
+                        "key_salt": "bfeb1e56fbcd973bb219022430a57843003d5644d21e62b9d4f180e7e6c33941",
+                        "install_name": "vcredist.exe",
+                        "reconnect_delay": 5000,
+                    },
+                },
+                "resource": "sample",
+                "tasks": ["behavioral1"],
+            }
+        ],
+        "signatures": [
+            {
+                "label": "quasar",
+                "name": "Family: Quasar",
+                "score": 10,
+                "desc": "Quasar is a remote administration tool.",
+                "tags": ["family:quasar"],
+            }
+        ],
+    }
+
+
+def test_overview_config_recovered_when_behavioral_has_none(requests_mock, sample_json):
+    """
+    When behavioral reports have no extracted config, TriageResult must recover
+    the config from the overview report.
+    Simulates the quasar scenario: behavioral tasks have empty extracted blocks.
+    """
+    from triage import Client as TriageClient
+
+    # Build sample + behavioral reports with NO extracted block
+    sample_no_config = copy.deepcopy(sample_json)
+    b1 = _behavioral_report_no_config("behavioral1")
+    b2 = _behavioral_report_no_config("behavioral2")
+    overview = _make_quasar_overview(SAMPLE_ID)
+
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_no_config))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    assert len(tr.overview_configs) == 1
+    assert tr.overview_configs[0]["family"] == "quasar"
+    # The config must land in malware_config (behavioral contributed 0)
+    families = [mc.as_primitives(strip_null=True).get("family", []) for mc in tr.malware_config]
+    assert any("QUASAR" in f for f in families)
+
+
+def test_overview_config_skipped_when_already_in_behavioral(requests_mock, sample_json):
+    """
+    When a config from the overview is identical (same filtered content) to one already
+    extracted from behavioral reports, it must NOT be added again (no double-scoring).
+    """
+    from triage import Client as TriageClient
+
+    # Build overview with same family+c2 as what build_report() puts in behavioral
+    b1_family = "fabookie"
+    b1_c2 = f"http://{b1_family}.example/gate/"
+    overview = {
+        "extracted": [
+            {
+                "config": {
+                    "family": b1_family,
+                    "c2": [b1_c2],
+                    "rule": b1_family.capitalize(),
+                },
+                "tasks": ["behavioral1"],
+            }
+        ],
+        "signatures": [],
+    }
+    from conftest import build_report
+
+    b1 = build_report("behavioral1", family=b1_family)
+    b2 = build_report("behavioral2", family="vidar")
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    # No overview configs should be added (identical to behavioral1's fabookie config)
+    assert tr.overview_configs == []
+    # Total malware_config count must equal only what behavioral reports produced (2 tasks)
+    behavioral_total = sum(len(r.malware_config) for r in tr.sample.task_reports)
+    assert len(tr.malware_config) == behavioral_total
+
+
+def test_overview_signatures_recovered_when_absent_from_behavioral(requests_mock, sample_json):
+    """Overview-only signatures must be captured in overview_signatures."""
+    from triage import Client as TriageClient
+
+    b1 = _behavioral_report_no_config("behavioral1")
+    b2 = _behavioral_report_no_config("behavioral2")
+    overview = _make_quasar_overview(SAMPLE_ID)
+
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    assert len(tr.overview_signatures) == 1
+    assert tr.overview_signatures[0]["label"] == "quasar"
+    assert tr.overview_signatures[0].get("desc") == "Quasar is a remote administration tool."
+
+
+def test_overview_error_is_non_fatal(requests_mock, sample_json):
+    """A 404 or error from overview_report must not crash TriageResult."""
+    from conftest import build_report
+    from triage import Client as TriageClient
+
+    b1 = build_report("behavioral1")
+    b2 = build_report("behavioral2", family="vidar")
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", status_code=404)
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    # Must not raise; behavioral configs still collected
+    assert len(tr.sample.task_reports) == 2
+    assert tr.overview_configs == []
+
+
+# ---------------------------------------------------------------------------
+# Helpers for overview tests
+# ---------------------------------------------------------------------------
+
+
+def _behavioral_report_no_config(task_id: str) -> dict:
+    """Behavioral report with empty signatures and no extracted config (like quasar)."""
+    pid = 2104 if task_id == "behavioral1" else 3104
+    return {
+        "version": "0.3.0",
+        "sample": {
+            "id": SAMPLE_ID,
+            "score": 10,
+            "target": "sample.exe",
+            "size": 2048,
+            "md5": "0" * 32,
+            "sha1": "0" * 40,
+            "sha256": "0" * 64,
+            "sha512": "0" * 128,
+            "ssdeep": "48:abc",
+            "static_tags": [],
+            "submitted": "2024-02-02T23:56:27Z",
+        },
+        "task": {
+            "target": "sample.exe",
+            "size": 2048,
+            "md5": "0" * 32,
+            "sha1": "0" * 40,
+            "sha256": "0" * 64,
+            "sha512": "0" * 128,
+            "ssdeep": "48:abc",
+            "static_tags": [],
+        },
+        "analysis": {
+            "score": 10,
+            "submitted": "2024-02-02T23:56:27Z",
+            "reported": "2024-02-02T23:59:09Z",
+            "resource": "win7-20231215-en",
+            "platform": "windows7_x64",
+            "tags": [],
+            "resource_tags": [],
+            "features": [],
+            "backend": "host",
+            "max_time_kernel": 180,
+            "max_time_network": 180,
+        },
+        "processes": [
+            {
+                "procid": 1,
+                "procid_parent": 0,
+                "pid": pid,
+                "ppid": 1220,
+                "image": "C:\\Windows\\vcredist.exe",
+                "cmd": '"C:\\Windows\\vcredist.exe"',
+                "orig": True,
+                "started": 154,
+            }
+        ],
+        "signatures": [],
+        "network": {"flows": [], "requests": []},
+        "extracted": [],
+        "dumped": [],
+        "tags": [],
+    }

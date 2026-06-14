@@ -1,4 +1,5 @@
 import itertools
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from ipaddress import ip_address
@@ -278,6 +279,9 @@ class DynamicReport:
                     classification=DEFAULT_SIGNATURE_CLASSIFICATION,
                 )
                 self.ontology.add_signature(al_sig)
+            # Capture human-readable description for display in result sections
+            if sig.get("desc"):
+                self.signature_descriptions[name] = sig["desc"]
             for indicator in sig.get("indicators", []):
                 if indicator.get("procid") and indicator["procid"] in self._id_pid_map:
                     try:
@@ -338,6 +342,8 @@ class DynamicReport:
         self.network_tags: List[tuple] = []  # type: ignore[type-arg]
         self.malware_config: List[MalwareConfig] = []
         self._id_pid_map: dict[int, int] = {}
+        # Maps normalized signature name → human-readable description (sig.desc)
+        self.signature_descriptions: dict[str, str] = {}
         self.__add_sandbox()
         if self.processes:
             self.__add_processes()
@@ -398,8 +404,91 @@ class Sample:
                 )
 
 
+# Keys accepted by the Config dataclass; guards against unknown future Triage config fields
+_CONFIG_DATACLASS_FIELDS = frozenset(
+    {
+        "family",
+        "tags",
+        "rule",
+        "c2",
+        "version",
+        "botnet",
+        "campaign",
+        "mutex",
+        "decoy",
+        "wallet",
+        "dns",
+        "keys",
+        "webinject",
+        "command_lines",
+        "listen_addr",
+        "listen_port",
+        "listen_for",
+        "shellcode",
+        "extracted_pe",
+        "credentials",
+        "attr",
+        "raw",
+    }
+)
+
+
+def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
+    """Return only keys accepted by the Config dataclass; drops unknown future Triage fields."""
+    return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
+
+
 class TriageResult:
     def __init__(self, client: TriageClient, sample: dict) -> None:  # type: ignore[type-arg]
         self.sample = Sample(**sample)
         self.sample.get_task_reports(client)
         self.malware_config = list(itertools.chain.from_iterable(r.malware_config for r in self.sample.task_reports))
+
+        # Configs already recovered from behavioral reports (dedup key: canonical JSON of filtered config)
+        behavioral_config_keys: set[str] = set()
+        for report in self.sample.task_reports:
+            for item in report.extracted or []:
+                cfg = item.get("config") or {}
+                if cfg.get("family"):
+                    key = json.dumps(_filter_config(cfg), sort_keys=True)
+                    behavioral_config_keys.add(key)
+
+        # Collect seen signature names across all behavioral tasks (for overview dedup)
+        behavioral_sig_names: set[str] = set()
+        for report in self.sample.task_reports:
+            for sig in report.signatures or []:
+                name = sig.get("label") or sig.get("name", "")
+                if name:
+                    behavioral_sig_names.add(name)
+
+        self.overview_configs: list[dict] = []  # type: ignore[type-arg]
+        self.overview_signatures: list[dict] = []  # type: ignore[type-arg]
+
+        try:
+            overview = client.overview_report(self.sample.id)
+        except Exception:
+            overview = {}
+
+        if overview:
+            for item in overview.get("extracted") or []:
+                cfg = item.get("config") or {}
+                family = cfg.get("family", "")
+                if not family:
+                    continue
+                filtered = _filter_config(cfg)
+                key = json.dumps(filtered, sort_keys=True)
+                if key in behavioral_config_keys:
+                    continue  # already extracted from a behavioral report
+                try:
+                    mc = Config(**filtered).create_MalwareConfig()
+                    self.malware_config.append(mc)
+                    self.overview_configs.append(cfg)
+                    behavioral_config_keys.add(key)  # prevent double-adding if overview has dupes
+                except Exception:
+                    pass
+
+            for sig in overview.get("signatures") or []:
+                name = sig.get("label") or sig.get("name", "")
+                if name and name not in behavioral_sig_names:
+                    self.overview_signatures.append(sig)
+                    behavioral_sig_names.add(name)

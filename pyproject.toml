@@ -38,7 +38,7 @@ indent-style = "space"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra"
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 
 [tool.coverage.run]
 source = ["src"]
@@ -54,7 +54,7 @@ exclude_dirs = ["tests"]
 [tool.ty.environment]
 python-version = "3.12"
 python-platform = "linux"
-root = ["./src"]
+root = ["./src", "./tests"]
 
 [tool.ty.src]
 include = ["src", "tests"]

@@ -425,3 +425,40 @@ def test_dns_request_without_response_does_not_raise():
 def test_empty_network_initializes_empty_network_tags():
     dr = make_report(network={})
     assert dr.network_tags == []
+
+
+# ---------------------------------------------------------------------------
+# 8. Signature descriptions
+# ---------------------------------------------------------------------------
+
+
+def test_signature_descriptions_populated_from_desc_field():
+    """signatures[].desc must be captured in signature_descriptions keyed by name."""
+    dr = make_report(
+        signatures=[
+            {
+                "label": "darksiderat",
+                "score": 10,
+                "desc": "DarkSideRAT is a remote access trojan.",
+                "tags": ["family:darksiderat"],
+            },
+            {
+                "label": "interesting_sig",
+                "score": 5,
+                # No desc — must not appear in signature_descriptions
+            },
+        ]
+    )
+    assert "darksiderat" in dr.signature_descriptions
+    assert dr.signature_descriptions["darksiderat"] == "DarkSideRAT is a remote access trojan."
+    assert "interesting_sig" not in dr.signature_descriptions
+
+
+def test_signature_descriptions_empty_when_no_desc():
+    """When no signatures have desc, signature_descriptions must be empty."""
+    dr = make_report(
+        signatures=[
+            {"label": "sig_without_desc", "score": 3},
+        ]
+    )
+    assert dr.signature_descriptions == {}
