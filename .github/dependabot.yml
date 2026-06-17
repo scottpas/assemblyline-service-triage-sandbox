@@ -37,10 +37,6 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    cooldown:
-      semver-major-days: 14
-      semver-minor-days: 3
-      semver-patch-days: 1
     groups:
       actions-minor-patch:
         patterns:
@@ -61,10 +57,6 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    cooldown:
-      semver-major-days: 14
-      semver-minor-days: 3
-      semver-patch-days: 1
     groups:
       docker-minor-patch:
         patterns:
@@ -85,10 +77,6 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    cooldown:
-      semver-major-days: 14
-      semver-minor-days: 3
-      semver-patch-days: 1
     groups:
       pre-commit-minor-patch:
         patterns:
