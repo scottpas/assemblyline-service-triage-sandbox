@@ -1,10 +1,15 @@
 version: 2
+
 updates:
   - package-ecosystem: "uv"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "monday"
+      time: "00:00"
+      timezone: "GMT"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -22,12 +27,13 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "09:30"
-      timezone: "Australia/Sydney"
-    open-pull-requests-limit: 3
+      time: "00:00"
+      timezone: "GMT"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -45,9 +51,13 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "monday"
+      time: "00:00"
+      timezone: "GMT"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -65,8 +75,12 @@ updates:
 
   - package-ecosystem: "pre-commit"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "00:00"
+      timezone: "GMT"
     open-pull-requests-limit: 1
     commit-message:
       prefix: "deps"
