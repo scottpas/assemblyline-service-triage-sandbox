@@ -1,6 +1,6 @@
 import itertools
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta
 from ipaddress import ip_address
 from typing import Any, List, Optional, cast
@@ -438,9 +438,16 @@ def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
     return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
 
 
+def _filter_sample(sample: dict) -> dict:  # type: ignore[type-arg]
+    """Return only keys accepted by the Sample dataclass; drops unknown future Triage sample
+    fields (e.g. user_id) so Sample construction never raises TypeError."""
+    accepted = {f.name for f in fields(Sample)}
+    return {k: v for k, v in sample.items() if k in accepted}
+
+
 class TriageResult:
     def __init__(self, client: TriageClient, sample: dict) -> None:  # type: ignore[type-arg]
-        self.sample = Sample(**sample)
+        self.sample = Sample(**_filter_sample(sample))
         self.sample.get_task_reports(client)
         self.malware_config = list(itertools.chain.from_iterable(r.malware_config for r in self.sample.task_reports))
 
