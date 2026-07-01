@@ -342,3 +342,25 @@ def _behavioral_report_no_config(task_id: str) -> dict:
         "dumped": [],
         "tags": [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Regression: unknown Triage sample fields must not crash TriageResult (issue #48)
+# ---------------------------------------------------------------------------
+
+
+def test_triageresult_tolerates_unknown_sample_fields(triage_client, sample_json):
+    """
+    Triage API may add new top-level sample fields (e.g. user_id) that the
+    Sample dataclass doesn't declare.  TriageResult must filter unknown keys
+    before constructing Sample so it never raises TypeError.
+    """
+    import copy
+
+    sample_with_extras = copy.deepcopy(sample_json)
+    sample_with_extras["user_id"] = "u-abc123"  # the field from issue #48
+    sample_with_extras["_future_field"] = "some-value"  # guard against the next one too
+
+    # Must not raise TypeError: Sample.__init__() got an unexpected keyword argument 'user_id'
+    tr = TriageResult(triage_client, sample_with_extras)
+    assert tr.sample.id == sample_json["id"]
