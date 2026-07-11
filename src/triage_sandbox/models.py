@@ -127,7 +127,9 @@ class Config:
                             tcp.append(
                                 GeneralConnection(data={"server_domain": host, "server_port": port_int, "usage": "c2"})
                             )
-                        except Exception:
+                        # Triage config is untrusted and ODM validation can raise several
+                        # exception types. A malformed entry must not discard valid C2s.
+                        except Exception:  # nosec B112
                             continue
             if http:
                 data["http"] = http

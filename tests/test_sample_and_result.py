@@ -278,6 +278,28 @@ def test_overview_error_is_non_fatal(requests_mock, sample_json):
     assert tr.overview_configs == []
 
 
+def test_invalid_overview_config_is_non_fatal(requests_mock, sample_json):
+    """Malformed best-effort overview configs must not discard behavioral results."""
+    from conftest import build_report
+    from triage import Client as TriageClient
+
+    b1 = build_report("behavioral1")
+    b2 = build_report("behavioral2", family="vidar")
+    overview = {
+        "extracted": [{"config": {"family": 123}, "tasks": ["behavioral1"]}],
+        "signatures": [],
+    }
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    tr = TriageResult(TriageClient(token="TESTING"), sample_json)
+
+    assert len(tr.sample.task_reports) == 2
+    assert tr.overview_configs == []
+
+
 # ---------------------------------------------------------------------------
 # Helpers for overview tests
 # ---------------------------------------------------------------------------
