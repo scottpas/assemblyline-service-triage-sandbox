@@ -491,7 +491,9 @@ class TriageResult:
                     self.malware_config.append(mc)
                     self.overview_configs.append(cfg)
                     behavioral_config_keys.add(key)  # prevent double-adding if overview has dupes
-                except Exception:
+                # Overview data is best-effort and may contain values rejected by
+                # either the Config dataclass or Assemblyline ODM validation.
+                except Exception:  # nosec B110
                     pass
 
             for sig in overview.get("signatures") or []:
