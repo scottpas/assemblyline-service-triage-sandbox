@@ -1,0 +1,23 @@
+name: Publish dev release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  quality:
+    name: Quality
+    uses: ./.github/workflows/_quality.yml
+    with:
+      ref: ${{ github.sha }}
+
+  publish:
+    name: Publish dev
+    needs: quality
+    uses: ./.github/workflows/_publish.yml
+    with:
+      channel: dev
+      ref: ${{ github.sha }}

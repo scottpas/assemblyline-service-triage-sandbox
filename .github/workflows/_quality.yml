@@ -1,0 +1,74 @@
+name: Quality checks
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check; defaults to the caller's ref
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, type, test, and audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          version: "0.11.19"
+          enable-cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            libmagic1 \
+            build-essential \
+            libffi-dev \
+            libfuzzy-dev \
+            libldap2-dev \
+            libsasl2-dev \
+            libssl-dev
+
+      - name: Install locked dependencies
+        run: uv sync --locked --no-install-project
+
+      - name: Lint
+        run: uv run --no-sync ruff check .
+
+      - name: Check formatting
+        run: uv run --no-sync ruff format --check .
+
+      - name: Type check
+        run: uv run --no-sync ty check
+
+      - name: Static security analysis
+        run: uv run --no-sync bandit -c pyproject.toml -r src
+
+      - name: Audit runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt
+          # Assemblyline 4.7 pins paramiko<4, while CVE-2026-44405 is fixed in
+          # paramiko 5. This service does not use Assemblyline's SSH dependency.
+          # Remove this exception once the Assemblyline constraint is updated.
+          uv run --no-sync pip-audit \
+            --requirement /tmp/requirements.txt \
+            --ignore-vuln CVE-2026-44405
+
+      - name: Test
+        run: uv run --no-sync pytest --cov=triage_sandbox --cov-report=term-missing
