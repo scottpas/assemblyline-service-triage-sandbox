@@ -34,6 +34,10 @@ updates:
     multi-ecosystem-group: "weekly-maintenance"
     cooldown:
       default-days: 7
+    ignore:
+      # The service supports Python 3.12; keep patch updates within that line.
+      - dependency-name: "python"
+        versions: [">=3.13"]
 
   - package-ecosystem: "pre-commit"
     directory: "/"
