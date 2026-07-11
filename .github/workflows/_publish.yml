@@ -11,6 +11,13 @@ on:
         description: Git ref to publish
         required: true
         type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        description: Docker Hub username
+        required: true
+      DOCKERHUB_TOKEN:
+        description: Docker Hub access token
+        required: true
 concurrency:
   group: publish-${{ inputs.channel }}
   cancel-in-progress: false
