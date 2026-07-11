@@ -1,0 +1,171 @@
+name: Publish image
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: Assemblyline update channel
+        required: true
+        type: string
+      ref:
+        description: Git ref to publish
+        required: true
+        type: string
+concurrency:
+  group: publish-${{ inputs.channel }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.channel }} image
+    runs-on: ubuntu-24.04
+    environment: dockerhub
+    steps:
+      - name: Validate channel
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          if [[ "$CHANNEL" != "dev" && "$CHANNEL" != "stable" ]]; then
+            echo "Unsupported channel: $CHANNEL" >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Calculate release version
+        id: version
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          source .release-version
+
+          if [[ ! "$ASSEMBLYLINE_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid Assemblyline version: $ASSEMBLYLINE_VERSION" >&2
+            exit 1
+          fi
+          if [[ ! "$SERVICE_MAJOR" =~ ^[0-9]+$ ]]; then
+            echo "Invalid service major version: $SERVICE_MAJOR" >&2
+            exit 1
+          fi
+
+          prefix="v${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}"
+          latest="$(git tag --list "${prefix}[0-9]*" --sort=-version:refname | head -n 1)"
+          if [[ -n "$latest" ]]; then
+            minor="${latest#${prefix}}"
+            if [[ ! "$minor" =~ ^[0-9]+$ ]]; then
+              echo "Invalid existing release tag: $latest" >&2
+              exit 1
+            fi
+            minor=$((10#$minor + 1))
+          else
+            minor=0
+          fi
+
+          version="${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}${minor}"
+          git_tag="v${version}"
+          if [[ ! "$git_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.(dev|stable)[0-9]+$ ]]; then
+            echo "Generated tag does not match the required format: $git_tag" >&2
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "git_tag=$git_tag"
+            echo "tag_prefix=$prefix"
+            echo "commit=$(git rev-parse HEAD)"
+            if [[ "$CHANNEL" == "dev" ]]; then
+              echo "base_tag=latest"
+            else
+              echo "base_tag=stable"
+            fi
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prevent duplicate stable release
+        if: ${{ inputs.channel == 'stable' }}
+        env:
+          COMMIT: ${{ steps.version.outputs.commit }}
+          TAG_PREFIX: ${{ steps.version.outputs.tag_prefix }}
+        run: |
+          latest_stable="$(git tag --list "${TAG_PREFIX}[0-9]*" --sort=-version:refname | head -n 1)"
+          if [[ -n "$latest_stable" && "$(git rev-list -n 1 "$latest_stable")" == "$COMMIT" ]]; then
+            echo "The current main commit is already released as $latest_stable" >&2
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build container
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          build-args: |
+            version=${{ steps.version.outputs.version }}
+            branch=${{ steps.version.outputs.base_tag }}
+          tags: ${{ github.repository }}:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
+          format: cyclonedx
+          output: trivy-sbom.cdx.json
+
+      - name: Scan container
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-${{ steps.version.outputs.version }}
+          path: trivy-sbom.cdx.json
+          if-no-files-found: error
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: docker push "${GITHUB_REPOSITORY}:${VERSION}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+          GIT_TAG: ${{ steps.version.outputs.git_tag }}
+        run: |
+          args=("$GIT_TAG" --target "$COMMIT" --generate-notes --title "$GIT_TAG")
+          if [[ "$CHANNEL" == "dev" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${args[@]}"
+
+      - name: Attach SBOM to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TAG: ${{ steps.version.outputs.git_tag }}
+        run: gh release upload "$GIT_TAG" trivy-sbom.cdx.json

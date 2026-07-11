@@ -1,4 +1,4 @@
-ARG branch=latest
+ARG branch=stable
 ARG base=cccs/assemblyline-v4-service-base
 
 # Builder: export pinned requirements and build the service wheel
@@ -17,10 +17,6 @@ FROM $base:$branch
 
 ENV SERVICE_PATH=triage_sandbox.service.TriageSandbox
 
-USER root
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
 USER assemblyline
 
 WORKDIR /opt/al_service
@@ -33,7 +29,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt && \
 COPY service_manifest.yml ./
 
 # Patch version in manifest
-ARG version=4.4.1.dev1
+ARG version=0.0.0.dev0
 USER root
 RUN sed -i -e "s/\$SERVICE_TAG/$version/g" service_manifest.yml
 
