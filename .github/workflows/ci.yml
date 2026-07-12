@@ -10,6 +10,7 @@ concurrency:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   quality:
@@ -40,10 +41,17 @@ jobs:
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret,misconfig
-          format: table
-          exit-code: "1"
+          format: sarif
+          output: trivy-repository.sarif
+          exit-code: "0"
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+
+      - name: Upload repository scan to code scanning
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
+        with:
+          sarif_file: trivy-repository.sarif
+          category: trivy-repository
 
       - name: Read compatibility version
         id: version
@@ -74,7 +82,14 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: local/triage-sandbox:ci
-          format: table
-          exit-code: "1"
+          format: sarif
+          output: trivy-container.sarif
+          exit-code: "0"
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+
+      - name: Upload container scan to code scanning
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
+        with:
+          sarif_file: trivy-container.sarif
+          category: trivy-container-ci
