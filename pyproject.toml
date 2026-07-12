@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "triage_sandbox"
 version = "0.1.0"
-requires-python = ">=3.11.0,<3.13.0"
+requires-python = ">=3.11.0,<3.12.0"
 dependencies = [
     "assemblyline-service-utilities>=4.6.1.2",
     "assemblyline-v4-service>=4.7.4.3",
@@ -18,7 +18,7 @@ packages = ["src/triage_sandbox"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py311"
 src = ["src"]
 exclude = [
     ".git",
@@ -53,7 +53,7 @@ targets = ["src"]
 exclude_dirs = ["tests"]
 
 [tool.ty.environment]
-python-version = "3.12"
+python-version = "3.11"
 python-platform = "linux"
 root = ["./src", "./tests"]
 
