@@ -16,6 +16,8 @@ jobs:
   quality:
     name: Quality
     uses: ./.github/workflows/_quality.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   dependency-review:
     name: Dependency review
