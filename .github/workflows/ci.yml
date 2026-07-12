@@ -16,6 +16,8 @@ jobs:
   quality:
     name: Quality
     uses: ./.github/workflows/_quality.yml
+    with:
+      upload_coverage: true
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 

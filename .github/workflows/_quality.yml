@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ""
+      upload_coverage:
+        description: Upload the generated coverage report to Codecov
+        required: false
+        type: boolean
+        default: false
     secrets:
       CODECOV_TOKEN:
         description: Token used to upload pull-request coverage to Codecov
@@ -78,7 +83,7 @@ jobs:
         run: uv run --no-sync pytest --cov=triage_sandbox --cov-report=term-missing --cov-report=xml
 
       - name: Upload coverage to Codecov
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        if: ${{ inputs.upload_coverage }}
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
