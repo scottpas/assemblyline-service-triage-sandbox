@@ -4,7 +4,7 @@ ARG base=cccs/assemblyline-v4-service-base
 FROM ghcr.io/astral-sh/uv:0.11.19 AS uv
 
 # Builder: export pinned requirements and build the service wheel
-FROM python:3.12-slim AS builder
+FROM python:3.11-slim AS builder
 COPY --from=uv /uv /bin/uv
 ENV UV_PYTHON_DOWNLOADS=0
 WORKDIR /app
