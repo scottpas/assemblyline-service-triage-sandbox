@@ -8,7 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.11.0,<3.12.0"
 dependencies = [
     "assemblyline-service-utilities>=4.6.1.2",
-    "assemblyline-v4-service>=4.7.4.3",
+    "assemblyline-v4-service>=4.7.4.6",
     "hatching-triage>=0.2.0",
     "retrying>=1.4.2",
 ]
