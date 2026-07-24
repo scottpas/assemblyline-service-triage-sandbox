@@ -25,7 +25,7 @@ WORKDIR /opt/al_service
 
 COPY --chown=assemblyline:assemblyline --from=builder /app/requirements.txt ./
 COPY --chown=assemblyline:assemblyline --from=builder /app/dist/*.whl ./
-RUN pip install --no-cache-dir --user -r requirements.txt && \
+RUN pip install --no-cache-dir --user --no-deps -r requirements.txt && \
     pip install --no-cache-dir --user --no-deps *.whl
 
 COPY service_manifest.yml ./
