@@ -35,3 +35,4 @@ repos:
       - id: uv-sync
         args: ["--locked"]
       - id: uv-export
+        args: ["--frozen", "--no-dev", "--no-emit-project", "--output-file=requirements.txt"]

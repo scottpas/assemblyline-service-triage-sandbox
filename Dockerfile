@@ -3,7 +3,7 @@ ARG base=cccs/assemblyline-v4-service-base
 
 FROM ghcr.io/astral-sh/uv:0.11.29 AS uv
 
-# Builder: export pinned requirements and build the service wheel
+# Builder: build the service wheel
 FROM python:3.11-slim AS builder
 COPY --from=uv /uv /bin/uv
 ENV UV_PYTHON_DOWNLOADS=0
@@ -11,7 +11,6 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv export --frozen --no-dev --no-emit-project -o requirements.txt && \
     uv build --wheel -o dist/
 
 # AL4 service base
@@ -23,7 +22,7 @@ USER assemblyline
 
 WORKDIR /opt/al_service
 
-COPY --chown=assemblyline:assemblyline --from=builder /app/requirements.txt ./
+COPY --chown=assemblyline:assemblyline requirements.txt ./
 COPY --chown=assemblyline:assemblyline --from=builder /app/dist/*.whl ./
 RUN pip install --no-cache-dir --user --no-deps -r requirements.txt && \
     pip install --no-cache-dir --user --no-deps *.whl
