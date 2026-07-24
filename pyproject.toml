@@ -16,6 +16,11 @@ dependencies = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/triage_sandbox"]
 
+[tool.uv]
+override-dependencies = [
+    "click>=8.3.3,<9",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py311"
