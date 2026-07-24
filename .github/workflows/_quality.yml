@@ -71,12 +71,11 @@ jobs:
 
       - name: Audit runtime dependencies
         run: |
-          uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt
           # Assemblyline 4.7 pins paramiko<4, while CVE-2026-44405 is fixed in
           # paramiko 5. This service does not use Assemblyline's SSH dependency.
           # Remove this exception once the Assemblyline constraint is updated.
           uv run --no-sync pip-audit \
-            --requirement /tmp/requirements.txt \
+            --requirement requirements.txt \
             --disable-pip \
             --ignore-vuln CVE-2026-44405
 
