@@ -25,11 +25,23 @@ jobs:
   quality:
     name: Lint, type, test, and audit
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Read uv version
+        id: uv-version
+        run: |
+          version="$(sed -n 's/^FROM ghcr.io\/astral-sh\/uv:\([0-9][0-9.]*\) AS uv$/\1/p' Dockerfile)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid uv version in Dockerfile: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -39,20 +51,24 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
-          version: "0.11.19"
+          version: ${{ steps.uv-version.outputs.version }}
           enable-cache: true
+
+      - name: Verify runtime dependency export
+        run: |
+          uv export \
+            --quiet \
+            --locked \
+            --no-dev \
+            --no-emit-project \
+            --output-file=requirements.txt
+          git diff --exit-code -- requirements.txt
 
       - name: Install system dependencies
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            libmagic1 \
-            build-essential \
-            libffi-dev \
-            libfuzzy-dev \
-            libldap2-dev \
-            libsasl2-dev \
-            libssl-dev
+            libmagic1
 
       - name: Install locked dependencies
         run: uv sync --locked --no-install-project
@@ -68,16 +84,6 @@ jobs:
 
       - name: Static security analysis
         run: uv run --no-sync bandit -c pyproject.toml -r src
-
-      - name: Audit runtime dependencies
-        run: |
-          # Assemblyline 4.7 pins paramiko<4, while CVE-2026-44405 is fixed in
-          # paramiko 5. This service does not use Assemblyline's SSH dependency.
-          # Remove this exception once the Assemblyline constraint is updated.
-          uv run --no-sync pip-audit \
-            --requirement requirements.txt \
-            --disable-pip \
-            --ignore-vuln CVE-2026-44405
 
       - name: Test
         run: uv run --no-sync pytest --cov=triage_sandbox --cov-report=term-missing --cov-report=xml

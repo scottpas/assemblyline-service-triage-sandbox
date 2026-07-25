@@ -30,6 +30,7 @@ jobs:
   publish:
     name: Publish ${{ inputs.channel }} image
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     environment: dockerhub
     steps:
       - name: Validate channel
@@ -46,13 +47,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Calculate release version
         id: version
         env:
           CHANNEL: ${{ inputs.channel }}
         run: |
-          source .release-version
+          ASSEMBLYLINE_VERSION="$(sed -n 's/^ASSEMBLYLINE_VERSION=//p' .release-version)"
+          SERVICE_MAJOR="$(sed -n 's/^SERVICE_MAJOR=//p' .release-version)"
 
           if [[ ! "$ASSEMBLYLINE_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid Assemblyline version: $ASSEMBLYLINE_VERSION" >&2
@@ -138,11 +141,14 @@ jobs:
           image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
           format: sarif
           output: trivy-container.sarif
-          exit-code: "0"
+          exit-code: "1"
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           ignore-unfixed: true
+          trivyignores: .trivyignore.yaml
 
       - name: Upload container scan to code scanning
+        if: ${{ always() && !cancelled() }}
         uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           sarif_file: trivy-container.sarif
