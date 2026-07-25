@@ -24,7 +24,6 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   quality:
@@ -39,25 +38,35 @@ jobs:
   dependency-review:
     name: Dependency review
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Review dependency changes
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           base-ref: ${{ inputs.base_ref || github.event.pull_request.base.sha }}
           head-ref: ${{ inputs.head_ref || github.event.pull_request.head.sha }}
+          fail-on-severity: moderate
 
   container:
     name: Container build and scan
     needs: quality
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Scan repository
+        id: repository-scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -65,11 +74,14 @@ jobs:
           scanners: vuln,secret,misconfig
           format: sarif
           output: trivy-repository.sarif
-          exit-code: "0"
+          exit-code: "1"
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           ignore-unfixed: true
+          trivyignores: .trivyignore.yaml
 
       - name: Upload repository scan to code scanning
+        if: ${{ always() && !cancelled() && hashFiles('trivy-repository.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           sarif_file: trivy-repository.sarif
@@ -78,7 +90,8 @@ jobs:
       - name: Read compatibility version
         id: version
         run: |
-          source .release-version
+          ASSEMBLYLINE_VERSION="$(sed -n 's/^ASSEMBLYLINE_VERSION=//p' .release-version)"
+          SERVICE_MAJOR="$(sed -n 's/^SERVICE_MAJOR=//p' .release-version)"
           if [[ ! "$ASSEMBLYLINE_VERSION" =~ ^[0-9]+\.[0-9]+$ || ! "$SERVICE_MAJOR" =~ ^[0-9]+$ ]]; then
             echo "Invalid values in .release-version" >&2
             exit 1
@@ -101,17 +114,35 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan container
+        id: container-scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: local/triage-sandbox:ci
           format: sarif
           output: trivy-container.sarif
-          exit-code: "0"
+          exit-code: "1"
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           ignore-unfixed: true
+          trivyignores: .trivyignore.yaml
 
       - name: Upload container scan to code scanning
+        if: ${{ always() && !cancelled() && hashFiles('trivy-container.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           sarif_file: trivy-container.sarif
           category: trivy-container-ci
+
+      - name: Enforce vulnerability scan results
+        if: >-
+          always() && !cancelled() &&
+          (steps.repository-scan.outcome == 'failure' ||
+          steps.container-scan.outcome == 'failure')
+        env:
+          CONTAINER_SCAN_OUTCOME: ${{ steps.container-scan.outcome }}
+          REPOSITORY_SCAN_OUTCOME: ${{ steps.repository-scan.outcome }}
+        run: |
+          echo "Repository scan outcome: $REPOSITORY_SCAN_OUTCOME"
+          echo "Container scan outcome: $CONTAINER_SCAN_OUTCOME"
+          exit 1

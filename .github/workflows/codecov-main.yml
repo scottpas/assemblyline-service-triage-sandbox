@@ -1,36 +1,22 @@
-name: Quality checks
+name: Codecov main
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        description: Git ref to check; defaults to the caller's ref
-        required: false
-        type: string
-        default: ""
-      upload_coverage:
-        description: Upload the generated coverage report to Codecov
-        required: false
-        type: boolean
-        default: false
-    secrets:
-      CODECOV_TOKEN:
-        description: Token used to upload pull-request coverage to Codecov
-        required: false
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Lint, type, test, and audit
+  upload:
+    name: Coverage and Test Analytics
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.ref }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Read uv version
@@ -54,16 +40,6 @@ jobs:
           version: ${{ steps.uv-version.outputs.version }}
           enable-cache: true
 
-      - name: Verify runtime dependency export
-        run: |
-          uv export \
-            --quiet \
-            --locked \
-            --no-dev \
-            --no-emit-project \
-            --output-file=requirements.txt
-          git diff --exit-code -- requirements.txt
-
       - name: Install system dependencies
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
@@ -73,25 +49,29 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked --no-install-project
 
-      - name: Lint
-        run: uv run --no-sync ruff check .
-
-      - name: Check formatting
-        run: uv run --no-sync ruff format --check .
-
-      - name: Type check
-        run: uv run --no-sync ty check
-
-      - name: Static security analysis
-        run: uv run --no-sync bandit -c pyproject.toml -r src
-
-      - name: Test
-        run: uv run --no-sync pytest --cov=triage_sandbox --cov-report=term-missing --cov-report=xml
+      - name: Run tests
+        run: >-
+          uv run --no-sync pytest
+          --cov=triage_sandbox
+          --cov-report=term-missing
+          --cov-report=xml:coverage.xml
+          --junitxml=junit.xml
+          -o junit_family=legacy
 
       - name: Upload coverage to Codecov
-        if: ${{ inputs.upload_coverage }}
+        if: ${{ !cancelled() && hashFiles('coverage.xml') != '' }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
+          disable_search: true
+          fail_ci_if_error: true
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && hashFiles('junit.xml') != '' }}
+        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1.2.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./junit.xml
+          disable_search: true
           fail_ci_if_error: true

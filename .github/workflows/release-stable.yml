@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  security-events: write
+  contents: read
 
 jobs:
   validate-ref:
     name: Require main branch
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Validate selected branch
         run: |
@@ -24,15 +24,18 @@ jobs:
     needs: validate-ref
     uses: ./.github/workflows/_quality.yml
     with:
-      ref: refs/heads/main
+      ref: ${{ github.sha }}
 
   publish:
     name: Publish stable
     needs: quality
+    permissions:
+      contents: write
+      security-events: write
     uses: ./.github/workflows/_publish.yml
     with:
       channel: stable
-      ref: refs/heads/main
+      ref: ${{ github.sha }}
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

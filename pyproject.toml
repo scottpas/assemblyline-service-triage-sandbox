@@ -72,7 +72,6 @@ error-on-warning = true
 [dependency-groups]
 dev = [
     "bandit[toml]",
-    "pip-audit",
     "pre-commit",
     "pytest",
     "pytest-cov",

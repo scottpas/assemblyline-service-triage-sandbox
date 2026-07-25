@@ -5,8 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  security-events: write
+  contents: read
 
 jobs:
   quality:
@@ -18,6 +17,9 @@ jobs:
   publish:
     name: Publish dev
     needs: quality
+    permissions:
+      contents: write
+      security-events: write
     uses: ./.github/workflows/_publish.yml
     with:
       channel: dev

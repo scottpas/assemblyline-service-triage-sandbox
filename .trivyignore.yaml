@@ -1,0 +1,6 @@
+vulnerabilities:
+  - id: CVE-2026-44405
+    statement: >-
+      Assemblyline 4.7 constrains Paramiko below the fixed major version, but
+      this service does not use Assemblyline's SSH functionality.
+    expired_at: 2026-10-25
