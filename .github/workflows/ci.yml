@@ -65,6 +65,8 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Scan repository
+        id: repository-scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -79,7 +81,7 @@ jobs:
           trivyignores: .trivyignore.yaml
 
       - name: Upload repository scan to code scanning
-        if: ${{ always() && !cancelled() }}
+        if: ${{ always() && !cancelled() && hashFiles('trivy-repository.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           sarif_file: trivy-repository.sarif
@@ -112,6 +114,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan container
+        id: container-scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: local/triage-sandbox:ci
@@ -124,8 +128,21 @@ jobs:
           trivyignores: .trivyignore.yaml
 
       - name: Upload container scan to code scanning
-        if: ${{ always() && !cancelled() }}
+        if: ${{ always() && !cancelled() && hashFiles('trivy-container.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           sarif_file: trivy-container.sarif
           category: trivy-container-ci
+
+      - name: Enforce vulnerability scan results
+        if: >-
+          always() && !cancelled() &&
+          (steps.repository-scan.outcome == 'failure' ||
+          steps.container-scan.outcome == 'failure')
+        env:
+          CONTAINER_SCAN_OUTCOME: ${{ steps.container-scan.outcome }}
+          REPOSITORY_SCAN_OUTCOME: ${{ steps.repository-scan.outcome }}
+        run: |
+          echo "Repository scan outcome: $REPOSITORY_SCAN_OUTCOME"
+          echo "Container scan outcome: $CONTAINER_SCAN_OUTCOME"
+          exit 1
