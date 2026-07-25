@@ -31,9 +31,10 @@ jobs:
     name: Quality
     uses: ./.github/workflows/_quality.yml
     with:
-      upload_coverage: true
+      upload_coverage: ${{ github.event_name == 'pull_request' }}
     secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      # Dependabot refreshes use workflow_dispatch and must remain secretless.
+      CODECOV_TOKEN: ${{ github.event_name == 'pull_request' && secrets.CODECOV_TOKEN || '' }}
 
   dependency-review:
     name: Dependency review
