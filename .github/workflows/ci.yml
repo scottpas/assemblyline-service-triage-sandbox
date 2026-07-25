@@ -30,7 +30,7 @@ jobs:
     name: Quality
     uses: ./.github/workflows/_quality.yml
     with:
-      upload_coverage: ${{ github.event_name == 'pull_request' }}
+      run_codecov: ${{ github.event_name == 'pull_request' }}
     secrets:
       # Dependabot refreshes use workflow_dispatch and must remain secretless.
       CODECOV_TOKEN: ${{ github.event_name == 'pull_request' && secrets.CODECOV_TOKEN || '' }}
