@@ -3,9 +3,23 @@ name: CI
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Pull request number used to share the PR concurrency group
+        required: false
+        type: string
+      base_ref:
+        description: Base commit for dependency review
+        required: false
+        type: string
+      head_ref:
+        description: Head commit for dependency review
+        required: false
+        type: string
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
+  group: ci-${{ inputs.pull_request_number || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -17,9 +31,10 @@ jobs:
     name: Quality
     uses: ./.github/workflows/_quality.yml
     with:
-      upload_coverage: true
+      upload_coverage: ${{ github.event_name == 'pull_request' }}
     secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      # Dependabot refreshes use workflow_dispatch and must remain secretless.
+      CODECOV_TOKEN: ${{ github.event_name == 'pull_request' && secrets.CODECOV_TOKEN || '' }}
 
   dependency-review:
     name: Dependency review
@@ -27,6 +42,9 @@ jobs:
     steps:
       - name: Review dependency changes
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          base-ref: ${{ inputs.base_ref || github.event.pull_request.base.sha }}
+          head-ref: ${{ inputs.head_ref || github.event.pull_request.head.sha }}
 
   container:
     name: Container build and scan
