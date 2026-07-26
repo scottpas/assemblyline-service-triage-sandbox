@@ -56,16 +56,6 @@ jobs:
           version: ${{ steps.uv-version.outputs.version }}
           enable-cache: true
 
-      - name: Verify runtime dependency export
-        run: |
-          uv export \
-            --quiet \
-            --locked \
-            --no-dev \
-            --no-emit-project \
-            --output-file=requirements.txt
-          git diff --exit-code -- requirements.txt
-
       - name: Install system dependencies
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -y

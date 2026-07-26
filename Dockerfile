@@ -11,7 +11,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv build --wheel -o dist/
+    uv build --wheel -o dist/ && \
+    uv export --locked --no-dev --no-emit-project --output-file=requirements.txt
 
 # AL4 service base
 FROM $base:$branch
@@ -22,7 +23,7 @@ USER assemblyline
 
 WORKDIR /opt/al_service
 
-COPY --chown=assemblyline:assemblyline requirements.txt ./
+COPY --chown=assemblyline:assemblyline --from=builder /app/requirements.txt ./
 COPY --chown=assemblyline:assemblyline --from=builder /app/dist/*.whl ./
 RUN pip install --no-cache-dir --user --no-deps -r requirements.txt && \
     pip install --no-cache-dir --user --no-deps *.whl
