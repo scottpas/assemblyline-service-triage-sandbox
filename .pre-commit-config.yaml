@@ -38,5 +38,3 @@ repos:
     hooks:
       - id: uv-sync
         args: ["--locked"]
-      - id: uv-export
-        args: ["--locked", "--no-dev", "--no-emit-project", "--output-file=requirements.txt"]
