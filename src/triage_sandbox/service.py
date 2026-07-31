@@ -18,7 +18,7 @@ from triage import Client as TriageClient
 from triage.client import ServerError
 
 from .constants import SUPPORTED_FILE_TYPES
-from .report import TriageResult
+from .report import TriageResult, _is_static_yara_resource
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
 
@@ -146,8 +146,15 @@ class TriageSandbox(ServiceBase):
                 if triage_result.overview_signatures:
                     overview_sigs = ResultSection(title_text="Signatures", auto_collapse=True)
                     for sig in triage_result.overview_signatures:
+                        # Only trust yara_rule for genuine static YARA matches (sample or memory dump).
+                        # A behavioral signature can carry a yara_rule on a *file* indicator too, and
+                        # that must not override the behavior's own name.
                         yara_rule = next(
-                            (i["yara_rule"] for i in sig.get("indicators", []) if i.get("yara_rule")),
+                            (
+                                i["yara_rule"]
+                                for i in sig.get("indicators", [])
+                                if i.get("yara_rule") and _is_static_yara_resource(i.get("resource"))
+                            ),
                             None,
                         )
                         raw_name = sig.get("label") or yara_rule or sig.get("name", "")

@@ -181,6 +181,45 @@ def test_add_signatures_yara_rule_preferred_over_name():
     )
 
 
+def test_add_signatures_yara_rule_ignored_for_non_sample_resource():
+    """A behavioral signature can carry a yara_rule on a *file* indicator (resource is a
+    task-relative path, not "sample") — that must not override the behavior's own name."""
+    dr = make_report(
+        signatures=[
+            {
+                "name": "Suspicious behavior: use of WriteProcessMemory",
+                "score": 3,
+                "indicators": [{"resource": "behavioral1/files/0x1-1.dat", "yara_rule": "r"}],
+            }
+        ]
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].name == "writeprocessmemory"
+
+
+def test_add_signatures_yara_rule_trusted_for_memory_dump_resource():
+    """A static YARA match against a memory dump captured during execution (resource like
+    '<task>/memory/<pid>-...-memory.dmp') is just as genuine as one against 'sample'."""
+    dr = make_report(
+        signatures=[
+            {
+                "name": "Detects executables containing artifacts associated with disabling Windows Defender",
+                "score": 9,
+                "indicators": [
+                    {
+                        "resource": "behavioral1/memory/3812-69-0x0000000000400000-0x0000000002985000-memory.dmp",
+                        "yara_rule": "INDICATOR_SUSPICIOUS_DisableWinDefender",
+                    }
+                ],
+            }
+        ]
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].name == "INDICATOR_SUSPICIOUS_DisableWinDefender"
+
+
 # ---------------------------------------------------------------------------
 # 8. __add_signatures — score multiplied by SCORE_MULTIPLY_FACTOR
 # ---------------------------------------------------------------------------

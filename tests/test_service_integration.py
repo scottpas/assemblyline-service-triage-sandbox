@@ -421,6 +421,34 @@ def test_execute_overview_signature_yara_rule_preferred_over_name(triage_service
     assert "Detects binaries" in (by_title["INDICATOR_SUSPICIOUS_BINARY_REFERENCES_BROWSERS"].body or "")
 
 
+def test_execute_overview_signature_yara_rule_ignored_for_non_sample_resource(
+    triage_service, make_request, mock_triage_api
+):
+    """A behavioral signature can carry a yara_rule on a *file* indicator (resource is a
+    task-relative path, not "sample") — that must not override the behavior's own name."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "name": "Suspicious behavior: use of VirtualAllocEx",
+                "score": 3,
+                "indicators": [{"resource": "behavioral1/files/0x1-1.dat", "yara_rule": "r"}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert "SUSPICIOUS BEHAVIOR: USE OF VIRTUALALLOCEX" in by_title
+
+
 def test_execute_overview_configs_rendered_as_table_with_raw_config(triage_service, make_request, mock_triage_api):
     """Overview configs must render as a ResultTableSection with heur_id 100, an
     attribution.family tag, and a nested 'Raw Config' JSON subsection."""

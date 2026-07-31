@@ -33,6 +33,17 @@ from .models import Config, Credentials, Ransom
 from .network import _parse_http_headers, _split_addr
 
 
+def _is_static_yara_resource(resource: Optional[str]) -> bool:
+    """Whether an indicator's "resource" points to something a static YARA scan actually
+    ran against (the submitted sample, or a memory dump captured during execution) —
+    as opposed to a behavioral indicator that only incidentally carries a yara_rule.
+
+    Triage's schema has no explicit field distinguishing these (see triage_service_gaps
+    memory); this is inferred from observed resource path shapes, not a documented contract.
+    """
+    return resource == "sample" or (resource is not None and "/memory/" in resource)
+
+
 @dataclass
 class DynamicReport:
     ontology: OntologyResults
@@ -236,8 +247,15 @@ class DynamicReport:
 
     def __add_signatures(self) -> None:
         for sig in self.signatures:
+            # Only trust yara_rule for genuine static YARA matches (sample or memory dump).
+            # A behavioral signature can carry a yara_rule on a *file* indicator too, and
+            # that must not override the behavior's own name.
             yara_rule = next(
-                (i["yara_rule"] for i in sig.get("indicators", []) if i.get("yara_rule")),
+                (
+                    i["yara_rule"]
+                    for i in sig.get("indicators", [])
+                    if i.get("yara_rule") and _is_static_yara_resource(i.get("resource"))
+                ),
                 None,
             )
             name = (
