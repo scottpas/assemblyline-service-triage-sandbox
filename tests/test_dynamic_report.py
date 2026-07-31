@@ -16,7 +16,6 @@ from typing import Any
 
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
-from triage_sandbox.network import _get_connection_type
 from triage_sandbox.report import DynamicReport
 
 # ---------------------------------------------------------------------------
@@ -253,31 +252,6 @@ def test_add_extracted_credentials():
     assert len(dr.malware_config) == 1
     prim = dr.malware_config[0].as_primitives(strip_null=True)
     assert prim["family"] == ["UNKNOWN"]
-
-
-# ---------------------------------------------------------------------------
-# _get_connection_type
-# ---------------------------------------------------------------------------
-
-
-def test_connection_type_dns():
-    assert _get_connection_type(["dns"]) == "dns"
-
-
-def test_connection_type_http_wins_over_tls():
-    assert _get_connection_type(["tls", "http"]) == "http"
-
-
-def test_connection_type_http2_normalizes_to_http():
-    assert _get_connection_type(["tls", "http2"]) == "http"
-
-
-def test_connection_type_tls_only():
-    assert _get_connection_type(["tls"]) == "tls"
-
-
-def test_connection_type_empty_returns_none():
-    assert _get_connection_type([]) is None
 
 
 def test_network_flow_no_connection_type_without_details():

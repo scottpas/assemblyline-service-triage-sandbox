@@ -284,13 +284,10 @@ class DynamicReport:
                 self.signature_descriptions[name] = sig["desc"]
             for indicator in sig.get("indicators", []):
                 if indicator.get("procid") and indicator["procid"] in self._id_pid_map:
-                    try:
-                        source_process = self.ontology.get_process_by_pid(self._id_pid_map[indicator["procid"]])
-                        if source_process:
-                            attr = Attribute(source=cast(Any, source_process).objectid)
-                            al_sig.add_attribute(attr)
-                    except Exception:
-                        raise
+                    source_process = self.ontology.get_process_by_pid(self._id_pid_map[indicator["procid"]])
+                    if source_process:
+                        attr = Attribute(source=cast(Any, source_process).objectid)
+                        al_sig.add_attribute(attr)
 
     def __add_extracted(self) -> None:
         for item in self.extracted or []:

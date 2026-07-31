@@ -1,4 +1,3 @@
-SANDBOX_NAME = "Triage Sandbox"
 SERVICE_NAME = "Triage"
 
 SCORE_MULTIPLY_FACTOR = 100
