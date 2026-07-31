@@ -391,6 +391,36 @@ def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
     assert not (by_title["SIG4"].body or "")
 
 
+def test_execute_overview_signature_yara_rule_preferred_over_name(triage_service, make_request, mock_triage_api):
+    """A static YARA match with no 'label' must be titled by its short yara_rule
+    identifier, not the verbose rule description in 'name'."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "name": "Detects binaries (Windows and macOS) referencing many web browsers. "
+                "Observed in information stealers",
+                "score": 10,
+                "indicators": [{"resource": "sample", "yara_rule": "INDICATOR_SUSPICIOUS_Binary_References_Browsers"}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert "INDICATOR_SUSPICIOUS_BINARY_REFERENCES_BROWSERS" in by_title
+    # The verbose rule text has nowhere else to go once yara_rule is used as the title,
+    # so it must be preserved as the section body.
+    assert "Detects binaries" in (by_title["INDICATOR_SUSPICIOUS_BINARY_REFERENCES_BROWSERS"].body or "")
+
+
 def test_execute_overview_configs_rendered_as_table_with_raw_config(triage_service, make_request, mock_triage_api):
     """Overview configs must render as a ResultTableSection with heur_id 100, an
     attribution.family tag, and a nested 'Raw Config' JSON subsection."""

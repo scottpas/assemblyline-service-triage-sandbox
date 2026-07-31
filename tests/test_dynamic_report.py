@@ -159,6 +159,28 @@ def test_add_signatures_name_derived():
     assert sigs[0].name == "writeprocessmemory"
 
 
+def test_add_signatures_yara_rule_preferred_over_name():
+    dr = make_report(
+        signatures=[
+            {
+                "name": "Detects binaries (Windows and macOS) referencing many web browsers. "
+                "Observed in information stealers",
+                "score": 10,
+                "indicators": [{"resource": "sample", "yara_rule": "INDICATOR_SUSPICIOUS_Binary_References_Browsers"}],
+            }
+        ]
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].name == "INDICATOR_SUSPICIOUS_Binary_References_Browsers"
+    # The verbose rule text has nowhere else to go once yara_rule is used as the name,
+    # so it must be preserved as the signature's description.
+    assert (
+        dr.signature_descriptions["INDICATOR_SUSPICIOUS_Binary_References_Browsers"]
+        == "Detects binaries (Windows and macOS) referencing many web browsers. Observed in information stealers"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 8. __add_signatures — score multiplied by SCORE_MULTIPLY_FACTOR
 # ---------------------------------------------------------------------------

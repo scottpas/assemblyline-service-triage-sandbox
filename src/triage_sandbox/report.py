@@ -236,13 +236,18 @@ class DynamicReport:
 
     def __add_signatures(self) -> None:
         for sig in self.signatures:
-            name = sig.get(
-                "label",
-                sig.get("name", "")
+            yara_rule = next(
+                (i["yara_rule"] for i in sig.get("indicators", []) if i.get("yara_rule")),
+                None,
+            )
+            name = (
+                sig.get("label")
+                or yara_rule
+                or sig.get("name", "")
                 .replace("Suspicious behavior: ", "")
                 .replace("use of ", "")
                 .replace(" ", "_")
-                .lower(),
+                .lower()
             )
             if not name:
                 continue
@@ -279,9 +284,12 @@ class DynamicReport:
                     classification=DEFAULT_SIGNATURE_CLASSIFICATION,
                 )
                 self.ontology.add_signature(al_sig)
-            # Capture human-readable description for display in result sections
-            if sig.get("desc"):
-                self.signature_descriptions[name] = sig["desc"]
+            # Capture human-readable description for display in result sections.
+            # When the yara_rule was used as the name, the verbose original "name" (the
+            # rule's description text) has nowhere else to go, so surface it as the description.
+            description = sig.get("desc") or (sig.get("name") if name == yara_rule else None)
+            if description:
+                self.signature_descriptions[name] = description
             for indicator in sig.get("indicators", []):
                 if indicator.get("procid") and indicator["procid"] in self._id_pid_map:
                     source_process = self.ontology.get_process_by_pid(self._id_pid_map[indicator["procid"]])

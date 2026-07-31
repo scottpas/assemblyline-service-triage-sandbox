@@ -146,7 +146,11 @@ class TriageSandbox(ServiceBase):
                 if triage_result.overview_signatures:
                     overview_sigs = ResultSection(title_text="Signatures", auto_collapse=True)
                     for sig in triage_result.overview_signatures:
-                        raw_name = sig.get("label") or sig.get("name", "")
+                        yara_rule = next(
+                            (i["yara_rule"] for i in sig.get("indicators", []) if i.get("yara_rule")),
+                            None,
+                        )
+                        raw_name = sig.get("label") or yara_rule or sig.get("name", "")
                         name = raw_name.upper()
                         s = ResultSection(title_text=name)
                         s.add_tag(tag_type="dynamic.signature.name", value=name)
@@ -167,8 +171,9 @@ class TriageSandbox(ServiceBase):
                         for ttp_id in sig.get("ttp", []):
                             if attack_map.get(ttp_id):
                                 s.heuristic.add_attack_id(ttp_id)
-                        if sig.get("desc"):
-                            s.add_line(sig["desc"])
+                        description = sig.get("desc") or (sig.get("name") if raw_name == yara_rule else None)
+                        if description:
+                            s.add_line(description)
                         overview_sigs.add_subsection(s)
                     overview_section.add_subsection(overview_sigs)
                 if triage_result.overview_configs:
