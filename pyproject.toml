@@ -48,10 +48,12 @@ pythonpath = ["src", "tests"]
 
 [tool.coverage.run]
 source = ["src"]
+branch = true
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+fail_under = 100
 
 [tool.bandit]
 targets = ["src"]
