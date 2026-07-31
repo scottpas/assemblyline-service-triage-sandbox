@@ -16,7 +16,7 @@ from typing import Any
 
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
-from triage_sandbox.network import _get_connection_type
+from triage_sandbox.network import _parse_http_headers
 from triage_sandbox.report import DynamicReport
 
 # ---------------------------------------------------------------------------
@@ -255,31 +255,6 @@ def test_add_extracted_credentials():
     assert prim["family"] == ["UNKNOWN"]
 
 
-# ---------------------------------------------------------------------------
-# _get_connection_type
-# ---------------------------------------------------------------------------
-
-
-def test_connection_type_dns():
-    assert _get_connection_type(["dns"]) == "dns"
-
-
-def test_connection_type_http_wins_over_tls():
-    assert _get_connection_type(["tls", "http"]) == "http"
-
-
-def test_connection_type_http2_normalizes_to_http():
-    assert _get_connection_type(["tls", "http2"]) == "http"
-
-
-def test_connection_type_tls_only():
-    assert _get_connection_type(["tls"]) == "tls"
-
-
-def test_connection_type_empty_returns_none():
-    assert _get_connection_type([]) is None
-
-
 def test_network_flow_no_connection_type_without_details():
     """AL ODM only allows connection_type with matching details; flows without request details have none."""
     network = {"flows": [{"id": 1, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp", "protocols": ["dns"]}]}
@@ -462,3 +437,219 @@ def test_signature_descriptions_empty_when_no_desc():
         ]
     )
     assert dr.signature_descriptions == {}
+
+
+# ---------------------------------------------------------------------------
+# network._parse_http_headers
+# ---------------------------------------------------------------------------
+
+
+def test_parse_http_headers_dict_style():
+    headers = [{"name": "Host", "value": "evil.com"}, {"name": "Accept", "value": "*/*"}]
+    assert _parse_http_headers(headers) == {"Host": "evil.com", "Accept": "*/*"}
+
+
+def test_parse_http_headers_skips_invalid_entries_and_empty_names():
+    # A non-str/non-dict element is silently dropped; a string with an empty name
+    # (before the ": " separator) is also dropped.
+    headers = [123, ": no-name-value", "Host: evil.com"]
+    assert _parse_http_headers(headers) == {"Host": "evil.com"}
+
+
+def test_parse_http_headers_none_returns_empty_dict():
+    assert _parse_http_headers(None) == {}
+
+
+# ---------------------------------------------------------------------------
+# __add_network - early return and request-detail edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_add_network_direct_call_returns_early_when_network_falsy():
+    """__add_network's own guard (independent of __post_init__'s) exits without setting flow_dict."""
+    dr = make_report(network={})
+    dr._DynamicReport__add_network()
+    assert not hasattr(dr, "flow_dict")
+
+
+def test_add_network_request_with_no_flow_id_is_skipped():
+    network = {
+        "flows": [{"id": 1, "dst": "1.2.3.4:80", "src": "10.0.0.1:5000", "proto": "tcp"}],
+        "requests": [{"index": 0, "http_request": {"url": "http://x", "method": "GET"}}],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    assert len(conns) == 1
+    assert conns[0].as_primitives().get("connection_type") is None
+
+
+def test_dns_request_domain_falls_back_to_question_name():
+    network = {
+        "flows": [{"id": 2, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp"}],
+        "requests": [
+            {
+                "flow": 2,
+                "dns_request": {"questions": [{"name": "fallback.example.com", "type": "AAAA"}]},
+            }
+        ],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    prim = conns[0].as_primitives()
+    assert prim["dns_details"]["domain"] == "fallback.example.com"
+    assert prim["dns_details"]["lookup_type"] == "AAAA"
+
+
+def test_dns_request_with_no_domain_and_no_questions_adds_no_details():
+    network = {
+        "flows": [{"id": 2, "dst": "8.8.8.8:53", "src": "10.0.0.1:5000", "proto": "udp"}],
+        "requests": [{"flow": 2, "dns_request": {}}],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    assert conns[0].as_primitives().get("connection_type") is None
+
+
+def test_request_with_neither_dns_nor_http_key_is_ignored():
+    network = {
+        "flows": [{"id": 3, "dst": "1.2.3.4:80", "src": "10.0.0.1:5000", "proto": "tcp"}],
+        "requests": [{"flow": 3, "some_other_key": {}}],
+    }
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    assert conns[0].as_primitives().get("connection_type") is None
+
+
+def test_flow_direction_unknown_when_addresses_are_not_ip(monkeypatch):
+    # ip_address() raises ValueError on non-IP strings; direction must stay "unknown"
+    # rather than propagate the exception. _split_addr is patched so hostnames survive
+    # the "ip:port" parse that would otherwise reject them.
+    import triage_sandbox.report as report_mod
+
+    def _split_host_port(addr: str) -> tuple[str, int]:
+        host, port = addr.rsplit(":", 1)
+        return host, int(port)
+
+    monkeypatch.setattr(report_mod, "_split_addr", _split_host_port)
+    network = {"flows": [{"id": 1, "dst": "host.example.com:443", "src": "internal-host:5000", "proto": "tcp"}]}
+    dr = make_report(network=network)
+    conns = dr.ontology.get_network_connections()
+    assert conns[0].as_primitives()["direction"] == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# __add_signatures - remaining branches
+# ---------------------------------------------------------------------------
+
+
+def test_add_signatures_empty_name_is_skipped():
+    """A signature with neither 'label' nor a usable 'name' contributes no signature."""
+    dr = make_report(signatures=[{"label": "", "name": ""}])
+    assert dr.ontology.get_signatures() == []
+
+
+def test_add_signatures_unknown_ttp_id_adds_no_attack():
+    dr = make_report(signatures=[{"label": "s", "score": 3, "ttp": ["T9999999"]}])
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].attacks == []
+
+
+def test_add_signatures_indicator_attaches_attribute_to_process():
+    procs_input = [{"procid": 1, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[{"label": "s", "score": 3, "indicators": [{"procid": 1}]}],
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert len(sigs[0].attributes) == 1
+    assert sigs[0].attributes[0].source.ontology_id.startswith("process_")
+
+
+def test_add_signatures_indicator_with_unknown_procid_attaches_nothing():
+    dr = make_report(signatures=[{"label": "s", "score": 3, "indicators": [{"procid": 999}]}])
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].attributes == []
+
+
+def test_add_signatures_indicator_procid_maps_to_falsy_pid_attaches_nothing():
+    """get_process_by_pid(0) short-circuits to None (pid=0 is falsy); the indicator loop
+    must tolerate that rather than crash, and simply attach nothing."""
+    procs_input = [{"procid": 1, "pid": 0, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[{"label": "s", "score": 3, "indicators": [{"procid": 1}]}],
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].attributes == []
+
+
+# ---------------------------------------------------------------------------
+# __add_extracted - remaining branches
+# ---------------------------------------------------------------------------
+
+
+def test_add_extracted_config_without_rule_adds_no_signature():
+    extracted = [{"config": {"family": "emotet", "c2": ["http://x.io"]}}]
+    dr = make_report(extracted=extracted)
+    assert len(dr.malware_config) == 1
+    assert dr.ontology.get_signatures() == []
+
+
+def test_add_extracted_duplicate_rule_reuses_existing_signature():
+    """A second extracted item with the same rule reuses the existing Signature object
+    (rather than constructing a new one). add_signature is still called each time, so
+    the object appears twice in the list, but both entries are identical."""
+    extracted = [
+        {"config": {"family": "emotet", "rule": "EmotetRule"}},
+        {"config": {"family": "emotet", "rule": "EmotetRule"}},
+    ]
+    dr = make_report(extracted=extracted)
+    sigs = [s for s in dr.ontology.get_signatures() if s.name == "EmotetRule"]
+    assert len(sigs) == 2
+    assert sigs[0] is sigs[1]
+
+
+def test_add_extracted_resource_pid_attaches_attribute_to_process():
+    procs_input = [{"procid": 1, "pid": 2356, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
+    extracted = [
+        {
+            "config": {"family": "emotet", "rule": "EmotetRule"},
+            "resource": "files/2356-behavioral1-0x1.dat",
+        }
+    ]
+    dr = make_report(processes=procs_input, extracted=extracted)
+    sigs = [s for s in dr.ontology.get_signatures() if s.name == "EmotetRule"]
+    assert len(sigs) == 1
+    assert len(sigs[0].attributes) == 1
+
+
+def test_add_extracted_resource_pid_with_no_matching_process_attaches_nothing():
+    """resource parses to a valid int pid, but no process with that pid was recorded."""
+    extracted = [
+        {
+            "config": {"family": "emotet", "rule": "EmotetRule"},
+            "resource": "files/4242-behavioral1-0x1.dat",
+        }
+    ]
+    dr = make_report(extracted=extracted)
+    sigs = [s for s in dr.ontology.get_signatures() if s.name == "EmotetRule"]
+    assert len(sigs) == 1
+    assert sigs[0].attributes == []
+
+
+def test_add_extracted_resource_with_non_numeric_pid_is_ignored():
+    """A malformed resource path must not raise; the signature is still created without an attribute."""
+    extracted = [
+        {
+            "config": {"family": "emotet", "rule": "EmotetRule"},
+            "resource": "files/not-a-pid.dat",
+        }
+    ]
+    dr = make_report(extracted=extracted)
+    sigs = [s for s in dr.ontology.get_signatures() if s.name == "EmotetRule"]
+    assert len(sigs) == 1
+    assert sigs[0].attributes == []

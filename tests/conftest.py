@@ -211,6 +211,21 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
     }
 
 
+def build_overview(
+    signatures: Optional[list] = None,  # type: ignore[type-arg]
+    configs: Optional[list] = None,  # type: ignore[type-arg]
+) -> Dict[str, Any]:
+    """Build a synthetic Triage overview.json body (GET /v1/samples/{id}/overview.json).
+
+    `signatures` and `configs` are passed straight through as overview["signatures"]
+    and the `config` payload of each overview["extracted"] entry, respectively.
+    """
+    return {
+        "signatures": signatures or [],
+        "extracted": [{"config": cfg} for cfg in (configs or [])],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Raw fixture data fixtures
 # ---------------------------------------------------------------------------

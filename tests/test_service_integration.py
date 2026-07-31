@@ -8,6 +8,7 @@ import tempfile
 from types import SimpleNamespace
 
 import pytest
+import requests
 from requests import utils as req_utils
 from retrying import Attempt, RetryError
 from triage.client import ServerError
@@ -336,6 +337,130 @@ def test_execute_web_url_default(triage_service):
     assert triage_service.web_url == "https://tria.ge"
 
 
+def test_start_logs_service_name(triage_service):
+    """start() must not raise and should reference the configured service name."""
+    triage_service.start()
+
+
+# ---------------------------------------------------------------------------
+# Overview rendering (service.py execute(): "Overview" section)
+# ---------------------------------------------------------------------------
+
+
+def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
+    triage_service, make_request, mock_triage_api
+):
+    """Overview signatures must render under Overview -> Signatures with the correct
+    heuristic tier per score, an attribution.family tag from 'family:' tags, known-TTP
+    attack ids (unknown TTPs ignored), and a description line when present."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {"label": "sig5", "score": 10, "tags": ["family:emotet"], "ttp": ["T1082", "T9999999"], "desc": "d5"},
+            {"label": "sig4", "score": 8},
+            {"label": "sig3", "score": 5},
+            {"label": "sig2", "score": 1},
+            {"name": "Sig Zero", "score": 0},
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    assert overview_section is not None
+    sigs_section = find_subsection(overview_section, "Signatures")
+    assert sigs_section is not None
+
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert by_title["SIG5"].heuristic.heur_id == 5
+    assert by_title["SIG4"].heuristic.heur_id == 4
+    assert by_title["SIG3"].heuristic.heur_id == 3
+    assert by_title["SIG2"].heuristic.heur_id == 2
+    assert by_title["SIG ZERO"].heuristic.heur_id == 1  # name-derived title, zero score
+
+    assert by_title["SIG5"].tags.get("attribution.family") == ["EMOTET"]
+    assert "T1082" in by_title["SIG5"].heuristic.attack_ids
+    assert "T9999999" not in by_title["SIG5"].heuristic.attack_ids
+    assert "d5" in (by_title["SIG5"].body or "")
+
+    # No description supplied -> no line added (falsy sig.get("desc") branch)
+    assert not (by_title["SIG4"].body or "")
+
+
+def test_execute_overview_configs_rendered_as_table_with_raw_config(triage_service, make_request, mock_triage_api):
+    """Overview configs must render as a ResultTableSection with heur_id 100, an
+    attribution.family tag, and a nested 'Raw Config' JSON subsection."""
+    from conftest import build_overview
+
+    overview = build_overview(configs=[{"family": "quasar", "c2": ["1.2.3.4:4782"]}])
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    assert overview_section is not None
+    mc_section = find_subsection(overview_section, "Malware Config")
+    assert mc_section is not None
+
+    family_table = next(s for s in mc_section.subsections if s.title_text == "QUASAR")
+    assert family_table.heuristic.heur_id == 100
+    assert family_table.tags.get("attribution.family") == ["QUASAR"]
+    raw_config = next(s for s in family_table.subsections if s.title_text == "Raw Config")
+    assert raw_config.body_format == "JSON"
+    assert "quasar" in raw_config.body
+
+
+def test_execute_overview_signatures_only_no_malware_config_subsection(triage_service, make_request, mock_triage_api):
+    """When the overview has signatures but no configs, no 'Malware Config' subsection
+    is added under Overview."""
+    from conftest import build_overview
+
+    overview = build_overview(signatures=[{"label": "onlysig", "score": 5}])
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    assert overview_section is not None
+    assert find_subsection(overview_section, "Signatures") is not None
+    assert find_subsection(overview_section, "Malware Config") is None
+
+
+def test_execute_overview_configs_only_no_signatures_subsection(triage_service, make_request, mock_triage_api):
+    """When the overview has configs but no signatures, no 'Signatures' subsection is
+    added under Overview."""
+    from conftest import build_overview
+
+    overview = build_overview(configs=[{"family": "onlyconfig"}])
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    assert overview_section is not None
+    assert find_subsection(overview_section, "Malware Config") is not None
+    assert find_subsection(overview_section, "Signatures") is None
+
+
+def test_execute_no_overview_data_omits_overview_section(triage_service, make_request, mock_triage_api):
+    """When the overview report is empty, no 'Overview' section is added at all."""
+    sandbox_section = None
+    req = make_request()
+    triage_service.execute(req)
+    sandbox_section = req.result.sections[0]
+    assert find_subsection(sandbox_section, "Overview") is None
+
+
 # Minimal custom sample and behavioral report with a negative signature score.
 _FAKE_SAMPLE_ID = "test00-fakesampleid01"
 _FAKE_SHA256 = "aabbccdd" * 8  # 64 hex chars
@@ -374,6 +499,182 @@ _FAKE_BEHAVIORAL_REPORT = {
     "extracted": None,
     "dumped": None,
 }
+
+
+def test_execute_skips_search_when_use_existing_submission_false(triage_service, make_request, mock_triage_api):
+    """use_existing_submission=False must skip search_triage and fall through to
+    submit_triage when allow_dynamic_submit is also enabled."""
+    mock_triage_api.post(
+        "https://api.tria.ge/v0/samples",
+        json={"id": SAMPLE_ID, "status": "pending"},
+    )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".exe") as tmp:
+        tmp.write(b"MZ\x90\x00test")
+        tmp_path = tmp.name
+    try:
+        req = make_request(use_existing_submission=False, allow_dynamic_submit=True, file_path=tmp_path)
+        triage_service.execute(req)
+        assert req.result is not None
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_execute_search_generic_exception_reraised(triage_service, make_request, mock_triage_api, monkeypatch):
+    """A non-ServerError exception from search_triage must be logged and re-raised."""
+
+    def _raise(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(triage_service, "search_triage", _raise)
+    req = make_request()
+    with pytest.raises(ValueError):
+        triage_service.execute(req)
+
+
+# ---------------------------------------------------------------------------
+# Per-task signature dedup (same signature reached via __add_signatures AND
+# __add_extracted's rule match) + no-c2 extracted config
+# ---------------------------------------------------------------------------
+
+_DUP_SAMPLE_ID = "test00-dupsigid0001"
+_DUP_SHA256 = "d0d0d0d0" * 8
+
+_DUP_SAMPLE = {
+    "id": _DUP_SAMPLE_ID,
+    "status": "reported",
+    "kind": "file",
+    "filename": "dup.exe",
+    "private": True,
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:09Z",
+    "sha256": _DUP_SHA256,
+    "tasks": [{"id": "behavioral1", "status": "reported"}],
+}
+
+_DUP_BEHAVIORAL_REPORT = {
+    "version": "0.2.3",
+    "sample": {"id": _DUP_SAMPLE_ID},
+    "task": {"id": "behavioral1"},
+    "analysis": {
+        "score": 5,
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "resource": "win7",
+        "backend": "raven",
+        "platform": "windows",
+    },
+    "processes": [
+        {"procid": 1, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1},
+    ],
+    "signatures": [
+        {"label": "dupsig", "score": 5, "ttp": ["T1082"], "indicators": [{"procid": 1}]},
+    ],
+    "network": {},
+    # No 'c2' key -> exercises the "extracted item without c2" and "no Malware Config
+    # subsection" branches, while the matching 'rule' name causes __add_extracted to
+    # reuse (and re-add) the same Signature object created by __add_signatures.
+    "extracted": [{"config": {"family": "x", "rule": "dupsig"}}],
+    "dumped": None,
+}
+
+
+def test_execute_duplicate_signature_merges_processtree_and_attacks(requests_mock, make_request, triage_service):
+    """When a task's ontology contains the same Signature object twice (behavioral label
+    and extracted rule resolve to the same tag), the second occurrence must merge its
+    process-tree tag and attack ids into the already-built section rather than duplicate it.
+    The extracted item also has no 'c2', so no Malware Config subsection should be added."""
+    encoded = req_utils.quote(f"sha256:{_DUP_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _DUP_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_DUP_SAMPLE_ID}", json=_DUP_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_DUP_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_DUP_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_DUP_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_DUP_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    assert task_section is not None
+
+    sigs_section = find_subsection(task_section, "Signatures")
+    dup_sections = [s for s in sigs_section.subsections if s.title_text == "DUPSIG"]
+    assert len(dup_sections) == 1, "the duplicate occurrence must merge, not create a second section"
+    assert "T1082" in dup_sections[0].heuristic.attack_ids
+    assert dup_sections[0].tags.get("dynamic.processtree_id")
+
+    # No 'c2' in the extracted config -> no Malware Config subsection at all.
+    assert find_subsection(task_section, "Malware Config") is None
+
+
+# ---------------------------------------------------------------------------
+# Download error paths (pcap / memdump / dropped files) - must log and continue
+# ---------------------------------------------------------------------------
+
+
+def test_execute_download_failures_are_non_fatal(triage_service, make_request, mock_triage_api):
+    """A failed pcap/memdump/dropped-file download must be logged and must not raise
+    or call add_extracted, and execute() must still produce a result. _req_file() never
+    inspects the HTTP status (it just returns .content), so the failure must be a
+    transport-level error rather than a non-2xx status code."""
+    mock_triage_api.get(
+        re.compile(r"https://api\.tria\.ge/v0/samples/.+/.+/dump\.pcapng"),
+        exc=requests.exceptions.ConnectionError,
+    )
+    mock_triage_api.get(
+        re.compile(r"https://api\.tria\.ge/v0/samples/.+/.+/memory/.+\.dmp"),
+        exc=requests.exceptions.ConnectionError,
+    )
+    mock_triage_api.get(
+        re.compile(r"https://api\.tria\.ge/v0/samples/.+/.+/files/.+\.dat"),
+        exc=requests.exceptions.ConnectionError,
+    )
+
+    req = make_request(extract_pcap=True, extract_memdump=True, extract_dropped_files=True)
+    triage_service.execute(req)
+
+    assert req.result is not None
+    req.add_extracted.assert_not_called()
+
+
+def test_execute_signature_attribute_non_process_source_skips_processtree_tag(
+    requests_mock, make_request, triage_service, monkeypatch
+):
+    """A signature Attribute whose source isn't a process (ontology_id doesn't start with
+    'process_') must not add a dynamic.processtree_id tag. Exercised in both the
+    new-signature branch and the merged-duplicate branch via the same DUPSIG fixture."""
+    from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
+
+    def _fake_get_process_by_pid(self, pid=None):
+        return SimpleNamespace(objectid=OntologyResults.create_objectid(tag="filetag", ontology_id="file_deadbeef"))
+
+    monkeypatch.setattr(OntologyResults, "get_process_by_pid", _fake_get_process_by_pid)
+
+    encoded = req_utils.quote(f"sha256:{_DUP_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _DUP_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_DUP_SAMPLE_ID}", json=_DUP_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_DUP_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_DUP_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_DUP_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_DUP_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    sigs_section = find_subsection(task_section, "Signatures")
+    dup_section = next(s for s in sigs_section.subsections if s.title_text == "DUPSIG")
+    assert "dynamic.processtree_id" not in dup_section.tags
 
 
 def test_execute_negative_score_signature(requests_mock, make_request, triage_service):

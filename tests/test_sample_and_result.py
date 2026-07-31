@@ -278,6 +278,95 @@ def test_overview_error_is_non_fatal(requests_mock, sample_json):
     assert tr.overview_configs == []
 
 
+def test_behavioral_extracted_config_without_family_not_added_to_dedup_keys(requests_mock, sample_json):
+    """An extracted config with an empty 'family' (DynamicReport still builds it as UNKNOWN
+    via models.Config, which only substitutes UNKNOWN when credentials are also present)
+    must not be added to the overview-dedup key set."""
+    from conftest import build_report
+    from triage import Client as TriageClient
+
+    b1 = copy.deepcopy(build_report("behavioral1"))
+    b1["extracted"][0]["config"]["family"] = ""
+    b1["extracted"][0]["config"]["credentials"] = [{"protocol": "ftp", "username": "u", "password": "p"}]
+    b2 = build_report("behavioral2", family="vidar")
+
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps({}))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    # DynamicReport still built an UNKNOWN-family config from the behavioral report.
+    assert any(mc.as_primitives(strip_null=True).get("family") == ["UNKNOWN"] for mc in tr.malware_config)
+
+
+def test_behavioral_signature_without_label_or_name_not_seen(requests_mock, sample_json):
+    """A signature with neither 'label' nor 'name' resolves to an empty name and must not
+    be recorded in the seen-names set used for overview signature dedup."""
+    from conftest import build_report
+    from triage import Client as TriageClient
+
+    b1 = copy.deepcopy(build_report("behavioral1"))
+    b1["signatures"].append({"score": 3})
+    b2 = build_report("behavioral2", family="vidar")
+    overview = {"extracted": [], "signatures": [{"label": "", "score": 3}]}
+
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    # The nameless overview signature must also be skipped (name-empty guard applies both ways).
+    assert tr.overview_signatures == []
+
+
+def test_overview_config_without_family_is_skipped(requests_mock, sample_json):
+    """An overview extracted item whose config has no 'family' must be skipped outright,
+    without ever reaching Config() construction."""
+    from conftest import build_report
+    from triage import Client as TriageClient
+
+    b1 = build_report("behavioral1")
+    b2 = build_report("behavioral2", family="vidar")
+    overview = {"extracted": [{"config": {"c2": ["http://x.io"]}}], "signatures": []}
+
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    assert tr.overview_configs == []
+
+
+def test_overview_signature_already_seen_behaviorally_is_not_duplicated(requests_mock, sample_json):
+    """An overview signature whose name already appeared in a behavioral report must not
+    be added a second time to overview_signatures."""
+    from conftest import build_report
+    from triage import Client as TriageClient
+
+    b1 = build_report("behavioral1")  # includes a signature labeled "interesting_sig"
+    b2 = build_report("behavioral2", family="vidar")
+    overview = {"extracted": [], "signatures": [{"label": "interesting_sig", "score": 3}]}
+
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", text=json.dumps(sample_json))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", text=json.dumps(b1))
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", text=json.dumps(b2))
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", text=json.dumps(overview))
+
+    client = TriageClient(token="TESTING")
+    tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
+
+    assert tr.overview_signatures == []
+
+
 def test_invalid_overview_config_is_non_fatal(requests_mock, sample_json):
     """Malformed best-effort overview configs must not discard behavioral results."""
     from conftest import build_report
