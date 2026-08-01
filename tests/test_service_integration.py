@@ -171,6 +171,78 @@ def test_execute_signatures_section_and_heuristics(triage_service, make_request,
             )
 
 
+_REGTAG_SAMPLE_ID = "test00-regtagsampleid1"
+_REGTAG_SHA256 = "abcd1234" * 8
+
+_REGTAG_SAMPLE = {
+    "id": _REGTAG_SAMPLE_ID,
+    "status": "reported",
+    "kind": "file",
+    "filename": "regkey.exe",
+    "private": True,
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:09Z",
+    "sha256": _REGTAG_SHA256,
+    "tasks": [{"id": "behavioral1", "status": "reported"}],
+}
+
+_REGTAG_BEHAVIORAL_REPORT = {
+    "version": "0.2.3",
+    "sample": {"id": _REGTAG_SAMPLE_ID},
+    "task": {"id": "behavioral1"},
+    "analysis": {
+        "score": 5,
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "resource": "win7",
+        "backend": "raven",
+        "platform": "windows",
+    },
+    "processes": [],
+    "signatures": [
+        {
+            "label": "persistence_autorun",
+            "score": 5,
+            "indicators": [
+                {"ioc": r'\REGISTRY\MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater = "x"'},
+                {"ioc": r"\REGISTRY\USER\S-1-5-21-1-2-3-1000\Control Panel\Desktop\ScreenSaveActive"},
+            ],
+        },
+    ],
+    "network": {},
+    "extracted": None,
+    "dumped": None,
+}
+
+
+def test_execute_signature_registry_key_tags(requests_mock, make_request, triage_service):
+    """Registry-key indicators on a signature must appear as dynamic.registry_key tags,
+    normalized from Triage's native \\REGISTRY\\... paths to the Win32 hive convention."""
+    encoded = req_utils.quote(f"sha256:{_REGTAG_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _REGTAG_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_REGTAG_SAMPLE_ID}", json=_REGTAG_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_REGTAG_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_REGTAG_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_REGTAG_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_REGTAG_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    sigs_section = find_subsection(task_section, "Signatures")
+    sig_sub = next(s for s in sigs_section.subsections if s.title_text == "PERSISTENCE_AUTORUN")
+    assert sig_sub.tags.get("dynamic.registry_key") == [
+        r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater",
+        r"HKEY_CURRENT_USER\Control Panel\Desktop\ScreenSaveActive",
+    ]
+
+
 def test_execute_network_iocs_section(triage_service, make_request, mock_triage_api):
     """Each task section contains a Network IOCs subsection."""
     svc = triage_service
@@ -390,6 +462,31 @@ def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
 
     # No description supplied -> no line added (falsy sig.get("desc") branch)
     assert not (by_title["SIG4"].body or "")
+
+
+def test_execute_overview_signature_registry_key_tags(triage_service, make_request, mock_triage_api):
+    """Registry-key indicators on an overview signature must also be normalized and tagged."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "label": "sig_regkey",
+                "score": 5,
+                "indicators": [{"ioc": r"\REGISTRY\MACHINE\SOFTWARE\Run\a"}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert by_title["SIG_REGKEY"].tags.get("dynamic.registry_key") == [r"HKEY_LOCAL_MACHINE\SOFTWARE\Run\a"]
 
 
 def test_execute_overview_signature_yara_rule_preferred_over_name(triage_service, make_request, mock_triage_api):
