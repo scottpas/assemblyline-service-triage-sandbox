@@ -42,6 +42,38 @@ def _indicator_text(indicator: dict) -> Optional[str]:
     return desc or ioc
 
 
+def _normalize_registry_key(raw: str) -> Optional[str]:
+    """Normalize a Triage indicator IOC into a conventional Win32 registry key path.
+
+    Triage denotes registry keys using the native NT object namespace
+    (e.g. ``\\REGISTRY\\MACHINE\\...``, ``\\REGISTRY\\USER\\<SID>\\...``) rather than
+    the ``HKEY_*`` hive names analysts expect. A Triage sandbox VM has a single
+    interactive user, so any per-SID user hive is that session's current user;
+    ``<SID>_Classes`` is the overlay hive mounted at ``HKEY_CURRENT_USER\\Software\\Classes``,
+    and ``.DEFAULT`` is the non-logged-in default profile (kept under HKEY_USERS,
+    since it isn't a "current user"). Returns None if `raw` isn't a registry path.
+    """
+    key = raw.split(" = ", 1)[0]
+    if not key.startswith("\\REGISTRY\\"):
+        return None
+    parts = key.split("\\")
+    if len(parts) < 3:
+        return None
+    hive, rest = parts[2], parts[3:]
+    if hive == "MACHINE":
+        return "\\".join(["HKEY_LOCAL_MACHINE", *rest])
+    if hive == "USER":
+        if not rest:
+            return "HKEY_USERS"
+        user_id, *tail = rest
+        if user_id == ".DEFAULT":
+            return "\\".join(["HKEY_USERS", ".DEFAULT", *tail])
+        if user_id.endswith("_Classes"):
+            return "\\".join(["HKEY_CURRENT_USER", "Software", "Classes", *tail])
+        return "\\".join(["HKEY_CURRENT_USER", *tail])
+    return None
+
+
 def _is_static_yara_resource(resource: Optional[str]) -> bool:
     """Whether an indicator's "resource" points to something a static YARA scan actually
     ran against (the submitted sample, or a memory dump captured during execution) —
@@ -327,13 +359,23 @@ class DynamicReport:
             )
             if description:
                 self.signature_descriptions[name] = description
+            registry_keys = self.signature_registry_keys.setdefault(name, [])
             for indicator in sig.get("indicators", []):
-                # A procid found in this map always resolves to a process (we created both
-                # from the same process list), so no truthiness check is needed here.
+                registry_key = _normalize_registry_key(indicator.get("ioc") or "")
+                if registry_key and registry_key not in registry_keys:
+                    registry_keys.append(registry_key)
+            if not registry_keys:
+                del self.signature_registry_keys[name]
+            for indicator in sig.get("indicators", []):
+                # A procid found in this map was created from the same process list, but the
+                # ontology's own add_process() can silently drop a process that reuses a pid
+                # within an overlapping time window — so the objectid may have no backing
+                # process here, and get_process_by_objectid() can still return None.
                 if indicator.get("procid") in self._id_objectid_map:
                     source_process = self.ontology.get_process_by_objectid(self._id_objectid_map[indicator["procid"]])
-                    attr = Attribute(source=cast(Any, source_process).objectid)
-                    al_sig.add_attribute(attr)
+                    if source_process is not None:
+                        attr = Attribute(source=cast(Any, source_process).objectid)
+                        al_sig.add_attribute(attr)
                 # For "program_crash", procid is the crash-reporting process (e.g. WerFault.exe)
                 # and procid_target is the process that actually crashed — surface the latter
                 # separately so it can be rendered as its own process list.
@@ -341,7 +383,8 @@ class DynamicReport:
                     crashed_process = self.ontology.get_process_by_objectid(
                         self._id_objectid_map[indicator["procid_target"]]
                     )
-                    self.crashed_processes.setdefault(name, []).append(cast(Any, crashed_process))
+                    if crashed_process is not None:
+                        self.crashed_processes.setdefault(name, []).append(cast(Any, crashed_process))
 
     def __add_extracted(self) -> None:
         for item in self.extracted or []:
@@ -398,6 +441,8 @@ class DynamicReport:
         self._id_objectid_map: dict[int, Any] = {}
         # Maps normalized signature name → human-readable description (sig.desc)
         self.signature_descriptions: dict[str, str] = {}
+        # Maps normalized signature name → normalized registry keys touched (dynamic.registry_key)
+        self.signature_registry_keys: dict[str, List[str]] = {}
         # Maps normalized signature name → processes it reports as crashed (program_crash only)
         self.crashed_processes: dict[str, List[Process]] = {}
         self.__add_sandbox()

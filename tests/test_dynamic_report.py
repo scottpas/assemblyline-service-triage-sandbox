@@ -17,7 +17,7 @@ from typing import Any
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
 from triage_sandbox.network import _parse_http_headers
-from triage_sandbox.report import DynamicReport
+from triage_sandbox.report import DynamicReport, _normalize_registry_key
 
 # ---------------------------------------------------------------------------
 # Construction helper
@@ -272,6 +272,44 @@ def test_add_signatures_no_description_when_indicators_have_no_text():
 
 
 # ---------------------------------------------------------------------------
+# 7a. __add_signatures — indicator references a process the ontology silently dropped
+# ---------------------------------------------------------------------------
+
+
+def test_add_signatures_skips_attribute_when_process_dropped_by_ontology_validation():
+    """A procid present in _id_objectid_map does NOT guarantee OntologyResults actually
+    stored that process: add_process() silently drops a process that reuses a pid within
+    an overlapping time window (see assemblyline_service_utilities' _handle_pid_match).
+    An indicator referencing such a dropped procid must not crash signature processing."""
+    processes = [
+        {"procid": 1, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a.exe", "started": 0},
+        # Same pid, overlapping (open-ended) time window as procid 1 -> dropped by add_process().
+        {"procid": 2, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "b.exe", "cmd": "b.exe", "started": 5},
+    ]
+    dr = make_report(
+        processes=processes,
+        signatures=[{"label": "some_sig", "score": 3, "indicators": [{"procid": 2}]}],
+    )
+    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[2]) is None  # confirms the drop actually happened
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].attributes == []
+
+
+def test_add_signatures_program_crash_skips_target_when_process_dropped_by_ontology_validation():
+    """Same silent-drop scenario, but for the procid_target path used by program_crash."""
+    processes = [
+        {"procid": 1, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a.exe", "started": 0},
+        {"procid": 2, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "b.exe", "cmd": "b.exe", "started": 5},
+    ]
+    dr = make_report(
+        processes=processes,
+        signatures=[{"label": "program_crash", "score": 3, "indicators": [{"procid_target": 2}]}],
+    )
+    assert dr.crashed_processes.get("program_crash", []) == []
+
+
+# ---------------------------------------------------------------------------
 # 8. __add_signatures — score multiplied by SCORE_MULTIPLY_FACTOR
 # ---------------------------------------------------------------------------
 
@@ -312,6 +350,108 @@ def test_add_signatures_dedup():
     dr = make_report(signatures=[{"label": "dup", "score": 3}, {"label": "dup", "score": 6}])
     sigs = dr.ontology.get_signatures()
     assert len(sigs) == 1
+
+
+# ---------------------------------------------------------------------------
+# 10a. _normalize_registry_key — Triage's \REGISTRY\... paths -> Win32 hive convention
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_registry_key_machine_hive():
+    assert (
+        _normalize_registry_key(r"\REGISTRY\MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run")
+        == r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    )
+
+
+def test_normalize_registry_key_strips_value_assignment():
+    assert (
+        _normalize_registry_key(
+            r'\REGISTRY\MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater = "C:\evil.exe"'
+        )
+        == r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater"
+    )
+
+
+def test_normalize_registry_key_user_sid_becomes_current_user():
+    assert (
+        _normalize_registry_key(
+            r"\REGISTRY\USER\S-1-5-21-540052884-2969440504-464782435-1000\Control Panel\Desktop\ScreenSaveActive"
+        )
+        == r"HKEY_CURRENT_USER\Control Panel\Desktop\ScreenSaveActive"
+    )
+
+
+def test_normalize_registry_key_user_sid_classes_hive():
+    assert (
+        _normalize_registry_key(
+            r"\REGISTRY\USER\S-1-5-21-1788976790-1541110888-1636651838-1000_Classes\BinaryNinja\shell\open\command"
+        )
+        == r"HKEY_CURRENT_USER\Software\Classes\BinaryNinja\shell\open\command"
+    )
+
+
+def test_normalize_registry_key_user_default_hive():
+    assert (
+        _normalize_registry_key(r"\REGISTRY\USER\.DEFAULT\Control Panel\Desktop")
+        == r"HKEY_USERS\.DEFAULT\Control Panel\Desktop"
+    )
+
+
+def test_normalize_registry_key_non_registry_ioc_returns_none():
+    assert _normalize_registry_key("8.8.8.8") is None
+    assert _normalize_registry_key("") is None
+
+
+# ---------------------------------------------------------------------------
+# 10b. __add_signatures — registry keys collected per signature name
+# ---------------------------------------------------------------------------
+
+
+def test_add_signatures_collects_registry_keys():
+    dr = make_report(
+        signatures=[
+            {
+                "label": "persistence_autorun",
+                "score": 5,
+                "indicators": [
+                    {"ioc": r"\REGISTRY\MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater = \"x\""},
+                ],
+            }
+        ]
+    )
+    assert dr.signature_registry_keys["persistence_autorun"] == [
+        r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater"
+    ]
+
+
+def test_add_signatures_no_registry_keys_when_indicators_have_none():
+    dr = make_report(signatures=[{"label": "deletes_itself", "score": 7, "indicators": [{"pid": 2056}]}])
+    assert "deletes_itself" not in dr.signature_registry_keys
+
+
+def test_add_signatures_registry_keys_dedup_across_indicators_and_merged_signatures():
+    dr = make_report(
+        signatures=[
+            {
+                "label": "dup",
+                "score": 3,
+                "indicators": [
+                    {"ioc": r"\REGISTRY\MACHINE\SOFTWARE\Run\a"},
+                    {"ioc": r"\REGISTRY\MACHINE\SOFTWARE\Run\a"},
+                ],
+            },
+            {
+                "label": "dup",
+                "score": 6,
+                "indicators": [{"ioc": r"\REGISTRY\MACHINE\SOFTWARE\Run\b"}],
+            },
+        ]
+    )
+    assert dr.signature_registry_keys["dup"] == [
+        r"HKEY_LOCAL_MACHINE\SOFTWARE\Run\a",
+        r"HKEY_LOCAL_MACHINE\SOFTWARE\Run\b",
+    ]
 
 
 # ---------------------------------------------------------------------------

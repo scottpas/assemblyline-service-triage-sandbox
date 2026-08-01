@@ -24,7 +24,7 @@ from triage import Client as TriageClient
 from triage.client import ServerError
 
 from .constants import SUPPORTED_FILE_TYPES
-from .report import TriageResult, _indicator_text, _is_static_yara_resource
+from .report import TriageResult, _indicator_text, _is_static_yara_resource, _normalize_registry_key
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
 
@@ -170,6 +170,10 @@ class TriageSandbox(ServiceBase):
                         families = [t.split(":")[-1].upper() for t in sig.get("tags", []) if t.startswith("family:")]
                         for f in families:
                             s.add_tag(tag_type="attribution.family", value=f)
+                        for rk in dict.fromkeys(
+                            k for i in sig.get("indicators", []) if (k := _normalize_registry_key(i.get("ioc") or ""))
+                        ):
+                            s.add_tag(tag_type="dynamic.registry_key", value=rk)
                         score = (sig.get("score") or 0) * 100
                         if score >= 1000:
                             s.set_heuristic(5, signature=name)
@@ -240,6 +244,8 @@ class TriageSandbox(ServiceBase):
                         s.add_tag(tag_type="dynamic.signature.name", value=name)
                         for f in sig.malware_families:
                             s.add_tag(tag_type="attribution.family", value=f)
+                        for rk in task.signature_registry_keys.get(sig.name, []):
+                            s.add_tag(tag_type="dynamic.registry_key", value=rk)
                         score = sig.score
                         if score >= 1000:
                             s.set_heuristic(5, signature=name)
