@@ -2,6 +2,7 @@
 Integration tests for TriageSandbox.execute(), search_triage(), and submit_triage().
 """
 
+import json
 import os
 import re
 import tempfile
@@ -391,6 +392,126 @@ def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
     assert not (by_title["SIG4"].body or "")
 
 
+def test_execute_overview_signature_yara_rule_preferred_over_name(triage_service, make_request, mock_triage_api):
+    """A static YARA match with no 'label' must be titled by its short yara_rule
+    identifier, not the verbose rule description in 'name'."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "name": "Detects binaries (Windows and macOS) referencing many web browsers. "
+                "Observed in information stealers",
+                "score": 10,
+                "indicators": [{"resource": "sample", "yara_rule": "INDICATOR_SUSPICIOUS_Binary_References_Browsers"}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert "INDICATOR_SUSPICIOUS_BINARY_REFERENCES_BROWSERS" in by_title
+    # The verbose rule text has nowhere else to go once yara_rule is used as the title,
+    # so it must be preserved as the section body.
+    assert "Detects binaries" in (by_title["INDICATOR_SUSPICIOUS_BINARY_REFERENCES_BROWSERS"].body or "")
+
+
+def test_execute_overview_signature_yara_rule_ignored_for_non_sample_resource(
+    triage_service, make_request, mock_triage_api
+):
+    """A behavioral signature can carry a yara_rule on a *file* indicator (resource is a
+    task-relative path, not "sample") — that must not override the behavior's own name."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "name": "Suspicious behavior: use of VirtualAllocEx",
+                "score": 3,
+                "indicators": [{"resource": "behavioral1/files/0x1-1.dat", "yara_rule": "r"}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert "SUSPICIOUS BEHAVIOR: USE OF VIRTUALALLOCEX" in by_title
+
+
+def test_execute_overview_signature_description_falls_back_to_indicator_text(
+    triage_service, make_request, mock_triage_api
+):
+    """When an overview signature has no 'desc', per-indicator description/ioc text
+    should be surfaced instead of leaving the section body empty."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "label": "program_crash",
+                "score": 3,
+                "indicators": [{"description": "PID 3340 crashed PID 3396", "pid": 3340, "pid_target": 3396}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert by_title["PROGRAM_CRASH"].body == "PID 3340 crashed PID 3396"
+
+
+def test_execute_overview_signature_description_over_three_lines_auto_collapses(
+    triage_service, make_request, mock_triage_api
+):
+    """An overview signature description longer than 3 lines must auto-collapse."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "label": "suspicious_writeprocessmemory",
+                "score": 5,
+                "indicators": [
+                    {"description": "PID 1 wrote to memory of 2", "pid": 1},
+                    {"description": "PID 1 wrote to memory of 3", "pid": 1},
+                    {"description": "PID 1 wrote to memory of 4", "pid": 1},
+                    {"description": "PID 1 wrote to memory of 5", "pid": 1},
+                ],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    section = by_title["SUSPICIOUS_WRITEPROCESSMEMORY"]
+    assert section.body.count("\n") + 1 == 4
+    assert section.auto_collapse is True
+
+
 def test_execute_overview_configs_rendered_as_table_with_raw_config(triage_service, make_request, mock_triage_api):
     """Overview configs must render as a ResultTableSection with heur_id 100, an
     attribution.family tag, and a nested 'Raw Config' JSON subsection."""
@@ -613,6 +734,184 @@ def test_execute_duplicate_signature_merges_processtree_and_attacks(requests_moc
 
 
 # ---------------------------------------------------------------------------
+# program_crash: crashed-process list rendered as a process-tree-style subsection
+# ---------------------------------------------------------------------------
+
+_CRASH_SAMPLE_ID = "test00-crashsigid001"
+_CRASH_SHA256 = "c4a5c4a5" * 8
+
+_CRASH_SAMPLE = {
+    "id": _CRASH_SAMPLE_ID,
+    "status": "reported",
+    "kind": "file",
+    "filename": "crash.exe",
+    "private": True,
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:09Z",
+    "sha256": _CRASH_SHA256,
+    "tasks": [{"id": "behavioral1", "status": "reported"}],
+}
+
+_CRASH_BEHAVIORAL_REPORT = {
+    "version": "0.2.3",
+    "sample": {"id": _CRASH_SAMPLE_ID},
+    "task": {"id": "behavioral1"},
+    "analysis": {
+        "score": 3,
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "resource": "win7",
+        "backend": "raven",
+        "platform": "windows",
+    },
+    "processes": [
+        {
+            "procid": 100,
+            "pid": 3340,
+            "ppid": 0,
+            "image": "C:\\Windows\\SysWOW64\\WerFault.exe",
+            "cmd": "WerFault.exe -u -p 3396 -s 1188",
+            "started": 1,
+        },
+        {
+            "procid": 83,
+            "pid": 3396,
+            "ppid": 0,
+            "image": "C:\\Users\\Admin\\malware.exe",
+            "cmd": '"C:\\Users\\Admin\\malware.exe"',
+            "started": 1,
+        },
+    ],
+    "signatures": [
+        {
+            "label": "program_crash",
+            "score": 3,
+            "indicators": [
+                {"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83},
+                # Duplicate crash report for the same target process (WerFault can report a
+                # crash more than once) — must be deduplicated by pid, not listed twice.
+                {"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83},
+            ],
+        },
+    ],
+    "network": {},
+    "extracted": None,
+    "dumped": None,
+}
+
+
+def test_execute_program_crash_renders_crashed_process_tree(requests_mock, make_request, triage_service):
+    """PROGRAM_CRASH must include a 'Crashed Process(es)' process-tree subsection listing
+    only the process that actually crashed (procid_target) — not the crash reporter
+    (procid, e.g. WerFault.exe)."""
+    encoded = req_utils.quote(f"sha256:{_CRASH_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _CRASH_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_CRASH_SAMPLE_ID}", json=_CRASH_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_CRASH_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_CRASH_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_CRASH_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_CRASH_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    sigs_section = find_subsection(task_section, "Signatures")
+    crash_section = find_subsection(sigs_section, "PROGRAM_CRASH")
+    assert crash_section is not None
+
+    crash_tree = find_subsection(crash_section, "Crashed Process(es)")
+    assert crash_tree is not None
+    assert crash_tree.auto_collapse is True
+    procs = json.loads(crash_tree.section_body.body)
+    assert len(procs) == 1
+    assert procs[0]["process_pid"] == 3396
+    assert procs[0]["process_name"] == "C:\\Users\\Admin\\malware.exe"
+    assert procs[0]["command_line"] == '"C:\\Users\\Admin\\malware.exe"'
+
+
+# ---------------------------------------------------------------------------
+# auto_collapse for long descriptions
+# ---------------------------------------------------------------------------
+
+_REGKEY_SAMPLE_ID = "test00-regkeysigid01"
+_REGKEY_SHA256 = "a5c4a5c4" * 8
+
+_REGKEY_SAMPLE = {
+    "id": _REGKEY_SAMPLE_ID,
+    "status": "reported",
+    "kind": "file",
+    "filename": "regkey.exe",
+    "private": True,
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:09Z",
+    "sha256": _REGKEY_SHA256,
+    "tasks": [{"id": "behavioral1", "status": "reported"}],
+}
+
+_REGKEY_BEHAVIORAL_REPORT = {
+    "version": "0.2.3",
+    "sample": {"id": _REGKEY_SAMPLE_ID},
+    "task": {"id": "behavioral1"},
+    "analysis": {
+        "score": 8,
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "resource": "win7",
+        "backend": "raven",
+        "platform": "windows",
+    },
+    "processes": [],
+    "signatures": [
+        {
+            "label": "suspicious_writeprocessmemory",
+            "score": 5,
+            "indicators": [
+                {"description": "PID 1 wrote to memory of 2", "pid": 1},
+                {"description": "PID 1 wrote to memory of 3", "pid": 1},
+                {"description": "PID 1 wrote to memory of 4", "pid": 1},
+                {"description": "PID 1 wrote to memory of 5", "pid": 1},
+            ],
+        },
+    ],
+    "network": {},
+    "extracted": None,
+    "dumped": None,
+}
+
+
+def test_execute_signature_description_over_three_lines_auto_collapses(requests_mock, make_request, triage_service):
+    """A signature description longer than 3 lines must auto-collapse."""
+    encoded = req_utils.quote(f"sha256:{_REGKEY_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _REGKEY_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_REGKEY_SAMPLE_ID}", json=_REGKEY_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_REGKEY_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_REGKEY_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_REGKEY_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_REGKEY_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    sigs_section = find_subsection(task_section, "Signatures")
+    section = find_subsection(sigs_section, "SUSPICIOUS_WRITEPROCESSMEMORY")
+    assert section is not None
+    assert section.body.count("\n") + 1 == 4
+    assert section.auto_collapse is True
+
+
+# ---------------------------------------------------------------------------
 # Download error paths (pcap / memdump / dropped files) - must log and continue
 # ---------------------------------------------------------------------------
 
@@ -650,10 +949,10 @@ def test_execute_signature_attribute_non_process_source_skips_processtree_tag(
     new-signature branch and the merged-duplicate branch via the same DUPSIG fixture."""
     from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
-    def _fake_get_process_by_pid(self, pid=None):
+    def _fake_get_process_by_objectid(self, objectid=None):
         return SimpleNamespace(objectid=OntologyResults.create_objectid(tag="filetag", ontology_id="file_deadbeef"))
 
-    monkeypatch.setattr(OntologyResults, "get_process_by_pid", _fake_get_process_by_pid)
+    monkeypatch.setattr(OntologyResults, "get_process_by_objectid", _fake_get_process_by_objectid)
 
     encoded = req_utils.quote(f"sha256:{_DUP_SHA256}")
     requests_mock.get(

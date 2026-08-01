@@ -12,13 +12,19 @@ from assemblyline.odm.models.ontology.results.malware_config import MalwareConfi
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults, extract_iocs_from_text_blob
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
-from assemblyline_v4_service.common.result import Result, ResultSection, ResultTableSection
+from assemblyline_v4_service.common.result import (
+    ProcessItem,
+    Result,
+    ResultProcessTreeSection,
+    ResultSection,
+    ResultTableSection,
+)
 from retrying import RetryError, retry
 from triage import Client as TriageClient
 from triage.client import ServerError
 
 from .constants import SUPPORTED_FILE_TYPES
-from .report import TriageResult
+from .report import TriageResult, _indicator_text, _is_static_yara_resource
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
 
@@ -146,7 +152,18 @@ class TriageSandbox(ServiceBase):
                 if triage_result.overview_signatures:
                     overview_sigs = ResultSection(title_text="Signatures", auto_collapse=True)
                     for sig in triage_result.overview_signatures:
-                        raw_name = sig.get("label") or sig.get("name", "")
+                        # Only trust yara_rule for genuine static YARA matches (sample or memory dump).
+                        # A behavioral signature can carry a yara_rule on a *file* indicator too, and
+                        # that must not override the behavior's own name.
+                        yara_rule = next(
+                            (
+                                i["yara_rule"]
+                                for i in sig.get("indicators", [])
+                                if i.get("yara_rule") and _is_static_yara_resource(i.get("resource"))
+                            ),
+                            None,
+                        )
+                        raw_name = sig.get("label") or yara_rule or sig.get("name", "")
                         name = raw_name.upper()
                         s = ResultSection(title_text=name)
                         s.add_tag(tag_type="dynamic.signature.name", value=name)
@@ -167,8 +184,18 @@ class TriageSandbox(ServiceBase):
                         for ttp_id in sig.get("ttp", []):
                             if attack_map.get(ttp_id):
                                 s.heuristic.add_attack_id(ttp_id)
-                        if sig.get("desc"):
-                            s.add_line(sig["desc"])
+                        indicator_texts = list(
+                            dict.fromkeys(t for i in sig.get("indicators", []) if (t := _indicator_text(i)))
+                        )
+                        description = (
+                            sig.get("desc")
+                            or (sig.get("name") if raw_name == yara_rule else None)
+                            or ("\n".join(indicator_texts) if indicator_texts else None)
+                        )
+                        if description:
+                            s.add_line(description)
+                            if description.count("\n") + 1 > 3:
+                                s.auto_collapse = True
                         overview_sigs.add_subsection(s)
                     overview_section.add_subsection(overview_sigs)
                 if triage_result.overview_configs:
@@ -233,6 +260,22 @@ class TriageSandbox(ServiceBase):
                         desc = task.signature_descriptions.get(sig.name)
                         if desc:
                             s.add_line(desc)
+                            if desc.count("\n") + 1 > 3:
+                                s.auto_collapse = True
+                        # program_crash: list the process(es) that actually crashed
+                        # (not the crash-reporting process, e.g. WerFault.exe)
+                        crashed = task.crashed_processes.get(sig.name)
+                        if crashed:
+                            crash_tree = ResultProcessTreeSection(title_text="Crashed Process(es)")
+                            crash_tree.auto_collapse = True
+                            seen_pids: set = set()
+                            for p in crashed:
+                                p = cast(Any, p)
+                                if p.pid in seen_pids:
+                                    continue
+                                seen_pids.add(p.pid)
+                                crash_tree.add_process(ProcessItem(pid=p.pid, name=p.image, cmd=p.command_line))
+                            s.add_subsection(crash_tree)
                         sig_subsections[name] = s
                 for sig_section in reversed(sorted(sig_subsections.values(), key=lambda s: s.heuristic.heur_id)):
                     sigs_section.add_subsection(sig_section)

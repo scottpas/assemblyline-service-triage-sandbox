@@ -84,14 +84,16 @@ def test_add_sandbox_recorded():
 # ---------------------------------------------------------------------------
 
 
-def test_add_processes_builds_id_pid_map():
+def test_add_processes_builds_id_objectid_map():
     procs_input = [
         {"procid": 1, "pid": 100, "ppid": 4, "image": "a.exe", "cmd": "a", "started": 1},
         {"procid": 2, "pid": 200, "ppid": 100, "image": "b.exe", "cmd": "b", "started": 2, "terminated": 5},
     ]
     dr = make_report(processes=procs_input)
 
-    assert dr._id_pid_map == {1: 100, 2: 200}
+    assert set(dr._id_objectid_map) == {1, 2}
+    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[1]).pid == 100
+    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[2]).pid == 200
 
     procs = dr.ontology.get_processes()
     assert len(procs) == 2
@@ -157,6 +159,116 @@ def test_add_signatures_name_derived():
     sigs = dr.ontology.get_signatures()
     assert len(sigs) == 1
     assert sigs[0].name == "writeprocessmemory"
+
+
+def test_add_signatures_yara_rule_preferred_over_name():
+    dr = make_report(
+        signatures=[
+            {
+                "name": "Detects binaries (Windows and macOS) referencing many web browsers. "
+                "Observed in information stealers",
+                "score": 10,
+                "indicators": [{"resource": "sample", "yara_rule": "INDICATOR_SUSPICIOUS_Binary_References_Browsers"}],
+            }
+        ]
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].name == "INDICATOR_SUSPICIOUS_Binary_References_Browsers"
+    # The verbose rule text has nowhere else to go once yara_rule is used as the name,
+    # so it must be preserved as the signature's description.
+    assert (
+        dr.signature_descriptions["INDICATOR_SUSPICIOUS_Binary_References_Browsers"]
+        == "Detects binaries (Windows and macOS) referencing many web browsers. Observed in information stealers"
+    )
+
+
+def test_add_signatures_yara_rule_ignored_for_non_sample_resource():
+    """A behavioral signature can carry a yara_rule on a *file* indicator (resource is a
+    task-relative path, not "sample") — that must not override the behavior's own name."""
+    dr = make_report(
+        signatures=[
+            {
+                "name": "Suspicious behavior: use of WriteProcessMemory",
+                "score": 3,
+                "indicators": [{"resource": "behavioral1/files/0x1-1.dat", "yara_rule": "r"}],
+            }
+        ]
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].name == "writeprocessmemory"
+
+
+def test_add_signatures_yara_rule_trusted_for_memory_dump_resource():
+    """A static YARA match against a memory dump captured during execution (resource like
+    '<task>/memory/<pid>-...-memory.dmp') is just as genuine as one against 'sample'."""
+    dr = make_report(
+        signatures=[
+            {
+                "name": "Detects executables containing artifacts associated with disabling Windows Defender",
+                "score": 9,
+                "indicators": [
+                    {
+                        "resource": "behavioral1/memory/3812-69-0x0000000000400000-0x0000000002985000-memory.dmp",
+                        "yara_rule": "INDICATOR_SUSPICIOUS_DisableWinDefender",
+                    }
+                ],
+            }
+        ]
+    )
+    sigs = dr.ontology.get_signatures()
+    assert len(sigs) == 1
+    assert sigs[0].name == "INDICATOR_SUSPICIOUS_DisableWinDefender"
+
+
+def test_add_signatures_description_falls_back_to_indicator_text():
+    """When a signature has no 'desc', per-indicator description/ioc text should be
+    surfaced instead of leaving the signature with no description at all."""
+    dr = make_report(
+        signatures=[
+            {
+                "label": "suspicious_writeprocessmemory",
+                "score": 5,
+                "indicators": [
+                    {"description": "PID 3396 wrote to memory of 4436", "pid": 3396, "procid_target": 84},
+                    {"description": "PID 3396 wrote to memory of 4436", "pid": 3396, "procid_target": 84},
+                    {"description": "PID 3260 wrote to memory of 2056", "pid": 3260, "procid_target": 101},
+                ],
+            }
+        ]
+    )
+    assert dr.signature_descriptions["suspicious_writeprocessmemory"] == (
+        "PID 3396 wrote to memory of 4436\nPID 3260 wrote to memory of 2056"
+    )
+
+
+def test_add_signatures_description_falls_back_to_indicator_ioc_with_description():
+    """A single indicator's description and ioc should be combined into one line."""
+    dr = make_report(
+        signatures=[
+            {
+                "label": "modifies_service_image_registry",
+                "score": 8,
+                "indicators": [
+                    {
+                        "ioc": r"\REGISTRY\MACHINE\SYSTEM\Services\x\ImagePath = \"evil.exe\"",
+                        "description": "Set value (str)",
+                        "procid": 101,
+                    }
+                ],
+            }
+        ]
+    )
+    assert dr.signature_descriptions["modifies_service_image_registry"] == (
+        'Set value (str): \\REGISTRY\\MACHINE\\SYSTEM\\Services\\x\\ImagePath = \\"evil.exe\\"'
+    )
+
+
+def test_add_signatures_no_description_when_indicators_have_no_text():
+    """Indicators with only pid/procid (no description or ioc) leave no description."""
+    dr = make_report(signatures=[{"label": "deletes_itself", "score": 7, "indicators": [{"pid": 2056}]}])
+    assert "deletes_itself" not in dr.signature_descriptions
 
 
 # ---------------------------------------------------------------------------
@@ -574,9 +686,9 @@ def test_add_signatures_indicator_with_unknown_procid_attaches_nothing():
     assert sigs[0].attributes == []
 
 
-def test_add_signatures_indicator_procid_maps_to_falsy_pid_attaches_nothing():
-    """get_process_by_pid(0) short-circuits to None (pid=0 is falsy); the indicator loop
-    must tolerate that rather than crash, and simply attach nothing."""
+def test_add_signatures_indicator_procid_resolves_process_with_falsy_pid():
+    """Resolution goes through the procid → ObjectID map, not pid, so a process with
+    pid=0 (e.g. the Windows System Idle Process) still attaches correctly."""
     procs_input = [{"procid": 1, "pid": 0, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
     dr = make_report(
         processes=procs_input,
@@ -584,7 +696,66 @@ def test_add_signatures_indicator_procid_maps_to_falsy_pid_attaches_nothing():
     )
     sigs = dr.ontology.get_signatures()
     assert len(sigs) == 1
-    assert sigs[0].attributes == []
+    assert len(sigs[0].attributes) == 1
+    assert sigs[0].attributes[0].source.ontology_id.startswith("process_")
+
+
+def test_add_signatures_program_crash_captures_target_process():
+    """For 'program_crash', procid is the crash-reporting process (e.g. WerFault.exe) and
+    procid_target is the process that actually crashed — only the latter is captured."""
+    procs_input = [
+        {"procid": 100, "pid": 3340, "ppid": 0, "image": "WerFault.exe", "cmd": "WerFault.exe -p 3396", "started": 1},
+        {"procid": 83, "pid": 3396, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1},
+    ]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[
+            {
+                "label": "program_crash",
+                "score": 3,
+                "indicators": [{"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83}],
+            }
+        ],
+    )
+    crashed = dr.crashed_processes["program_crash"]
+    assert len(crashed) == 1
+    assert crashed[0].pid == 3396
+    assert crashed[0].image == "malware.exe"
+
+
+def test_add_signatures_program_crash_ignored_for_other_signatures():
+    """procid_target on a non-program_crash signature must not populate crashed_processes."""
+    procs_input = [{"procid": 83, "pid": 3396, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1}]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[
+            {
+                "label": "suspicious_setthreadcontext",
+                "score": 5,
+                "indicators": [{"pid": 3260, "procid": 94, "pid_target": 3396, "procid_target": 83}],
+            }
+        ],
+    )
+    assert dr.crashed_processes == {}
+
+
+def test_add_signatures_program_crash_target_resolves_process_with_falsy_pid():
+    """Resolution goes through the procid_target → ObjectID map, not pid, so a crashed
+    process with pid=0 still gets captured correctly."""
+    procs_input = [{"procid": 83, "pid": 0, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1}]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[
+            {
+                "label": "program_crash",
+                "score": 3,
+                "indicators": [{"pid": 3340, "procid": 100, "pid_target": 0, "procid_target": 83}],
+            }
+        ],
+    )
+    crashed = dr.crashed_processes["program_crash"]
+    assert len(crashed) == 1
+    assert crashed[0].image == "malware.exe"
 
 
 # ---------------------------------------------------------------------------
