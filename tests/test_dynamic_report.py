@@ -425,6 +425,22 @@ def test_normalize_registry_key_well_known_service_sids_stay_hku():
     assert _normalize_registry_key(r"\REGISTRY\USER\S-1-5-20\SOFTWARE\x") == r"HKEY_USERS\S-1-5-20\SOFTWARE\x"
 
 
+def test_normalize_registry_key_missing_hive_segment_returns_none():
+    """A path with no hive segment at all (just the root token) has nothing to normalize."""
+    assert _normalize_registry_key(r"\REGISTRY") is None
+
+
+def test_normalize_registry_key_bare_user_hive_root():
+    """The USER hive root with no SID under it has no further path to build."""
+    assert _normalize_registry_key(r"\REGISTRY\USER") == "HKEY_USERS"
+
+
+def test_normalize_registry_key_unknown_hive_returns_none():
+    """A hive other than MACHINE/USER (e.g. the legacy volatile \\REGISTRY\\A hive)
+    has no known Win32 equivalent, so it's left untagged rather than guessed at."""
+    assert _normalize_registry_key(r"\REGISTRY\A\SomeKey") is None
+
+
 # ---------------------------------------------------------------------------
 # 10b. __add_signatures — registry keys collected per signature name
 # ---------------------------------------------------------------------------

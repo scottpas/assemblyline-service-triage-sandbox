@@ -75,9 +75,9 @@ def _normalize_registry_key(raw: str) -> Optional[str]:
     key = raw.split(" = ", 1)[0]
     if not key.lower().startswith("\\registry\\"):
         return None
+    # The startswith check above guarantees at least "\REGISTRY\", which always
+    # splits into >= 3 parts ("", "REGISTRY", <rest, possibly empty>).
     parts = key.split("\\")
-    if len(parts) < 3:
-        return None
     hive, rest = parts[2].upper(), parts[3:]
     if hive == "MACHINE":
         return "\\".join(["HKEY_LOCAL_MACHINE", *rest])
