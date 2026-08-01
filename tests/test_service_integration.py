@@ -478,6 +478,40 @@ def test_execute_overview_signature_description_falls_back_to_indicator_text(
     assert by_title["PROGRAM_CRASH"].body == "PID 3340 crashed PID 3396"
 
 
+def test_execute_overview_signature_description_over_three_lines_auto_collapses(
+    triage_service, make_request, mock_triage_api
+):
+    """An overview signature description longer than 3 lines must auto-collapse."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "label": "suspicious_writeprocessmemory",
+                "score": 5,
+                "indicators": [
+                    {"description": "PID 1 wrote to memory of 2", "pid": 1},
+                    {"description": "PID 1 wrote to memory of 3", "pid": 1},
+                    {"description": "PID 1 wrote to memory of 4", "pid": 1},
+                    {"description": "PID 1 wrote to memory of 5", "pid": 1},
+                ],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    section = by_title["SUSPICIOUS_WRITEPROCESSMEMORY"]
+    assert section.body.count("\n") + 1 == 4
+    assert section.auto_collapse is True
+
+
 def test_execute_overview_configs_rendered_as_table_with_raw_config(triage_service, make_request, mock_triage_api):
     """Overview configs must render as a ResultTableSection with heur_id 100, an
     attribution.family tag, and a nested 'Raw Config' JSON subsection."""
@@ -752,7 +786,12 @@ _CRASH_BEHAVIORAL_REPORT = {
         {
             "label": "program_crash",
             "score": 3,
-            "indicators": [{"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83}],
+            "indicators": [
+                {"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83},
+                # Duplicate crash report for the same target process (WerFault can report a
+                # crash more than once) — must be deduplicated by pid, not listed twice.
+                {"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83},
+            ],
         },
     ],
     "network": {},

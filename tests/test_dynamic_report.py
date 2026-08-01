@@ -736,6 +736,23 @@ def test_add_signatures_program_crash_ignored_for_other_signatures():
     assert dr.crashed_processes == {}
 
 
+def test_add_signatures_program_crash_target_maps_to_falsy_pid_captures_nothing():
+    """get_process_by_pid(0) short-circuits to None (pid=0 is falsy); the program_crash
+    branch must tolerate that rather than crash, and simply capture nothing."""
+    procs_input = [{"procid": 83, "pid": 0, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1}]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[
+            {
+                "label": "program_crash",
+                "score": 3,
+                "indicators": [{"pid": 3340, "procid": 100, "pid_target": 0, "procid_target": 83}],
+            }
+        ],
+    )
+    assert dr.crashed_processes == {}
+
+
 # ---------------------------------------------------------------------------
 # __add_extracted - remaining branches
 # ---------------------------------------------------------------------------
