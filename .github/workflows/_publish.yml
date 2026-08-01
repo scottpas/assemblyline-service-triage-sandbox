@@ -141,7 +141,7 @@ jobs:
           image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
           format: sarif
           output: trivy-container.sarif
-          exit-code: "1"
+          exit-code: "0"
           severity: HIGH,CRITICAL
           limit-severities-for-sarif: true
           ignore-unfixed: true

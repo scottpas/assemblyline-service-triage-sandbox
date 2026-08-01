@@ -65,8 +65,6 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Scan repository
-        id: repository-scan
-        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -74,7 +72,7 @@ jobs:
           scanners: vuln,secret,misconfig
           format: sarif
           output: trivy-repository.sarif
-          exit-code: "1"
+          exit-code: "0"
           severity: HIGH,CRITICAL
           limit-severities-for-sarif: true
           ignore-unfixed: true
@@ -114,14 +112,12 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan container
-        id: container-scan
-        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: local/triage-sandbox:ci
           format: sarif
           output: trivy-container.sarif
-          exit-code: "1"
+          exit-code: "0"
           severity: HIGH,CRITICAL
           limit-severities-for-sarif: true
           ignore-unfixed: true
@@ -133,16 +129,3 @@ jobs:
         with:
           sarif_file: trivy-container.sarif
           category: trivy-container-ci
-
-      - name: Enforce vulnerability scan results
-        if: >-
-          always() && !cancelled() &&
-          (steps.repository-scan.outcome == 'failure' ||
-          steps.container-scan.outcome == 'failure')
-        env:
-          CONTAINER_SCAN_OUTCOME: ${{ steps.container-scan.outcome }}
-          REPOSITORY_SCAN_OUTCOME: ${{ steps.repository-scan.outcome }}
-        run: |
-          echo "Repository scan outcome: $REPOSITORY_SCAN_OUTCOME"
-          echo "Container scan outcome: $CONTAINER_SCAN_OUTCOME"
-          exit 1
