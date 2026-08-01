@@ -33,6 +33,15 @@ from .models import Config, Credentials, Ransom
 from .network import _parse_http_headers, _split_addr
 
 
+def _indicator_text(indicator: dict) -> Optional[str]:
+    """Combine an indicator's human-readable description with its IOC value, if present."""
+    desc = indicator.get("description")
+    ioc = indicator.get("ioc")
+    if desc and ioc:
+        return f"{desc}: {ioc}"
+    return desc or ioc
+
+
 def _is_static_yara_resource(resource: Optional[str]) -> bool:
     """Whether an indicator's "resource" points to something a static YARA scan actually
     ran against (the submitted sample, or a memory dump captured during execution) —
@@ -305,7 +314,14 @@ class DynamicReport:
             # Capture human-readable description for display in result sections.
             # When the yara_rule was used as the name, the verbose original "name" (the
             # rule's description text) has nowhere else to go, so surface it as the description.
-            description = sig.get("desc") or (sig.get("name") if name == yara_rule else None)
+            # Failing that, Triage often still provides per-indicator description/ioc text
+            # (e.g. "PID 3396 wrote to memory of 4436") even when the signature has no "desc".
+            indicator_texts = list(dict.fromkeys(t for i in sig.get("indicators", []) if (t := _indicator_text(i))))
+            description = (
+                sig.get("desc")
+                or (sig.get("name") if name == yara_rule else None)
+                or ("\n".join(indicator_texts) if indicator_texts else None)
+            )
             if description:
                 self.signature_descriptions[name] = description
             for indicator in sig.get("indicators", []):

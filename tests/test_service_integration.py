@@ -449,6 +449,34 @@ def test_execute_overview_signature_yara_rule_ignored_for_non_sample_resource(
     assert "SUSPICIOUS BEHAVIOR: USE OF VIRTUALALLOCEX" in by_title
 
 
+def test_execute_overview_signature_description_falls_back_to_indicator_text(
+    triage_service, make_request, mock_triage_api
+):
+    """When an overview signature has no 'desc', per-indicator description/ioc text
+    should be surfaced instead of leaving the section body empty."""
+    from conftest import build_overview
+
+    overview = build_overview(
+        signatures=[
+            {
+                "label": "program_crash",
+                "score": 3,
+                "indicators": [{"description": "PID 3340 crashed PID 3396", "pid": 3340, "pid_target": 3396}],
+            }
+        ]
+    )
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+
+    req = make_request()
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    overview_section = find_subsection(sandbox_section, "Overview")
+    sigs_section = find_subsection(overview_section, "Signatures")
+    by_title = {s.title_text: s for s in sigs_section.subsections}
+    assert by_title["PROGRAM_CRASH"].body == "PID 3340 crashed PID 3396"
+
+
 def test_execute_overview_configs_rendered_as_table_with_raw_config(triage_service, make_request, mock_triage_api):
     """Overview configs must render as a ResultTableSection with heur_id 100, an
     attribution.family tag, and a nested 'Raw Config' JSON subsection."""

@@ -220,6 +220,55 @@ def test_add_signatures_yara_rule_trusted_for_memory_dump_resource():
     assert sigs[0].name == "INDICATOR_SUSPICIOUS_DisableWinDefender"
 
 
+def test_add_signatures_description_falls_back_to_indicator_text():
+    """When a signature has no 'desc', per-indicator description/ioc text should be
+    surfaced instead of leaving the signature with no description at all."""
+    dr = make_report(
+        signatures=[
+            {
+                "label": "suspicious_writeprocessmemory",
+                "score": 5,
+                "indicators": [
+                    {"description": "PID 3396 wrote to memory of 4436", "pid": 3396, "procid_target": 84},
+                    {"description": "PID 3396 wrote to memory of 4436", "pid": 3396, "procid_target": 84},
+                    {"description": "PID 3260 wrote to memory of 2056", "pid": 3260, "procid_target": 101},
+                ],
+            }
+        ]
+    )
+    assert dr.signature_descriptions["suspicious_writeprocessmemory"] == (
+        "PID 3396 wrote to memory of 4436\nPID 3260 wrote to memory of 2056"
+    )
+
+
+def test_add_signatures_description_falls_back_to_indicator_ioc_with_description():
+    """A single indicator's description and ioc should be combined into one line."""
+    dr = make_report(
+        signatures=[
+            {
+                "label": "modifies_service_image_registry",
+                "score": 8,
+                "indicators": [
+                    {
+                        "ioc": r"\REGISTRY\MACHINE\SYSTEM\Services\x\ImagePath = \"evil.exe\"",
+                        "description": "Set value (str)",
+                        "procid": 101,
+                    }
+                ],
+            }
+        ]
+    )
+    assert dr.signature_descriptions["modifies_service_image_registry"] == (
+        'Set value (str): \\REGISTRY\\MACHINE\\SYSTEM\\Services\\x\\ImagePath = \\"evil.exe\\"'
+    )
+
+
+def test_add_signatures_no_description_when_indicators_have_no_text():
+    """Indicators with only pid/procid (no description or ioc) leave no description."""
+    dr = make_report(signatures=[{"label": "deletes_itself", "score": 7, "indicators": [{"pid": 2056}]}])
+    assert "deletes_itself" not in dr.signature_descriptions
+
+
 # ---------------------------------------------------------------------------
 # 8. __add_signatures — score multiplied by SCORE_MULTIPLY_FACTOR
 # ---------------------------------------------------------------------------

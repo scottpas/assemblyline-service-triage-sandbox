@@ -18,7 +18,7 @@ from triage import Client as TriageClient
 from triage.client import ServerError
 
 from .constants import SUPPORTED_FILE_TYPES
-from .report import TriageResult, _is_static_yara_resource
+from .report import TriageResult, _indicator_text, _is_static_yara_resource
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
 
@@ -178,7 +178,14 @@ class TriageSandbox(ServiceBase):
                         for ttp_id in sig.get("ttp", []):
                             if attack_map.get(ttp_id):
                                 s.heuristic.add_attack_id(ttp_id)
-                        description = sig.get("desc") or (sig.get("name") if raw_name == yara_rule else None)
+                        indicator_texts = list(
+                            dict.fromkeys(t for i in sig.get("indicators", []) if (t := _indicator_text(i)))
+                        )
+                        description = (
+                            sig.get("desc")
+                            or (sig.get("name") if raw_name == yara_rule else None)
+                            or ("\n".join(indicator_texts) if indicator_texts else None)
+                        )
                         if description:
                             s.add_line(description)
                         overview_sigs.add_subsection(s)
