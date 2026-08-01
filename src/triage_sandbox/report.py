@@ -42,33 +42,54 @@ def _indicator_text(indicator: dict) -> Optional[str]:
     return desc or ioc
 
 
+# Non-interactive service account SIDs are never "the current user" — Triage's own
+# rules agree (e.g. its "reg_hku_write" signature fires for these, naming the hive HKU
+# rather than treating it as a current-user write), so these stay under HKEY_USERS.
+_HKU_WELL_KNOWN_SERVICE_SIDS = frozenset(
+    {
+        "S-1-5-18",  # SYSTEM
+        "S-1-5-19",  # LOCAL SERVICE
+        "S-1-5-20",  # NETWORK SERVICE
+    }
+)
+
+
 def _normalize_registry_key(raw: str) -> Optional[str]:
     """Normalize a Triage indicator IOC into a conventional Win32 registry key path.
 
     Triage denotes registry keys using the native NT object namespace
     (e.g. ``\\REGISTRY\\MACHINE\\...``, ``\\REGISTRY\\USER\\<SID>\\...``) rather than
-    the ``HKEY_*`` hive names analysts expect. A Triage sandbox VM has a single
-    interactive user, so any per-SID user hive is that session's current user;
-    ``<SID>_Classes`` is the overlay hive mounted at ``HKEY_CURRENT_USER\\Software\\Classes``,
-    and ``.DEFAULT`` is the non-logged-in default profile (kept under HKEY_USERS,
-    since it isn't a "current user"). Returns None if `raw` isn't a registry path.
+    the ``HKEY_*`` hive names analysts expect, and casing of the root tokens is
+    inconsistent across Triage's own detection rules (``\\Registry\\Machine\\...`` is
+    observed alongside ``\\REGISTRY\\MACHINE\\...``) — only those root tokens are
+    case-normalized here, never the real key path that follows.
+
+    A Triage sandbox VM has a single interactive user, so an ordinary per-machine
+    user-profile SID is that session's current user; ``<SID>_Classes`` is the overlay
+    hive mounted at ``HKEY_CURRENT_USER\\Software\\Classes``, and ``.DEFAULT`` is the
+    non-logged-in default profile (kept under HKEY_USERS, since it isn't a "current
+    user"). Well-known non-interactive service SIDs (SYSTEM, LOCAL SERVICE, NETWORK
+    SERVICE) are also kept under HKEY_USERS rather than collapsed to HKEY_CURRENT_USER.
+    Returns None if `raw` isn't a registry path.
     """
     key = raw.split(" = ", 1)[0]
-    if not key.startswith("\\REGISTRY\\"):
+    if not key.lower().startswith("\\registry\\"):
         return None
     parts = key.split("\\")
     if len(parts) < 3:
         return None
-    hive, rest = parts[2], parts[3:]
+    hive, rest = parts[2].upper(), parts[3:]
     if hive == "MACHINE":
         return "\\".join(["HKEY_LOCAL_MACHINE", *rest])
     if hive == "USER":
         if not rest:
             return "HKEY_USERS"
         user_id, *tail = rest
-        if user_id == ".DEFAULT":
+        if user_id.upper() == ".DEFAULT":
             return "\\".join(["HKEY_USERS", ".DEFAULT", *tail])
-        if user_id.endswith("_Classes"):
+        if user_id.upper() in _HKU_WELL_KNOWN_SERVICE_SIDS:
+            return "\\".join(["HKEY_USERS", user_id, *tail])
+        if user_id.upper().endswith("_CLASSES"):
             return "\\".join(["HKEY_CURRENT_USER", "Software", "Classes", *tail])
         return "\\".join(["HKEY_CURRENT_USER", *tail])
     return None

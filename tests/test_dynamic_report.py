@@ -403,6 +403,28 @@ def test_normalize_registry_key_non_registry_ioc_returns_none():
     assert _normalize_registry_key("") is None
 
 
+def test_normalize_registry_key_case_insensitive_root():
+    """Triage's own rules are inconsistent about casing on the \\REGISTRY\\MACHINE\\...
+    root tokens (\\Registry\\Machine\\... is observed in the wild) — only the root
+    tokens should be case-normalized, not the rest of the real key path."""
+    assert (
+        _normalize_registry_key(r"\Registry\Machine\HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+        == r"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+    )
+
+
+def test_normalize_registry_key_well_known_service_sids_stay_hku():
+    """SYSTEM, LOCAL SERVICE, and NETWORK SERVICE are non-interactive service accounts,
+    never "the current user" — they must stay under HKEY_USERS\\<SID>, not collapse to
+    HKEY_CURRENT_USER like an ordinary per-machine user profile SID does."""
+    assert (
+        _normalize_registry_key(r"\REGISTRY\USER\S-1-5-19\SOFTWARE\Microsoft\Cryptography\TPM\Telemetry")
+        == r"HKEY_USERS\S-1-5-19\SOFTWARE\Microsoft\Cryptography\TPM\Telemetry"
+    )
+    assert _normalize_registry_key(r"\REGISTRY\USER\S-1-5-18\SOFTWARE\x") == r"HKEY_USERS\S-1-5-18\SOFTWARE\x"
+    assert _normalize_registry_key(r"\REGISTRY\USER\S-1-5-20\SOFTWARE\x") == r"HKEY_USERS\S-1-5-20\SOFTWARE\x"
+
+
 # ---------------------------------------------------------------------------
 # 10b. __add_signatures — registry keys collected per signature name
 # ---------------------------------------------------------------------------
