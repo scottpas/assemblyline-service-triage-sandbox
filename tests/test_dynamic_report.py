@@ -697,6 +697,45 @@ def test_add_signatures_indicator_procid_maps_to_falsy_pid_attaches_nothing():
     assert sigs[0].attributes == []
 
 
+def test_add_signatures_program_crash_captures_target_process():
+    """For 'program_crash', procid is the crash-reporting process (e.g. WerFault.exe) and
+    procid_target is the process that actually crashed — only the latter is captured."""
+    procs_input = [
+        {"procid": 100, "pid": 3340, "ppid": 0, "image": "WerFault.exe", "cmd": "WerFault.exe -p 3396", "started": 1},
+        {"procid": 83, "pid": 3396, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1},
+    ]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[
+            {
+                "label": "program_crash",
+                "score": 3,
+                "indicators": [{"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83}],
+            }
+        ],
+    )
+    crashed = dr.crashed_processes["program_crash"]
+    assert len(crashed) == 1
+    assert crashed[0].pid == 3396
+    assert crashed[0].image == "malware.exe"
+
+
+def test_add_signatures_program_crash_ignored_for_other_signatures():
+    """procid_target on a non-program_crash signature must not populate crashed_processes."""
+    procs_input = [{"procid": 83, "pid": 3396, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1}]
+    dr = make_report(
+        processes=procs_input,
+        signatures=[
+            {
+                "label": "suspicious_setthreadcontext",
+                "score": 5,
+                "indicators": [{"pid": 3260, "procid": 94, "pid_target": 3396, "procid_target": 83}],
+            }
+        ],
+    )
+    assert dr.crashed_processes == {}
+
+
 # ---------------------------------------------------------------------------
 # __add_extracted - remaining branches
 # ---------------------------------------------------------------------------

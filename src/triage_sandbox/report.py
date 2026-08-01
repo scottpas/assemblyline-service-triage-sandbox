@@ -330,6 +330,13 @@ class DynamicReport:
                     if source_process:
                         attr = Attribute(source=cast(Any, source_process).objectid)
                         al_sig.add_attribute(attr)
+                # For "program_crash", procid is the crash-reporting process (e.g. WerFault.exe)
+                # and procid_target is the process that actually crashed — surface the latter
+                # separately so it can be rendered as its own process list.
+                if name == "program_crash" and indicator.get("procid_target") in self._id_pid_map:
+                    crashed_process = self.ontology.get_process_by_pid(self._id_pid_map[indicator["procid_target"]])
+                    if crashed_process:
+                        self.crashed_processes.setdefault(name, []).append(crashed_process)
 
     def __add_extracted(self) -> None:
         for item in self.extracted or []:
@@ -383,6 +390,8 @@ class DynamicReport:
         self._id_pid_map: dict[int, int] = {}
         # Maps normalized signature name → human-readable description (sig.desc)
         self.signature_descriptions: dict[str, str] = {}
+        # Maps normalized signature name → processes it reports as crashed (program_crash only)
+        self.crashed_processes: dict[str, List[Process]] = {}
         self.__add_sandbox()
         if self.processes:
             self.__add_processes()

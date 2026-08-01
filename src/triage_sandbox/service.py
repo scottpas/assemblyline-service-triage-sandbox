@@ -12,7 +12,13 @@ from assemblyline.odm.models.ontology.results.malware_config import MalwareConfi
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults, extract_iocs_from_text_blob
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
-from assemblyline_v4_service.common.result import Result, ResultSection, ResultTableSection
+from assemblyline_v4_service.common.result import (
+    ProcessItem,
+    Result,
+    ResultProcessTreeSection,
+    ResultSection,
+    ResultTableSection,
+)
 from retrying import RetryError, retry
 from triage import Client as TriageClient
 from triage.client import ServerError
@@ -252,6 +258,20 @@ class TriageSandbox(ServiceBase):
                         desc = task.signature_descriptions.get(sig.name)
                         if desc:
                             s.add_line(desc)
+                        # program_crash: list the process(es) that actually crashed
+                        # (not the crash-reporting process, e.g. WerFault.exe)
+                        crashed = task.crashed_processes.get(sig.name)
+                        if crashed:
+                            crash_tree = ResultProcessTreeSection(title_text="Crashed Process(es)")
+                            crash_tree.auto_collapse = True
+                            seen_pids: set = set()
+                            for p in crashed:
+                                p = cast(Any, p)
+                                if p.pid in seen_pids:
+                                    continue
+                                seen_pids.add(p.pid)
+                                crash_tree.add_process(ProcessItem(pid=p.pid, name=p.image, cmd=p.command_line))
+                            s.add_subsection(crash_tree)
                         sig_subsections[name] = s
                 for sig_section in reversed(sorted(sig_subsections.values(), key=lambda s: s.heuristic.heur_id)):
                     sigs_section.add_subsection(sig_section)

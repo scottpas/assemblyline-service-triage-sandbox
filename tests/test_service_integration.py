@@ -2,6 +2,7 @@
 Integration tests for TriageSandbox.execute(), search_triage(), and submit_triage().
 """
 
+import json
 import os
 import re
 import tempfile
@@ -696,6 +697,103 @@ def test_execute_duplicate_signature_merges_processtree_and_attacks(requests_moc
 
     # No 'c2' in the extracted config -> no Malware Config subsection at all.
     assert find_subsection(task_section, "Malware Config") is None
+
+
+# ---------------------------------------------------------------------------
+# program_crash: crashed-process list rendered as a process-tree-style subsection
+# ---------------------------------------------------------------------------
+
+_CRASH_SAMPLE_ID = "test00-crashsigid001"
+_CRASH_SHA256 = "c4a5c4a5" * 8
+
+_CRASH_SAMPLE = {
+    "id": _CRASH_SAMPLE_ID,
+    "status": "reported",
+    "kind": "file",
+    "filename": "crash.exe",
+    "private": True,
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:09Z",
+    "sha256": _CRASH_SHA256,
+    "tasks": [{"id": "behavioral1", "status": "reported"}],
+}
+
+_CRASH_BEHAVIORAL_REPORT = {
+    "version": "0.2.3",
+    "sample": {"id": _CRASH_SAMPLE_ID},
+    "task": {"id": "behavioral1"},
+    "analysis": {
+        "score": 3,
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "resource": "win7",
+        "backend": "raven",
+        "platform": "windows",
+    },
+    "processes": [
+        {
+            "procid": 100,
+            "pid": 3340,
+            "ppid": 0,
+            "image": "C:\\Windows\\SysWOW64\\WerFault.exe",
+            "cmd": "WerFault.exe -u -p 3396 -s 1188",
+            "started": 1,
+        },
+        {
+            "procid": 83,
+            "pid": 3396,
+            "ppid": 0,
+            "image": "C:\\Users\\Admin\\malware.exe",
+            "cmd": '"C:\\Users\\Admin\\malware.exe"',
+            "started": 1,
+        },
+    ],
+    "signatures": [
+        {
+            "label": "program_crash",
+            "score": 3,
+            "indicators": [{"pid": 3340, "procid": 100, "pid_target": 3396, "procid_target": 83}],
+        },
+    ],
+    "network": {},
+    "extracted": None,
+    "dumped": None,
+}
+
+
+def test_execute_program_crash_renders_crashed_process_tree(requests_mock, make_request, triage_service):
+    """PROGRAM_CRASH must include a 'Crashed Process(es)' process-tree subsection listing
+    only the process that actually crashed (procid_target) — not the crash reporter
+    (procid, e.g. WerFault.exe)."""
+    encoded = req_utils.quote(f"sha256:{_CRASH_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _CRASH_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_CRASH_SAMPLE_ID}", json=_CRASH_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_CRASH_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_CRASH_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_CRASH_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_CRASH_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    sigs_section = find_subsection(task_section, "Signatures")
+    crash_section = find_subsection(sigs_section, "PROGRAM_CRASH")
+    assert crash_section is not None
+
+    crash_tree = find_subsection(crash_section, "Crashed Process(es)")
+    assert crash_tree is not None
+    assert crash_tree.auto_collapse is True
+    procs = json.loads(crash_tree.section_body.body)
+    assert len(procs) == 1
+    assert procs[0]["process_pid"] == 3396
+    assert procs[0]["process_name"] == "C:\\Users\\Admin\\malware.exe"
+    assert procs[0]["command_line"] == '"C:\\Users\\Admin\\malware.exe"'
 
 
 # ---------------------------------------------------------------------------
