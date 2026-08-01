@@ -797,6 +797,82 @@ def test_execute_program_crash_renders_crashed_process_tree(requests_mock, make_
 
 
 # ---------------------------------------------------------------------------
+# auto_collapse for long descriptions
+# ---------------------------------------------------------------------------
+
+_REGKEY_SAMPLE_ID = "test00-regkeysigid01"
+_REGKEY_SHA256 = "a5c4a5c4" * 8
+
+_REGKEY_SAMPLE = {
+    "id": _REGKEY_SAMPLE_ID,
+    "status": "reported",
+    "kind": "file",
+    "filename": "regkey.exe",
+    "private": True,
+    "submitted": "2024-02-02T23:56:27Z",
+    "completed": "2024-02-02T23:59:09Z",
+    "sha256": _REGKEY_SHA256,
+    "tasks": [{"id": "behavioral1", "status": "reported"}],
+}
+
+_REGKEY_BEHAVIORAL_REPORT = {
+    "version": "0.2.3",
+    "sample": {"id": _REGKEY_SAMPLE_ID},
+    "task": {"id": "behavioral1"},
+    "analysis": {
+        "score": 8,
+        "submitted": "2024-02-02T23:56:27Z",
+        "reported": "2024-02-02T23:59:09Z",
+        "resource": "win7",
+        "backend": "raven",
+        "platform": "windows",
+    },
+    "processes": [],
+    "signatures": [
+        {
+            "label": "suspicious_writeprocessmemory",
+            "score": 5,
+            "indicators": [
+                {"description": "PID 1 wrote to memory of 2", "pid": 1},
+                {"description": "PID 1 wrote to memory of 3", "pid": 1},
+                {"description": "PID 1 wrote to memory of 4", "pid": 1},
+                {"description": "PID 1 wrote to memory of 5", "pid": 1},
+            ],
+        },
+    ],
+    "network": {},
+    "extracted": None,
+    "dumped": None,
+}
+
+
+def test_execute_signature_description_over_three_lines_auto_collapses(requests_mock, make_request, triage_service):
+    """A signature description longer than 3 lines must auto-collapse."""
+    encoded = req_utils.quote(f"sha256:{_REGKEY_SHA256}")
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": _REGKEY_SAMPLE_ID}], "next": None},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{_REGKEY_SAMPLE_ID}", json=_REGKEY_SAMPLE)
+    requests_mock.get(
+        f"https://api.tria.ge/v0/samples/{_REGKEY_SAMPLE_ID}/behavioral1/report_triage.json",
+        json=_REGKEY_BEHAVIORAL_REPORT,
+    )
+    requests_mock.get(f"https://api.tria.ge/v1/samples/{_REGKEY_SAMPLE_ID}/overview.json", json={})
+
+    req = make_request(sha256=_REGKEY_SHA256)
+    triage_service.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    task_section = find_subsection(sandbox_section, "Task: behavioral1")
+    sigs_section = find_subsection(task_section, "Signatures")
+    section = find_subsection(sigs_section, "SUSPICIOUS_WRITEPROCESSMEMORY")
+    assert section is not None
+    assert section.body.count("\n") + 1 == 4
+    assert section.auto_collapse is True
+
+
+# ---------------------------------------------------------------------------
 # Download error paths (pcap / memdump / dropped files) - must log and continue
 # ---------------------------------------------------------------------------
 

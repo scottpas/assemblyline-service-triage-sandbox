@@ -194,6 +194,8 @@ class TriageSandbox(ServiceBase):
                         )
                         if description:
                             s.add_line(description)
+                            if description.count("\n") + 1 > 3:
+                                s.auto_collapse = True
                         overview_sigs.add_subsection(s)
                     overview_section.add_subsection(overview_sigs)
                 if triage_result.overview_configs:
@@ -258,6 +260,8 @@ class TriageSandbox(ServiceBase):
                         desc = task.signature_descriptions.get(sig.name)
                         if desc:
                             s.add_line(desc)
+                            if desc.count("\n") + 1 > 3:
+                                s.auto_collapse = True
                         # program_crash: list the process(es) that actually crashed
                         # (not the crash-reporting process, e.g. WerFault.exe)
                         crashed = task.crashed_processes.get(sig.name)
