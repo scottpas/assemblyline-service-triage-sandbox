@@ -425,6 +425,16 @@ def test_normalize_registry_key_well_known_service_sids_stay_hku():
     assert _normalize_registry_key(r"\REGISTRY\USER\S-1-5-20\SOFTWARE\x") == r"HKEY_USERS\S-1-5-20\SOFTWARE\x"
 
 
+def test_normalize_registry_key_well_known_service_sid_classes_hive_stays_hku():
+    """A service account's Classes overlay hive (<SID>_Classes) must stay under
+    HKEY_USERS\\<SID>_Classes, not collapse to HKEY_CURRENT_USER\\Software\\Classes
+    like an ordinary user profile's Classes hive does."""
+    assert (
+        _normalize_registry_key(r"\REGISTRY\USER\S-1-5-19_Classes\Local Settings\Software")
+        == r"HKEY_USERS\S-1-5-19_Classes\Local Settings\Software"
+    )
+
+
 def test_normalize_registry_key_missing_hive_segment_returns_none():
     """A path with no hive segment at all (just the root token) has nothing to normalize."""
     assert _normalize_registry_key(r"\REGISTRY") is None

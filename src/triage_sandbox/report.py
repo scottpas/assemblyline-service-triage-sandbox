@@ -87,9 +87,13 @@ def _normalize_registry_key(raw: str) -> Optional[str]:
         user_id, *tail = rest
         if user_id.upper() == ".DEFAULT":
             return "\\".join(["HKEY_USERS", ".DEFAULT", *tail])
-        if user_id.upper() in _HKU_WELL_KNOWN_SERVICE_SIDS:
+        is_classes_hive = user_id.upper().endswith("_CLASSES")
+        bare_sid = user_id[: -len("_Classes")] if is_classes_hive else user_id
+        if bare_sid.upper() in _HKU_WELL_KNOWN_SERVICE_SIDS:
+            # A service account's Classes overlay hive is still that service account's,
+            # not the interactive user's — keep the SID rather than collapsing to HKCU.
             return "\\".join(["HKEY_USERS", user_id, *tail])
-        if user_id.upper().endswith("_CLASSES"):
+        if is_classes_hive:
             return "\\".join(["HKEY_CURRENT_USER", "Software", "Classes", *tail])
         return "\\".join(["HKEY_CURRENT_USER", *tail])
     return None
