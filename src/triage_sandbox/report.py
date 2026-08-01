@@ -99,7 +99,6 @@ class DynamicReport:
 
     def __add_processes(self) -> None:
         for process in self.processes or []:
-            self._id_pid_map[process["procid"]] = process["pid"]
             p_oid = ProcessModel.get_oid(
                 {
                     "pid": process["pid"],
@@ -128,6 +127,10 @@ class DynamicReport:
                     else "9999-12-31 23:59:59.999999"
                 ),
             )
+            # procid is unique per process instance within a task; pid can be reused by the
+            # OS during the task, so indicators must resolve through this objectid map rather
+            # than pid lookups (which pick an arbitrary matching process on reuse).
+            self._id_objectid_map[process["procid"]] = object_id
 
     def __add_network(self) -> None:
         if not self.network:
@@ -325,18 +328,20 @@ class DynamicReport:
             if description:
                 self.signature_descriptions[name] = description
             for indicator in sig.get("indicators", []):
-                if indicator.get("procid") and indicator["procid"] in self._id_pid_map:
-                    source_process = self.ontology.get_process_by_pid(self._id_pid_map[indicator["procid"]])
-                    if source_process:
-                        attr = Attribute(source=cast(Any, source_process).objectid)
-                        al_sig.add_attribute(attr)
+                # A procid found in this map always resolves to a process (we created both
+                # from the same process list), so no truthiness check is needed here.
+                if indicator.get("procid") in self._id_objectid_map:
+                    source_process = self.ontology.get_process_by_objectid(self._id_objectid_map[indicator["procid"]])
+                    attr = Attribute(source=cast(Any, source_process).objectid)
+                    al_sig.add_attribute(attr)
                 # For "program_crash", procid is the crash-reporting process (e.g. WerFault.exe)
                 # and procid_target is the process that actually crashed — surface the latter
                 # separately so it can be rendered as its own process list.
-                if name == "program_crash" and indicator.get("procid_target") in self._id_pid_map:
-                    crashed_process = self.ontology.get_process_by_pid(self._id_pid_map[indicator["procid_target"]])
-                    if crashed_process:
-                        self.crashed_processes.setdefault(name, []).append(crashed_process)
+                if name == "program_crash" and indicator.get("procid_target") in self._id_objectid_map:
+                    crashed_process = self.ontology.get_process_by_objectid(
+                        self._id_objectid_map[indicator["procid_target"]]
+                    )
+                    self.crashed_processes.setdefault(name, []).append(cast(Any, crashed_process))
 
     def __add_extracted(self) -> None:
         for item in self.extracted or []:
@@ -387,7 +392,10 @@ class DynamicReport:
         self.session = f"{self.sample['id']}/{self.task_id}"
         self.network_tags: List[tuple] = []  # type: ignore[type-arg]
         self.malware_config: List[MalwareConfig] = []
-        self._id_pid_map: dict[int, int] = {}
+        # Maps procid → the process's unique ObjectID (pid can be reused within a task by
+        # the OS, so indicator resolution must go through this, not a procid → pid → pid
+        # lookup, which could resolve to the wrong process instance on reuse)
+        self._id_objectid_map: dict[int, Any] = {}
         # Maps normalized signature name → human-readable description (sig.desc)
         self.signature_descriptions: dict[str, str] = {}
         # Maps normalized signature name → processes it reports as crashed (program_crash only)

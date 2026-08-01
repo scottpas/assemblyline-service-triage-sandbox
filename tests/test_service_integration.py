@@ -949,10 +949,10 @@ def test_execute_signature_attribute_non_process_source_skips_processtree_tag(
     new-signature branch and the merged-duplicate branch via the same DUPSIG fixture."""
     from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
-    def _fake_get_process_by_pid(self, pid=None):
+    def _fake_get_process_by_objectid(self, objectid=None):
         return SimpleNamespace(objectid=OntologyResults.create_objectid(tag="filetag", ontology_id="file_deadbeef"))
 
-    monkeypatch.setattr(OntologyResults, "get_process_by_pid", _fake_get_process_by_pid)
+    monkeypatch.setattr(OntologyResults, "get_process_by_objectid", _fake_get_process_by_objectid)
 
     encoded = req_utils.quote(f"sha256:{_DUP_SHA256}")
     requests_mock.get(

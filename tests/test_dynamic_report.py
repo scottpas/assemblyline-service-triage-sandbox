@@ -84,14 +84,16 @@ def test_add_sandbox_recorded():
 # ---------------------------------------------------------------------------
 
 
-def test_add_processes_builds_id_pid_map():
+def test_add_processes_builds_id_objectid_map():
     procs_input = [
         {"procid": 1, "pid": 100, "ppid": 4, "image": "a.exe", "cmd": "a", "started": 1},
         {"procid": 2, "pid": 200, "ppid": 100, "image": "b.exe", "cmd": "b", "started": 2, "terminated": 5},
     ]
     dr = make_report(processes=procs_input)
 
-    assert dr._id_pid_map == {1: 100, 2: 200}
+    assert set(dr._id_objectid_map) == {1, 2}
+    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[1]).pid == 100
+    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[2]).pid == 200
 
     procs = dr.ontology.get_processes()
     assert len(procs) == 2
@@ -684,9 +686,9 @@ def test_add_signatures_indicator_with_unknown_procid_attaches_nothing():
     assert sigs[0].attributes == []
 
 
-def test_add_signatures_indicator_procid_maps_to_falsy_pid_attaches_nothing():
-    """get_process_by_pid(0) short-circuits to None (pid=0 is falsy); the indicator loop
-    must tolerate that rather than crash, and simply attach nothing."""
+def test_add_signatures_indicator_procid_resolves_process_with_falsy_pid():
+    """Resolution goes through the procid → ObjectID map, not pid, so a process with
+    pid=0 (e.g. the Windows System Idle Process) still attaches correctly."""
     procs_input = [{"procid": 1, "pid": 0, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
     dr = make_report(
         processes=procs_input,
@@ -694,7 +696,8 @@ def test_add_signatures_indicator_procid_maps_to_falsy_pid_attaches_nothing():
     )
     sigs = dr.ontology.get_signatures()
     assert len(sigs) == 1
-    assert sigs[0].attributes == []
+    assert len(sigs[0].attributes) == 1
+    assert sigs[0].attributes[0].source.ontology_id.startswith("process_")
 
 
 def test_add_signatures_program_crash_captures_target_process():
@@ -736,9 +739,9 @@ def test_add_signatures_program_crash_ignored_for_other_signatures():
     assert dr.crashed_processes == {}
 
 
-def test_add_signatures_program_crash_target_maps_to_falsy_pid_captures_nothing():
-    """get_process_by_pid(0) short-circuits to None (pid=0 is falsy); the program_crash
-    branch must tolerate that rather than crash, and simply capture nothing."""
+def test_add_signatures_program_crash_target_resolves_process_with_falsy_pid():
+    """Resolution goes through the procid_target → ObjectID map, not pid, so a crashed
+    process with pid=0 still gets captured correctly."""
     procs_input = [{"procid": 83, "pid": 0, "ppid": 0, "image": "malware.exe", "cmd": "malware.exe", "started": 1}]
     dr = make_report(
         processes=procs_input,
@@ -750,7 +753,9 @@ def test_add_signatures_program_crash_target_maps_to_falsy_pid_captures_nothing(
             }
         ],
     )
-    assert dr.crashed_processes == {}
+    crashed = dr.crashed_processes["program_crash"]
+    assert len(crashed) == 1
+    assert crashed[0].image == "malware.exe"
 
 
 # ---------------------------------------------------------------------------
