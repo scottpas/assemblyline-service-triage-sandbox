@@ -66,6 +66,50 @@ def test_search_triage_by_url(triage_service, triage_client, requests_mock, make
     assert result["id"] == SAMPLE_ID
 
 
+def test_search_triage_by_url_preserves_safe_query_characters(
+    triage_service, triage_client, requests_mock, make_request
+):
+    """URL data that resembles operators only after decoding remains one quoted value."""
+    svc = triage_service
+    svc.client = triage_client
+    uri = "https://mal.test/a?term=AND+OR+NOT&quote=%22&slash=%5C&filter=tag%3Afoo"
+    encoded = req_utils.quote(f'url:"{uri}"')
+    requests_mock.get(
+        f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
+        json={"data": [{"id": SAMPLE_ID}], "next": None},
+    )
+    req = make_request(uri_info=SimpleNamespace(uri=uri), submit_as_url=True)
+
+    result = svc.search_triage(req)
+
+    assert result is not None
+    assert result["id"] == SAMPLE_ID
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        'https://mal.test/" OR sha256:attacker',
+        "https://mal.test/\\\\ OR sha256:attacker",
+        "https://mal.test/a OR sha256:attacker",
+        "https://mal.test/a\\nOR sha256:attacker",
+        "https://mal.test/a\\x00OR sha256:attacker",
+    ],
+)
+def test_search_triage_rejects_unrepresentable_url_query_values(
+    triage_service, triage_client, requests_mock, make_request, uri
+):
+    """Query delimiters and controls cannot escape into another search clause."""
+    svc = triage_service
+    svc.client = triage_client
+    req = make_request(uri_info=SimpleNamespace(uri=uri), submit_as_url=True)
+
+    with pytest.raises(ValueError, match="cannot be represented safely"):
+        svc.search_triage(req)
+
+    assert not requests_mock.called
+
+
 def test_search_triage_not_found_returns_none(triage_service, triage_client, requests_mock, make_request):
     """search_triage swallows StopIteration and returns None when no results exist."""
     svc = triage_service

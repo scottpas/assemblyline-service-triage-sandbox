@@ -63,6 +63,12 @@ def _retry_on_not_found(exception: Exception) -> bool:
     return isinstance(exception, ServerError) and exception.status == 404
 
 
+def _format_url_search_query(uri: str) -> str:
+    if any(char in {'"', "\\"} or char.isspace() or not char.isprintable() for char in uri):
+        raise ValueError("URI cannot be represented safely in a Triage search query")
+    return f'url:"{uri}"'
+
+
 @retry(
     wait_fixed=TRIAGE_POLL_DELAY * 1000,
     stop_max_delay=MAX_ANALYSIS_TIMEOUT * 1000,
@@ -86,7 +92,8 @@ class TriageSandbox(ServiceBase):
         submission = None
         try:
             if request.task.fileinfo.uri_info and request.get_param("submit_as_url"):
-                submission = self.client.search(query=f'url:"{request.task.fileinfo.uri_info.uri}"', max=1).__next__()
+                query = _format_url_search_query(request.task.fileinfo.uri_info.uri)
+                submission = self.client.search(query=query, max=1).__next__()
             else:
                 submission = self.client.search(query=f"sha256:{request.sha256}", max=1).__next__()
             self.log.debug(f"Submission: {submission['id']}")
