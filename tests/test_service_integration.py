@@ -6,6 +6,7 @@ import json
 import os
 import re
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -368,6 +369,9 @@ def test_execute_pcap_extraction(triage_service, make_request, mock_triage_api):
     assert len(calls) >= 1
     names = [c.kwargs.get("name", "") or (c.args[1] if len(c.args) > 1 else "") for c in calls]
     assert any(n.endswith("dump.pcapng") for n in names), f"No dump.pcapng in add_extracted calls: {names}"
+    extracted_paths = [c.kwargs["path"] for c in calls if c.kwargs.get("name", "").endswith("dump.pcapng")]
+    assert extracted_paths
+    assert all(Path(path).read_bytes() == b"PCAPDATA" for path in extracted_paths)
 
 
 def test_execute_memdump_extraction(triage_service, make_request, mock_triage_api):
