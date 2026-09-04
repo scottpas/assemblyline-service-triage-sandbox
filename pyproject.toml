@@ -10,6 +10,7 @@ dependencies = [
     "assemblyline-service-utilities>=4.6.1.2",
     "assemblyline-v4-service>=4.7.4.13",
     "hatching-triage>=0.2.0",
+    "requests>=2.32.4",
     "retrying>=1.4.2",
 ]
 

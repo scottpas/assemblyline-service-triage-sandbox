@@ -1587,6 +1587,7 @@ dependencies = [
     { name = "assemblyline-service-utilities" },
     { name = "assemblyline-v4-service" },
     { name = "hatching-triage" },
+    { name = "requests" },
     { name = "retrying" },
 ]
 
@@ -1606,6 +1607,7 @@ requires-dist = [
     { name = "assemblyline-service-utilities", specifier = ">=4.6.1.2" },
     { name = "assemblyline-v4-service", specifier = ">=4.7.4.13" },
     { name = "hatching-triage", specifier = ">=0.2.0" },
+    { name = "requests", specifier = ">=2.32.4" },
     { name = "retrying", specifier = ">=1.4.2" },
 ]
 
