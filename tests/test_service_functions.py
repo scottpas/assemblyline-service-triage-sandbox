@@ -100,7 +100,7 @@ def test_download_artifact_streams_chunks_and_ignores_empty_chunks(monkeypatch, 
     session = MagicMock()
     session.__enter__.return_value = session
     session.send.return_value = response
-    session.merge_environment_settings.return_value = {"verify": True}
+    session.merge_environment_settings.return_value = {"verify": True, "stream": True}
     session_factory = MagicMock(return_value=session)
     monkeypatch.setattr(service, "Session", session_factory)
 
@@ -109,6 +109,9 @@ def test_download_artifact_streams_chunks_and_ignores_empty_chunks(monkeypatch, 
     assert (tmp_path / artifact_path.split("/")[-1]).read_bytes() == b"firstsecond"
     client._new_request.assert_called_once_with(method="GET", path="/artifact")
     request.prepare.assert_called_once()
+    # stream must be requested through merge_environment_settings (3rd positional arg) and
+    # verify left as the session/env default (verify=None), never disabled.
+    session.merge_environment_settings.assert_called_once_with(request.url, {}, True, None, None)
     session.send.assert_called_once_with(request.prepare.return_value, stream=True, verify=True)
     response.iter_content.assert_called_once_with(chunk_size=service.ARTIFACT_DOWNLOAD_CHUNK_SIZE)
     response.raise_for_status.assert_called_once()

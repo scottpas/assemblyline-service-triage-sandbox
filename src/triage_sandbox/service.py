@@ -88,8 +88,11 @@ def _download_artifact(client: TriageClient, path: str, directory: str) -> str:
     """Stream a Triage artifact into a temporary file without buffering it in memory."""
     request = client._new_request(method="GET", path=path)
     with Session() as session:
-        settings = session.merge_environment_settings(request.url, {}, None, False, None)
-        with session.send(request.prepare(), stream=True, **settings) as response:
+        # merge_environment_settings(url, proxies, stream, verify, cert): pass verify=None to
+        # keep the session/env default (honors REQUESTS_CA_BUNDLE), and set stream in the
+        # returned mapping so it isn't also passed positionally to send() (TypeError).
+        settings = session.merge_environment_settings(request.url, {}, True, None, None)
+        with session.send(request.prepare(), **settings) as response:
             response.raise_for_status()
             fd, temp_path = tempfile.mkstemp(dir=directory)
             try:
