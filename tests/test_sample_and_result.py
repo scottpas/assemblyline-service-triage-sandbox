@@ -8,6 +8,7 @@ tria.ge API endpoints on requests_mock and returns a TriageClient.
 import copy
 import json
 
+from triage_sandbox.client import TriageClient
 from triage_sandbox.report import DynamicReport, Sample, TriageResult
 
 OVERVIEW_URL = "https://api.tria.ge/v1/samples/{id}/overview.json"
@@ -172,7 +173,6 @@ def test_overview_config_recovered_when_behavioral_has_none(requests_mock, sampl
     the config from the overview report.
     Simulates the quasar scenario: behavioral tasks have empty extracted blocks.
     """
-    from triage import Client as TriageClient
 
     # Build sample + behavioral reports with NO extracted block
     sample_no_config = copy.deepcopy(sample_json)
@@ -200,7 +200,6 @@ def test_overview_config_skipped_when_already_in_behavioral(requests_mock, sampl
     When a config from the overview is identical (same filtered content) to one already
     extracted from behavioral reports, it must NOT be added again (no double-scoring).
     """
-    from triage import Client as TriageClient
 
     # Build overview with same family+c2 as what build_report() puts in behavioral
     b1_family = "fabookie"
@@ -239,7 +238,6 @@ def test_overview_config_skipped_when_already_in_behavioral(requests_mock, sampl
 
 def test_overview_signatures_recovered_when_absent_from_behavioral(requests_mock, sample_json):
     """Overview-only signatures must be captured in overview_signatures."""
-    from triage import Client as TriageClient
 
     b1 = _behavioral_report_no_config("behavioral1")
     b2 = _behavioral_report_no_config("behavioral2")
@@ -261,7 +259,6 @@ def test_overview_signatures_recovered_when_absent_from_behavioral(requests_mock
 def test_overview_error_is_non_fatal(requests_mock, sample_json):
     """A 404 or error from overview_report must not crash TriageResult."""
     from conftest import build_report
-    from triage import Client as TriageClient
 
     b1 = build_report("behavioral1")
     b2 = build_report("behavioral2", family="vidar")
@@ -283,7 +280,6 @@ def test_behavioral_extracted_config_without_family_not_added_to_dedup_keys(requ
     via models.Config, which only substitutes UNKNOWN when credentials are also present)
     must not be added to the overview-dedup key set."""
     from conftest import build_report
-    from triage import Client as TriageClient
 
     b1 = copy.deepcopy(build_report("behavioral1"))
     b1["extracted"][0]["config"]["family"] = ""
@@ -306,7 +302,6 @@ def test_behavioral_signature_without_label_or_name_not_seen(requests_mock, samp
     """A signature with neither 'label' nor 'name' resolves to an empty name and must not
     be recorded in the seen-names set used for overview signature dedup."""
     from conftest import build_report
-    from triage import Client as TriageClient
 
     b1 = copy.deepcopy(build_report("behavioral1"))
     b1["signatures"].append({"score": 3})
@@ -329,7 +324,6 @@ def test_overview_config_without_family_is_skipped(requests_mock, sample_json):
     """An overview extracted item whose config has no 'family' must be skipped outright,
     without ever reaching Config() construction."""
     from conftest import build_report
-    from triage import Client as TriageClient
 
     b1 = build_report("behavioral1")
     b2 = build_report("behavioral2", family="vidar")
@@ -350,7 +344,6 @@ def test_overview_signature_already_seen_behaviorally_is_not_duplicated(requests
     """An overview signature whose name already appeared in a behavioral report must not
     be added a second time to overview_signatures."""
     from conftest import build_report
-    from triage import Client as TriageClient
 
     b1 = build_report("behavioral1")  # includes a signature labeled "interesting_sig"
     b2 = build_report("behavioral2", family="vidar")
@@ -370,7 +363,6 @@ def test_overview_signature_already_seen_behaviorally_is_not_duplicated(requests
 def test_invalid_overview_config_is_non_fatal(requests_mock, sample_json):
     """Malformed best-effort overview configs must not discard behavioral results."""
     from conftest import build_report
-    from triage import Client as TriageClient
 
     b1 = build_report("behavioral1")
     b2 = build_report("behavioral2", family="vidar")

@@ -64,15 +64,6 @@ wheels = [
 ]
 
 [[package]]
-name = "appdirs"
-version = "1.4.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d7/d8/05696357e0311f5b5c316d7b95f46c669dd9c15aaeecbb48c7d0aeb88c40/appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41", size = 13470, upload-time = "2020-05-11T07:59:51.037Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/00/2344469e2084fb287c2e0b57b72910309874c3245463acd6cf5e3db69324/appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128", size = 9566, upload-time = "2020-05-11T07:59:49.499Z" },
-]
-
-[[package]]
 name = "apscheduler"
 version = "3.11.3"
 source = { registry = "https://pypi.org/simple" }
@@ -693,17 +684,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/11/4b/0a002eea91be6048a
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/ff/74f23998ad2f93b945c0309f825be92e04e0348e062026998b5eefef4c33/fuzzywuzzy-0.18.0-py2.py3-none-any.whl", hash = "sha256:928244b28db720d1e0ee7587acf660ea49d7e4c632569cad4f1cd7e68a5f0993", size = 18272, upload-time = "2020-02-13T21:06:25.209Z" },
 ]
-
-[[package]]
-name = "hatching-triage"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "appdirs" },
-    { name = "click" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e2/f7/7396282c8d786dee9f73574fa84aeba0f4b198390ffeb4ef12f332dc1ee7/hatching-triage-0.2.0.tar.gz", hash = "sha256:e1e1e3ac1bdd6ab6f69cffa20b97819ea8e2ecd1ba787332915421b200e13fcd", size = 9702, upload-time = "2023-10-09T10:57:24.451Z" }
 
 [[package]]
 name = "hauntedhouse"
@@ -1586,7 +1566,7 @@ source = { editable = "." }
 dependencies = [
     { name = "assemblyline-service-utilities" },
     { name = "assemblyline-v4-service" },
-    { name = "hatching-triage" },
+    { name = "requests" },
     { name = "retrying" },
 ]
 
@@ -1605,7 +1585,7 @@ dev = [
 requires-dist = [
     { name = "assemblyline-service-utilities", specifier = ">=4.6.1.2" },
     { name = "assemblyline-v4-service", specifier = ">=4.7.4.13" },
-    { name = "hatching-triage", specifier = ">=0.2.0" },
+    { name = "requests", specifier = ">=2.32.4" },
     { name = "retrying", specifier = ">=1.4.2" },
 ]
 

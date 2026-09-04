@@ -11,9 +11,9 @@ Key architectural notes:
   transparently.
 - The sample fixture's status is "reported", so wait_for_submission exits on
   the very first poll (no sleep / retry needed).
-- The search endpoint called by client.search(query, max=1).__next__() is:
+- The search endpoint called by client.search_one(query) is:
     GET /v0/search?query=<url-encoded-query>&limit=1
-  The Paginator reads resp['data'] and resp['next'] from the JSON body.
+  search_one reads resp['data'] from the JSON body and returns data[0] or None.
 """
 
 import json
@@ -23,6 +23,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from requests import utils as req_utils
+
+from triage_sandbox.client import TriageClient
 
 # ---------------------------------------------------------------------------
 # Synthetic fixture constants
@@ -292,8 +294,6 @@ def triage_client(requests_mock, sample_text, behavioral1_text, behavioral2_text
     The fixture also registers the sha256-based search endpoint so that
     search_triage() (use_existing_submission=True path) works without network.
     """
-    from triage import Client as TriageClient
-
     sha256 = sample_json["sha256"]
     encoded_query = req_utils.quote(f"sha256:{sha256}")
     search_url = f"https://api.tria.ge/v0/search?query={encoded_query}&limit=1"
