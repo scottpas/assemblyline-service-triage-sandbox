@@ -22,8 +22,8 @@ from assemblyline_service_utilities.common.dynamic_service_helper import (
     Process,
     Sandbox,
 )
-from triage import Client as TriageClient
 
+from .client import TriageClient
 from .constants import (
     DEFAULT_SIGNATURE_CLASSIFICATION,
     SCORE_MULTIPLY_FACTOR,
@@ -516,10 +516,7 @@ class Sample:
         self.task_reports = []
         for task in self.tasks:
             if task["id"].startswith("behavioral") and task["status"] != "failed":
-                api_response = client._req_json(
-                    method="GET",
-                    path=f"/v0/samples/{self.id}/{task['id']}/report_triage.json",
-                )
+                api_response = client.task_report(self.id, task["id"])
                 filtered = {k: v for k, v in api_response.items() if k in _EXPECTED_REPORT_FIELDS}
                 self.task_reports.append(
                     DynamicReport(

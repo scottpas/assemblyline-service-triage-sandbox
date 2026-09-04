@@ -13,7 +13,8 @@ import pytest
 import requests
 from requests import utils as req_utils
 from retrying import Attempt, RetryError
-from triage.client import ServerError
+
+from triage_sandbox.client import ServerError
 
 SAMPLE_ID = "240202-3y8f7sefen"
 SAMPLE_SHA256 = "7d50e22081955b574b989561277ce0e835117e716817736373ac8799774b6f03"
@@ -112,7 +113,7 @@ def test_search_triage_rejects_unrepresentable_url_query_values(
 
 
 def test_search_triage_not_found_returns_none(triage_service, triage_client, requests_mock, make_request):
-    """search_triage swallows StopIteration and returns None when no results exist."""
+    """search_triage returns None when the search yields no results."""
     svc = triage_service
     svc.client = triage_client
     encoded = req_utils.quote(f"sha256:{SAMPLE_SHA256}")
@@ -1063,9 +1064,9 @@ def test_execute_signature_description_over_three_lines_auto_collapses(requests_
 
 def test_execute_download_failures_are_non_fatal(triage_service, make_request, mock_triage_api):
     """A failed pcap/memdump/dropped-file download must be logged and must not raise
-    or call add_extracted, and execute() must still produce a result. _req_file() never
-    inspects the HTTP status (it just returns .content), so the failure must be a
-    transport-level error rather than a non-2xx status code."""
+    or call add_extracted, and execute() must still produce a result. The failure is
+    injected at the transport level to exercise the ``except Exception`` guard around
+    each download_task_file() call."""
     mock_triage_api.get(
         re.compile(r"https://api\.tria\.ge/v0/samples/.+/.+/dump\.pcapng"),
         exc=requests.exceptions.ConnectionError,
