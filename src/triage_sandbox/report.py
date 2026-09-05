@@ -524,6 +524,7 @@ class Sample:
     def get_task_reports(self, client: TriageClient) -> None:
         self.task_reports = []
         self.diagnostics = []
+        fetch_error: Optional[Exception] = None
         for task in self.tasks:
             if task["id"].startswith("behavioral"):
                 if task["status"] != "reported":
@@ -532,6 +533,7 @@ class Sample:
                 try:
                     api_response = client.task_report(self.id, task["id"])
                 except (ServerError, RequestException, ValueError) as exc:
+                    fetch_error = exc
                     self.diagnostics.append(f"Task {task['id']}: report unavailable ({type(exc).__name__}).")
                     continue
                 filtered = {k: v for k, v in api_response.items() if k in _EXPECTED_REPORT_FIELDS}
@@ -545,6 +547,11 @@ class Sample:
 
                 for error in api_response.get("errors") or []:
                     self.diagnostics.append(f"Task {task['id']}: {error.get('reason') or 'unspecified analysis error'}")
+
+        # Partial evidence remains useful, but a total fetch outage must not become
+        # a successful, cacheable analysis. Explicitly failed tasks are not fetch errors.
+        if fetch_error is not None and not self.task_reports:
+            raise fetch_error
 
 
 # Keys accepted by the Config dataclass; guards against unknown future Triage config fields
