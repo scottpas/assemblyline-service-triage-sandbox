@@ -136,15 +136,33 @@ def test_behavioral_config_unknown_fields_are_tolerated(triage_service, triage_c
     assert "future value" in find_subsection(configs, "Raw Config").body
 
 
-def test_invalid_config_rule_does_not_discard_evidence(triage_service, triage_client, requests_mock, make_request):
-    report = build_report("behavioral1")
-    report["extracted"].insert(0, {"config": {"family": "broken", "rule": ["invalid"]}})
-    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+@pytest.mark.parametrize("source", ["behavioral1", "overview"])
+@pytest.mark.parametrize("rule", [["invalid"], 123, {"name": "invalid"}])
+def test_invalid_config_rule_preserves_config_evidence(
+    triage_service, triage_client, requests_mock, make_request, source, rule
+):
+    import json
+
+    cfg = {"family": "retained", "c2": ["http://retained.example.com/gate"], "rule": rule}
+    if source == "behavioral1":
+        report = build_report(source)
+        report["extracted"].insert(0, {"config": cfg})
+        requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/{source}/report_triage.json", json=report)
+    else:
+        requests_mock.get(
+            f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json={"extracted": [{"config": cfg}]}
+        )
     request = make_request()
     triage_service.execute(request)
     sandbox = request.result.sections[0]
+    parent = find_subsection(sandbox, "Task: behavioral1" if source == "behavioral1" else "Overview")
+    section = find_subsection(find_subsection(parent, "Malware Config"), "RETAINED")
+    assert section is not None
+    assert section.tags["attribution.family"] == ["RETAINED"]
+    assert "http://retained.example.com/gate" in section.tags["network.dynamic.uri"]
+    assert json.loads(find_subsection(section, "Raw Config").body) == cfg
     assert find_subsection(sandbox, "FABOOKIE") is not None
-    assert "invalid malware config" in find_subsection(sandbox, "Analysis completeness").body
+    assert find_subsection(sandbox, "Analysis completeness") is None
 
 
 @pytest.mark.parametrize("malformed", [{"keys": [{"kind": 5, "value": "x"}]}, {"wallet": [{}]}])

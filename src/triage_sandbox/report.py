@@ -602,11 +602,7 @@ _CONFIG_DATACLASS_FIELDS = frozenset(
 
 def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
     """Return only keys accepted by the Config dataclass; drops unknown future Triage fields."""
-    filtered = {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
-    # Config conversion does not consume rule, but signature construction requires a string.
-    if filtered.get("rule") and not isinstance(filtered["rule"], str):
-        raise TypeError("Config rule must be a string")
-    return filtered
+    return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
 
 
 def _filter_sample(sample: dict) -> dict:  # type: ignore[type-arg]
