@@ -22,8 +22,9 @@ from assemblyline_service_utilities.common.dynamic_service_helper import (
     Process,
     Sandbox,
 )
+from requests import RequestException
 
-from .client import TriageClient
+from .client import ServerError, TriageClient
 from .constants import (
     DEFAULT_SIGNATURE_CLASSIFICATION,
     SCORE_MULTIPLY_FACTOR,
@@ -511,12 +512,21 @@ class Sample:
     url: Optional[str] = None
     private: Optional[bool] = None
     task_reports: List[DynamicReport] = field(default_factory=list)
+    diagnostics: list[str] = field(default_factory=list, init=False)
 
     def get_task_reports(self, client: TriageClient) -> None:
         self.task_reports = []
+        self.diagnostics = []
         for task in self.tasks:
-            if task["id"].startswith("behavioral") and task["status"] != "failed":
-                api_response = client.task_report(self.id, task["id"])
+            if task["id"].startswith("behavioral"):
+                if task["status"] != "reported":
+                    self.diagnostics.append(f"Task {task['id']}: {task['status']}; no behavioral report processed.")
+                    continue
+                try:
+                    api_response = client.task_report(self.id, task["id"])
+                except (ServerError, RequestException, ValueError) as exc:
+                    self.diagnostics.append(f"Task {task['id']}: report unavailable ({type(exc).__name__}).")
+                    continue
                 filtered = {k: v for k, v in api_response.items() if k in _EXPECTED_REPORT_FIELDS}
                 self.task_reports.append(
                     DynamicReport(
@@ -525,6 +535,9 @@ class Sample:
                         **filtered,
                     )
                 )
+
+                for error in api_response.get("errors") or []:
+                    self.diagnostics.append(f"Task {task['id']}: {error.get('reason') or 'unspecified analysis error'}")
 
 
 # Keys accepted by the Config dataclass; guards against unknown future Triage config fields
@@ -564,7 +577,7 @@ def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
 def _filter_sample(sample: dict) -> dict:  # type: ignore[type-arg]
     """Return only keys accepted by the Sample dataclass; drops unknown future Triage sample
     fields (e.g. user_id) so Sample construction never raises TypeError."""
-    accepted = {f.name for f in fields(Sample)}
+    accepted = {f.name for f in fields(Sample) if f.init}
     return {k: v for k, v in sample.items() if k in accepted}
 
 
@@ -572,6 +585,7 @@ class TriageResult:
     def __init__(self, client: TriageClient, sample: dict) -> None:  # type: ignore[type-arg]
         self.sample = Sample(**_filter_sample(sample))
         self.sample.get_task_reports(client)
+        self.diagnostics = list(self.sample.diagnostics)
         self.malware_config = list(itertools.chain.from_iterable(r.malware_config for r in self.sample.task_reports))
 
         # Configs already recovered from behavioral reports (dedup key: canonical JSON of filtered config)
@@ -596,7 +610,8 @@ class TriageResult:
 
         try:
             overview = client.overview_report(self.sample.id)
-        except Exception:
+        except Exception as exc:
+            self.diagnostics.append(f"Overview report unavailable ({type(exc).__name__}).")
             overview = {}
 
         if overview:
