@@ -298,17 +298,17 @@ class TriageSandbox(ServiceBase):
                 task_section.add_subsection(ioc_section)
                 if task.extracted:
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
-                    for e in task.extracted:
-                        if e.get("config", {}).get("c2"):
-                            m = ResultTableSection(title_text=f"{e['config']['family'].upper()}")
-                            extract_iocs_from_text_blob(blob=json.dumps(e["config"]), result_section=m)
-                            m.set_heuristic(100, signature=e["config"]["family"].upper())
-                            m.add_tag(tag_type="attribution.family", value=e["config"]["family"].upper())
+                    for cfg in task.configs:
+                        if cfg.get("c2"):
+                            m = ResultTableSection(title_text=f"{cfg['family'].upper()}")
+                            extract_iocs_from_text_blob(blob=json.dumps(cfg), result_section=m)
+                            m.set_heuristic(100, signature=cfg["family"].upper())
+                            m.add_tag(tag_type="attribution.family", value=cfg["family"].upper())
                             m.add_subsection(
                                 ResultSection(
                                     title_text="Raw Config",
                                     body_format="JSON",
-                                    body=json.dumps(e["config"]),
+                                    body=json.dumps(cfg),
                                     auto_collapse=True,
                                 )
                             )

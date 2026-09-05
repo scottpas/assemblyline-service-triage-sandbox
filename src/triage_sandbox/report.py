@@ -422,7 +422,13 @@ class DynamicReport:
     def __add_extracted(self) -> None:
         for item in self.extracted or []:
             if item.get("config"):
-                self.malware_config.append(Config(**item["config"]).create_MalwareConfig())
+                try:
+                    self.malware_config.append(Config(**_filter_config(item["config"])).create_MalwareConfig())
+                except Exception as exc:
+                    # Isolate untrusted config conversion, including ODM validation errors.
+                    self.diagnostics.append(f"Task {self.task_id}: invalid malware config ({type(exc).__name__}).")
+                    continue
+                self.configs.append(item["config"])
                 if item["config"].get("rule"):
                     name = item["config"]["rule"]
                     data = {"name": name, "type": "CUCKOO"}
@@ -468,6 +474,8 @@ class DynamicReport:
         self.session = f"{self.sample['id']}/{self.task_id}"
         self.network_tags: List[tuple] = []  # type: ignore[type-arg]
         self.malware_config: List[MalwareConfig] = []
+        self.diagnostics: list[str] = []
+        self.configs: list[dict[str, Any]] = []
         # Maps procid → the process's unique ObjectID (pid can be reused within a task by
         # the OS, so indicator resolution must go through this, not a procid → pid → pid
         # lookup, which could resolve to the wrong process instance on reuse)
@@ -545,6 +553,7 @@ class Sample:
                     )
                 )
 
+                self.diagnostics.extend(self.task_reports[-1].diagnostics)
                 for error in api_response.get("errors") or []:
                     self.diagnostics.append(f"Task {task['id']}: {error.get('reason') or 'unspecified analysis error'}")
 
@@ -585,7 +594,11 @@ _CONFIG_DATACLASS_FIELDS = frozenset(
 
 def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
     """Return only keys accepted by the Config dataclass; drops unknown future Triage fields."""
-    return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
+    filtered = {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
+    # Config conversion does not consume rule, but signature construction requires a string.
+    if filtered.get("rule") and not isinstance(filtered["rule"], str):
+        raise TypeError("Config rule must be a string")
+    return filtered
 
 
 def _filter_sample(sample: dict) -> dict:  # type: ignore[type-arg]
@@ -605,8 +618,7 @@ class TriageResult:
         # Configs already recovered from behavioral reports (dedup key: canonical JSON of filtered config)
         behavioral_config_keys: set[str] = set()
         for report in self.sample.task_reports:
-            for item in report.extracted or []:
-                cfg = item.get("config") or {}
+            for cfg in report.configs:
                 if cfg.get("family"):
                     key = json.dumps(_filter_config(cfg), sort_keys=True)
                     behavioral_config_keys.add(key)
@@ -630,23 +642,23 @@ class TriageResult:
 
         if overview:
             for item in overview.get("extracted") or []:
-                cfg = item.get("config") or {}
-                family = cfg.get("family", "")
-                if not family:
-                    continue
-                filtered = _filter_config(cfg)
-                key = json.dumps(filtered, sort_keys=True)
-                if key in behavioral_config_keys:
-                    continue  # already extracted from a behavioral report
                 try:
+                    cfg = item.get("config") or {}
+                    family = cfg.get("family", "")
+                    if not family:
+                        continue
+                    filtered = _filter_config(cfg)
+                    key = json.dumps(filtered, sort_keys=True)
+                    if key in behavioral_config_keys:
+                        continue  # already extracted from a behavioral report
                     mc = Config(**filtered).create_MalwareConfig()
                     self.malware_config.append(mc)
                     self.overview_configs.append(cfg)
                     behavioral_config_keys.add(key)  # prevent double-adding if overview has dupes
                 # Overview data is best-effort and may contain values rejected by
                 # either the Config dataclass or Assemblyline ODM validation.
-                except Exception:  # nosec B110
-                    pass
+                except Exception as exc:
+                    self.diagnostics.append(f"Overview: invalid malware config ({type(exc).__name__}).")
 
             for sig in overview.get("signatures") or []:
                 name = sig.get("label") or sig.get("name", "")

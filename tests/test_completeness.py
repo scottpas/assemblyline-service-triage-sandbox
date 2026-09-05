@@ -82,3 +82,66 @@ def test_all_explicitly_failed_tasks_remain_informational(triage_service, triage
     request = make_request()
     triage_service.execute(request)
     assert "failed" in find_subsection(request.result.sections[0], "Analysis completeness").body
+
+
+@pytest.mark.parametrize(
+    "bad_config",
+    [
+        {"family": "broken", "keys": [{"value": "x", "kind": 5}]},
+        {"family": 123, "c2": ["http://evil.com/"]},
+        {"family": "broken", "wallet": [{}]},
+        ["invalid config"],
+    ],
+)
+@pytest.mark.parametrize("source", ["behavioral1", "overview"])
+def test_bad_config_does_not_discard_good_evidence(
+    triage_service, triage_client, requests_mock, make_request, bad_config, source
+):
+    report = build_report("behavioral1")
+    if source == "behavioral1":
+        report["extracted"].insert(0, {"config": bad_config})
+        requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    else:
+        requests_mock.get(
+            f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json",
+            json={"extracted": [{"config": bad_config}, {"config": {"family": "recovered", "mutex": ["lock"]}}]},
+        )
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+    task = find_subsection(sandbox, "Task: behavioral1")
+    configs = find_subsection(task, "Malware Config")
+    assert find_subsection(configs, "FABOOKIE") is not None
+    assert find_subsection(sandbox, "VIDAR") is not None
+    assert find_subsection(task, "Network IOCs") is not None
+    diagnostic = find_subsection(sandbox, "Analysis completeness")
+    assert "invalid malware config" in diagnostic.body
+    assert source.lower() in diagnostic.body.lower()
+    assert diagnostic.heuristic is None
+    if source == "overview":
+        assert find_subsection(sandbox, "RECOVERED") is not None
+
+
+def test_behavioral_config_unknown_fields_are_tolerated(triage_service, triage_client, requests_mock, make_request):
+    report = build_report("behavioral1")
+    report["extracted"][0]["config"]["future_field"] = "future value"
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+    triage_service.execute(request)
+    assert find_subsection(request.result.sections[0], "FABOOKIE") is not None
+    assert find_subsection(request.result.sections[0], "Analysis completeness") is None
+    task = find_subsection(request.result.sections[0], "Task: behavioral1")
+    configs = find_subsection(task, "Malware Config")
+    assert "future value" in find_subsection(configs, "Raw Config").body
+
+
+def test_invalid_config_rule_does_not_discard_evidence(triage_service, triage_client, requests_mock, make_request):
+    report = build_report("behavioral1")
+    report["extracted"].insert(0, {"config": {"family": "broken", "rule": ["invalid"]}})
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+    assert "invalid malware config" in find_subsection(sandbox, "Analysis completeness").body
