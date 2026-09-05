@@ -331,6 +331,7 @@ class TriageSandbox(ServiceBase):
                         )
                     except Exception as e:
                         self.log.error(e)
+                        triage_result.diagnostics.append(f"Task {task.task_id}: PCAP artifact extraction failed.")
                 if task.dumped and (request.get_param("extract_memdump") or request.get_param("extract_dropped_files")):
                     for dump in task.dumped:
                         if dump["kind"] == "region" and request.get_param("extract_memdump"):
@@ -349,6 +350,9 @@ class TriageSandbox(ServiceBase):
                                 )
                             except Exception as e:
                                 self.log.error(e)
+                                triage_result.diagnostics.append(
+                                    f"Task {task.task_id}: artifact extraction failed: {dump['name']}"
+                                )
                         if dump["kind"] == "martian" and request.get_param("extract_dropped_files"):
                             self.log.debug(f"Downloading {dump['name']}")
                             try:
@@ -365,6 +369,15 @@ class TriageSandbox(ServiceBase):
                                 )
                             except Exception as e:
                                 self.log.error(e)
+                                triage_result.diagnostics.append(
+                                    f"Task {task.task_id}: artifact extraction failed: {dump['name']}"
+                                )
+            if triage_result.diagnostics:
+                completeness = ResultSection("Analysis completeness")
+                completeness.add_line("Some analysis evidence is unavailable; absence of detections is inconclusive.")
+                for diagnostic in dict.fromkeys(triage_result.diagnostics):
+                    completeness.add_line(diagnostic)
+                sandbox_section.add_subsection(completeness)
             result.add_section(sandbox_section)
             request.result = result
         except RetryError:
