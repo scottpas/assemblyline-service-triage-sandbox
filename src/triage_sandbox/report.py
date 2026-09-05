@@ -6,6 +6,7 @@ from ipaddress import ip_address
 from typing import Any, List, Optional, cast
 
 from assemblyline.common.attack_map import attack_map
+from assemblyline.common.dict_utils import get_dict_fingerprint_hash
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Signature as SignatureModel
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
@@ -195,7 +196,7 @@ class DynamicReport:
             return
 
         # Pre-process network.requests[] into a flow_id details map
-        request_details: dict[Any, dict[str, Any]] = {}
+        request_details: dict[Any, list[dict[str, Any]]] = {}
         for req in self.network.get("requests", []):
             flow_id = req.get("flow")
             if flow_id is None:
@@ -209,26 +210,30 @@ class DynamicReport:
                     domain = questions[0].get("name", "")
                 lookup_type = questions[0].get("type", "A") if questions else "A"
                 if domain:
-                    request_details[flow_id] = {
-                        "dns_details": {
-                            "domain": domain,
-                            "resolved_ips": dns_res.get("ip") or None,
-                            "resolved_domains": dns_res.get("domains") or None,
-                            "lookup_type": lookup_type,
+                    request_details.setdefault(flow_id, []).append(
+                        {
+                            "dns_details": {
+                                "domain": domain,
+                                "resolved_ips": dns_res.get("ip") or None,
+                                "resolved_domains": dns_res.get("domains") or None,
+                                "lookup_type": lookup_type,
+                            }
                         }
-                    }
+                    )
             elif "http_request" in req:
                 http_req = req["http_request"]
                 http_res = req.get("http_response", {})
-                request_details[flow_id] = {
-                    "http_details": {
-                        "request_uri": http_req.get("url", ""),
-                        "request_method": http_req.get("method", "GET"),
-                        "request_headers": _parse_http_headers(http_req.get("headers")) or None,
-                        "response_headers": _parse_http_headers(http_res.get("headers")) or None,
-                        "response_status_code": http_res.get("status"),
+                request_details.setdefault(flow_id, []).append(
+                    {
+                        "http_details": {
+                            "request_uri": http_req.get("url", ""),
+                            "request_method": http_req.get("method", "GET"),
+                            "request_headers": _parse_http_headers(http_req.get("headers")) or None,
+                            "response_headers": _parse_http_headers(http_res.get("headers")) or None,
+                            "response_status_code": http_res.get("status"),
+                        }
                     }
-                }
+                )
 
         self.flow_dict: dict[Any, dict[str, Any]] = {}
         for f in self.network.get("flows", []):
@@ -273,47 +278,49 @@ class DynamicReport:
                 if f.get(triage_key):
                     self.network_tags.append((tag_type, f[triage_key]))
 
-            # Attach http/dns details from requests[] (also sets connection_type)
-            req_detail = request_details.get(f["id"], {})
-            if "http_details" in req_detail:
-                flow["http_details"] = req_detail["http_details"]
-                flow["connection_type"] = "http"
-            if "dns_details" in req_detail:
-                flow["dns_details"] = req_detail["dns_details"]
-                flow["connection_type"] = "dns"
-
             self.flow_dict[f["id"]] = flow
 
-        for flow in self.flow_dict.values():
-            oid = NetworkConnectionModel.get_oid(flow)
-            tag = NetworkConnectionModel.get_tag(flow)
-            object_id = self.ontology.create_objectid(
-                tag=tag,
-                ontology_id=oid,
-                session=self.session,
-                time_observed=flow.get("time_observed"),
+        for flow_id, base_flow in self.flow_dict.items():
+            for index, req_detail in enumerate(request_details.get(flow_id) or [{}]):
+                flow = {**base_flow, **req_detail}
+                if "http_details" in flow:
+                    flow["connection_type"] = "http"
+                if "dns_details" in flow:
+                    flow["connection_type"] = "dns"
+                self.__add_network_connection(flow, flow_id, index)
+
+    def __add_network_connection(self, flow: dict[str, Any], flow_id: Any, index: int) -> None:
+        # Keep repeated requests distinct even when their request fields are identical.
+        occurrence = get_dict_fingerprint_hash({"session": self.session, "flow": flow_id, "transaction": index})
+        oid = f"{NetworkConnectionModel.get_oid(flow)}_{occurrence}"
+        tag = NetworkConnectionModel.get_tag(flow)
+        object_id = self.ontology.create_objectid(
+            tag=tag,
+            ontology_id=oid,
+            session=self.session,
+            time_observed=flow.get("time_observed"),
+        )
+        object_id.assign_guid()
+        flow.pop("time_observed", None)
+        # get_oid/get_tag consume plain dicts; convert to ODM objects before construction
+        if isinstance(flow.get("http_details"), dict):
+            d = cast(dict[str, Any], flow["http_details"])
+            flow["http_details"] = NetworkHTTP(
+                request_uri=d["request_uri"],
+                request_method=d["request_method"],
+                request_headers=d.get("request_headers"),
+                response_headers=d.get("response_headers"),
+                response_status_code=d.get("response_status_code"),
             )
-            object_id.assign_guid()
-            flow.pop("time_observed", None)
-            # get_oid/get_tag consume plain dicts; convert to ODM objects before construction
-            if isinstance(flow.get("http_details"), dict):
-                d = cast(dict[str, Any], flow["http_details"])
-                flow["http_details"] = NetworkHTTP(
-                    request_uri=d["request_uri"],
-                    request_method=d["request_method"],
-                    request_headers=d.get("request_headers"),
-                    response_headers=d.get("response_headers"),
-                    response_status_code=d.get("response_status_code"),
-                )
-            if isinstance(flow.get("dns_details"), dict):
-                d = cast(dict[str, Any], flow["dns_details"])
-                flow["dns_details"] = NetworkDNS(
-                    domain=d["domain"],
-                    resolved_ips=d.get("resolved_ips") or None,  # ty: ignore[invalid-argument-type]
-                    resolved_domains=d.get("resolved_domains") or None,  # ty: ignore[invalid-argument-type]
-                    lookup_type=d.get("lookup_type", "A"),
-                )
-            self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **flow))
+        if isinstance(flow.get("dns_details"), dict):
+            d = cast(dict[str, Any], flow["dns_details"])
+            flow["dns_details"] = NetworkDNS(
+                domain=d["domain"],
+                resolved_ips=d.get("resolved_ips") or None,  # ty: ignore[invalid-argument-type]
+                resolved_domains=d.get("resolved_domains") or None,  # ty: ignore[invalid-argument-type]
+                lookup_type=d.get("lookup_type", "A"),
+            )
+        self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **flow))
 
     def __add_signatures(self) -> None:
         for sig in self.signatures:

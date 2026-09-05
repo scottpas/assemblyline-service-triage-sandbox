@@ -14,6 +14,7 @@ OntologyResults accessors used:
 from datetime import datetime
 from typing import Any
 
+import pytest
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults
 
 from triage_sandbox.network import _parse_http_headers
@@ -1012,3 +1013,30 @@ def test_add_extracted_resource_with_non_numeric_pid_is_ignored():
     sigs = [s for s in dr.ontology.get_signatures() if s.name == "EmotetRule"]
     assert len(sigs) == 1
     assert sigs[0].attributes == []
+
+
+@pytest.mark.parametrize("protocol", ["http", "dns"])
+def test_multiple_transactions_on_one_flow(protocol):
+    requests = []
+    for index in range(3):
+        if protocol == "http":
+            details = {
+                "http_request": {"method": "GET", "url": "http://evil.com/beacon"},
+                "http_response": {"status": 200 + index},
+            }
+        else:
+            details = {"dns_request": {"domains": ["evil.com"]}, "dns_response": {"ip": [f"1.2.3.{index + 1}"]}}
+        requests.append({"flow": 1, "index": index, **details})
+    dr = make_report(
+        network={
+            "flows": [{"id": 1, "dst": "1.2.3.4:80", "src": "10.0.0.1:5000", "proto": "tcp"}],
+            "requests": requests,
+        }
+    )
+    conns = [c.as_primitives() for c in dr.ontology.get_network_connections()]
+    assert len(conns) == 3
+    assert len({c["objectid"]["ontology_id"] for c in conns}) == 3
+    if protocol == "http":
+        assert [c["http_details"]["response_status_code"] for c in conns] == [200, 201, 202]
+    else:
+        assert [c["dns_details"]["resolved_ips"] for c in conns] == [["1.2.3.1"], ["1.2.3.2"], ["1.2.3.3"]]
