@@ -427,9 +427,17 @@ class DynamicReport:
                 except Exception as exc:
                     # Isolate untrusted config conversion, including ODM validation errors.
                     self.diagnostics.append(f"Task {self.task_id}: invalid malware config ({type(exc).__name__}).")
-                    continue
-                self.configs.append(item["config"])
-                if item["config"].get("rule"):
+                else:
+                    self.configs.append(item["config"])
+                # Rule evidence is independent of ancillary config conversion. Only
+                # valid signature metadata may proceed when the config was rejected.
+                cfg = item["config"]
+                if (
+                    isinstance(cfg, dict)
+                    and isinstance(cfg.get("rule"), str)
+                    and cfg["rule"]
+                    and isinstance(cfg.get("family", "UNKNOWN"), str)
+                ):
                     name = item["config"]["rule"]
                     data = {"name": name, "type": "CUCKOO"}
                     tag = SignatureModel.get_tag(data)

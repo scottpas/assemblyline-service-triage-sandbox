@@ -145,3 +145,40 @@ def test_invalid_config_rule_does_not_discard_evidence(triage_service, triage_cl
     sandbox = request.result.sections[0]
     assert find_subsection(sandbox, "FABOOKIE") is not None
     assert "invalid malware config" in find_subsection(sandbox, "Analysis completeness").body
+
+
+@pytest.mark.parametrize("malformed", [{"keys": [{"kind": 5, "value": "x"}]}, {"wallet": [{}]}])
+def test_invalid_config_preserves_rule_detection(triage_service, triage_client, requests_mock, make_request, malformed):
+    report = build_report("behavioral1")
+    report["extracted"].insert(
+        0,
+        {"config": {"family": "config_only", "rule": "config_only_rule", **malformed}},
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    task = find_subsection(sandbox, "Task: behavioral1")
+    signature = find_subsection(find_subsection(task, "Signatures"), "CONFIG_ONLY_RULE")
+    assert signature is not None
+    assert signature.heuristic.heur_id == 5
+    assert signature.tags["dynamic.signature.name"] == ["CONFIG_ONLY_RULE"]
+    assert signature.tags["attribution.family"] == ["CONFIG_ONLY"]
+    assert find_subsection(find_subsection(task, "Malware Config"), "CONFIG_ONLY") is None
+    assert "invalid malware config" in find_subsection(sandbox, "Analysis completeness").body
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+
+
+@pytest.mark.parametrize("family", [None, 123])
+def test_invalid_config_family_does_not_create_rule_signature(
+    triage_service, triage_client, requests_mock, make_request, family
+):
+    report = build_report("behavioral1")
+    report["extracted"].insert(0, {"config": {"family": family, "rule": "invalid_family_rule"}})
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    assert find_subsection(sandbox, "INVALID_FAMILY_RULE") is None
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+    assert "invalid malware config" in find_subsection(sandbox, "Analysis completeness").body
