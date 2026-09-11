@@ -510,7 +510,7 @@ def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
     assert "d5" in (by_title["SIG5"].body or "")
 
     # No description supplied -> no line added (falsy sig.get("desc") branch)
-    assert not (by_title["SIG4"].body or "")
+    assert not by_title["SIG4"].body
 
 
 def test_execute_overview_signature_registry_key_tags(triage_service, make_request, mock_triage_api):
