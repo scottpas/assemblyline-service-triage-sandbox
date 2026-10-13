@@ -244,6 +244,11 @@ class DynamicReport:
                         )
                     else:
                         detail["dns_details"] = dns_details
+                else:
+                    self.diagnostics.append(
+                        f"Task {self.task_id}, flow {flow_id}: missing DNS question domain; "
+                        "DNS details omitted from ontology; see DNS evidence."
+                    )
                 request_details.setdefault(flow_id, []).append(detail)
             elif "http_request" in req:
                 http_req = req["http_request"]

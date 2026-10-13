@@ -99,11 +99,14 @@ def test_dns_invalid_answer_is_diagnosed_without_losing_network():
     assert dr.dns_evidence[0]["dns_response"]["ip"] == ["not-an-ip"]
 
 
-def test_dns_no_domain_keeps_raw_evidence():
+def test_dns_no_domain_keeps_raw_evidence_and_diagnostic():
     report = dns_report("A", domains=[], questions=[{"type": "A"}])
     dr = DynamicReport(ontology=OntologyResults(service_name="TriageSandbox"), task_id="behavioral1", **report)
     assert export_connections(dr)[0]["dns_details"] is None
     assert dr.dns_evidence == [report["network"]["requests"][0]]
+    assert len(dr.diagnostics) == 1
+    assert "missing DNS question domain" in dr.diagnostics[0]
+    assert "Task behavioral1, flow 1" in dr.diagnostics[0]
 
 
 @pytest.mark.parametrize("raw_type", ["IN A", "IN AAAA", "IN ANY", None])
@@ -172,3 +175,30 @@ def test_dns_separate_answers_join_by_flow_and_index(response_first):
     assert connections[2]["connection_type"] == "http"
     assert dr.dns_evidence == [r for r in requests if "dns_request" in r or "dns_response" in r]
     assert dr.diagnostics == []
+
+
+@pytest.mark.parametrize("name", [None, ""])
+def test_dns_missing_domain_completeness_visible(triage_service, triage_client, requests_mock, make_request, name):
+    question = {"type": "IN A"}
+    if name is not None:
+        question["name"] = name
+    report = dns_report("IN A", domains=[], questions=[question])
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    completeness = find_subsection(sandbox, "Analysis completeness")
+    assert completeness is not None
+    assert "Task behavioral1, flow 1: missing DNS question domain" in completeness.body
+    assert completeness.heuristic is None
+    task = find_subsection(sandbox, "Task: behavioral1")
+    assert json.loads(find_subsection(task, "DNS evidence").body) == [report["network"]["requests"][0]]
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+    assert find_subsection(sandbox, "VIDAR") is not None
+    exported = {"file": {}, "results": {}}
+    triage_service.ontology.attach_parts(exported)
+    connections = [c for c in exported["results"]["netflow"] if c["objectid"]["session"].endswith("behavioral1")]
+    assert len(connections) == 2
+    assert "dns_details" not in connections[0]
+    assert connections[0]["destination_ip"] == "8.8.8.8"
+    assert connections[1]["connection_type"] == "http"
