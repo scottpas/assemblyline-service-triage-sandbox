@@ -230,15 +230,16 @@ class TriageSandbox(ServiceBase):
                 _attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {task.task_id}")
                 task_section.add_line(f"URL: {self.web_url}/{task.session}")
-                if task.dns_evidence:
-                    task_section.add_subsection(
-                        ResultSection(
-                            "DNS evidence",
-                            body_format="JSON",
-                            body=json.dumps(task.dns_evidence),
-                            auto_collapse=True,
+                for protocol, evidence in (("DNS", task.dns_evidence), ("HTTP", task.http_evidence)):
+                    if evidence:
+                        task_section.add_subsection(
+                            ResultSection(
+                                f"{protocol} evidence",
+                                body_format="JSON",
+                                body=json.dumps(evidence),
+                                auto_collapse=True,
+                            )
                         )
-                    )
                 process_tree = task.ontology.get_process_tree_result_section()
                 process_tree.auto_collapse = True
                 sigs_section = ResultSection(title_text="Signatures", auto_collapse=True)

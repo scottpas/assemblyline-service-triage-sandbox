@@ -16,6 +16,7 @@ from assemblyline.odm.models.ontology.results.network import (
 from assemblyline.odm.models.ontology.results.network import (
     NetworkDNS as NetworkDNSModel,
 )
+from assemblyline.odm.models.ontology.results.network import NetworkHTTP as NetworkHTTPModel
 from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxModel
 from assemblyline_service_utilities.common.dynamic_service_helper import (
     Attribute,
@@ -35,7 +36,7 @@ from .constants import (
     SERVICE_NAME,
 )
 from .models import Config, Credentials, Ransom
-from .network import _normalize_dns_lookup_type, _parse_http_headers, _split_addr
+from .network import _network_transactions, _normalize_dns_lookup_type, _parse_http_headers, _split_addr
 
 
 def _indicator_text(indicator: dict) -> Optional[str]:
@@ -198,23 +199,33 @@ class DynamicReport:
         if not self.network:
             return
 
-        # Pre-process network.requests[] into a flow_id details map
-        request_details: dict[Any, list[dict[str, Any]]] = {}
-        # Triage also emits answers as separate entries with the same flow/index.
-        dns_responses = {
-            (req.get("flow"), req.get("index")): req["dns_response"]
-            for req in self.network.get("requests", [])
-            if "dns_response" in req and req.get("flow") is not None
-        }
-        for req in self.network.get("requests", []):
-            if "dns_request" in req or "dns_response" in req:
-                self.dns_evidence.append(req)
-            flow_id = req.get("flow")
-            if flow_id is None:
+        records = self.network.get("requests", [])
+        self.dns_evidence = [r for r in records if "dns_request" in r or "dns_response" in r]
+        self.http_evidence = [r for r in records if "http_request" in r or "http_response" in r]
+        request_details: dict[Any, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
+        flow_ids = {f["id"] for f in self.network.get("flows", [])}
+        for transaction in _network_transactions(records):
+            flow_id = transaction.flow
+            identity = {
+                "index": transaction.index,
+                "protocol": transaction.protocol,
+                "occurrence": transaction.occurrence,
+            }
+            context = f"Task {self.task_id}, flow {flow_id}, index {transaction.index}"
+            detail: dict[str, Any] = {}
+            if transaction.request is None:
+                self.diagnostics.append(
+                    f"{context}: {transaction.protocol.upper()} response without request; "
+                    f"request details omitted from ontology; see {transaction.protocol.upper()} evidence."
+                )
+            if flow_id not in flow_ids:
                 continue
-            if "dns_request" in req:
-                dns_req = req["dns_request"]
-                dns_res = req.get("dns_response") or dns_responses.get((flow_id, req.get("index")), {})
+            if transaction.request is None:
+                request_details.setdefault(flow_id, []).append((detail, identity))
+                continue
+            if transaction.protocol == "dns":
+                dns_req = transaction.request
+                dns_res = transaction.response or {}
                 questions = dns_req.get("questions", [])
                 domain = (dns_req.get("domains") or [None])[0]
                 if not domain and questions:
@@ -222,7 +233,6 @@ class DynamicReport:
                 raw_type = questions[0].get("type") if questions else None
                 lookup_type = _normalize_dns_lookup_type(raw_type)
                 # Keep one transaction even when its DNS fields cannot be exported.
-                detail: dict[str, Any] = {}
                 if lookup_type is None:
                     self.diagnostics.append(
                         f"Task {self.task_id}, flow {flow_id}: unsupported DNS question type {raw_type!r}; "
@@ -249,21 +259,28 @@ class DynamicReport:
                         f"Task {self.task_id}, flow {flow_id}: missing DNS question domain; "
                         "DNS details omitted from ontology; see DNS evidence."
                     )
-                request_details.setdefault(flow_id, []).append(detail)
-            elif "http_request" in req:
-                http_req = req["http_request"]
-                http_res = req.get("http_response", {})
-                request_details.setdefault(flow_id, []).append(
-                    {
-                        "http_details": {
-                            "request_uri": http_req.get("url", ""),
-                            "request_method": http_req.get("method", "GET"),
-                            "request_headers": _parse_http_headers(http_req.get("headers")) or None,
-                            "response_headers": _parse_http_headers(http_res.get("headers")) or None,
-                            "response_status_code": http_res.get("status"),
-                        }
-                    }
-                )
+            else:
+                http_req = transaction.request
+                http_res = transaction.response or {}
+                http_details = {
+                    "request_uri": http_req.get("url", ""),
+                    "request_method": http_req.get("method", "GET"),
+                    "request_headers": _parse_http_headers(http_req.get("headers")),
+                    "response_headers": _parse_http_headers(http_res.get("headers")),
+                    "response_status_code": http_res.get("status") or None,
+                }
+                try:
+                    if not http_details["request_uri"]:
+                        raise ValueError("Missing HTTP request URI")
+                    http_details = NetworkHTTPModel(http_details).as_primitives()
+                except (ValueError, TypeError) as exc:
+                    self.diagnostics.append(
+                        f"{context}: invalid HTTP details ({type(exc).__name__}); "
+                        "HTTP details omitted from ontology; see HTTP evidence."
+                    )
+                else:
+                    detail["http_details"] = http_details
+            request_details.setdefault(flow_id, []).append((detail, identity))
 
         self.flow_dict: dict[Any, dict[str, Any]] = {}
         for f in self.network.get("flows", []):
@@ -311,17 +328,17 @@ class DynamicReport:
             self.flow_dict[f["id"]] = flow
 
         for flow_id, base_flow in self.flow_dict.items():
-            for index, req_detail in enumerate(request_details.get(flow_id) or [{}]):
+            for req_detail, identity in request_details.get(flow_id) or [({}, None)]:
                 flow = {**base_flow, **req_detail}
                 if "http_details" in flow:
                     flow["connection_type"] = "http"
                 if "dns_details" in flow:
                     flow["connection_type"] = "dns"
-                self.__add_network_connection(flow, flow_id, index)
+                self.__add_network_connection(flow, flow_id, identity)
 
-    def __add_network_connection(self, flow: dict[str, Any], flow_id: Any, index: int) -> None:
+    def __add_network_connection(self, flow: dict[str, Any], flow_id: Any, identity: dict[str, Any] | None) -> None:
         # Keep repeated requests distinct even when their request fields are identical.
-        occurrence = get_dict_fingerprint_hash({"session": self.session, "flow": flow_id, "transaction": index})
+        occurrence = get_dict_fingerprint_hash({"session": self.session, "flow": flow_id, "transaction": identity})
         oid = f"{NetworkConnectionModel.get_oid(flow)}_{occurrence}"
         tag = NetworkConnectionModel.get_tag(flow)
         object_id = self.ontology.create_objectid(
@@ -338,8 +355,8 @@ class DynamicReport:
             flow["http_details"] = NetworkHTTP(
                 request_uri=d["request_uri"],
                 request_method=d["request_method"],
-                request_headers=d.get("request_headers"),
-                response_headers=d.get("response_headers"),
+                request_headers=d.get("request_headers") or None,
+                response_headers=d.get("response_headers") or None,
                 response_status_code=d.get("response_status_code"),
             )
         if isinstance(flow.get("dns_details"), dict):
@@ -514,6 +531,7 @@ class DynamicReport:
         self.malware_config: List[MalwareConfig] = []
         self.diagnostics: list[str] = []
         self.dns_evidence: list[dict[str, Any]] = []
+        self.http_evidence: list[dict[str, Any]] = []
         self.configs: list[dict[str, Any]] = []
         # Maps procid → the process's unique ObjectID (pid can be reused within a task by
         # the OS, so indicator resolution must go through this, not a procid → pid → pid

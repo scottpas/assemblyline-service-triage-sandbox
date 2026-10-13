@@ -174,7 +174,8 @@ def test_dns_separate_answers_join_by_flow_and_index(response_first):
     assert connections[1]["dns_details"]["resolved_ips"] == ["2001:4860:4860::8888"]
     assert connections[2]["connection_type"] == "http"
     assert dr.dns_evidence == [r for r in requests if "dns_request" in r or "dns_response" in r]
-    assert dr.diagnostics == []
+    assert len(dr.diagnostics) == 2
+    assert all("DNS response without request" in diagnostic for diagnostic in dr.diagnostics)
 
 
 @pytest.mark.parametrize("name", [None, ""])
