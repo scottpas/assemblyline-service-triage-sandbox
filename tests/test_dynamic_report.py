@@ -1025,7 +1025,10 @@ def test_multiple_transactions_on_one_flow(protocol):
                 "http_response": {"status": 200 + index},
             }
         else:
-            details = {"dns_request": {"domains": ["evil.com"]}, "dns_response": {"ip": [f"1.2.3.{index + 1}"]}}
+            details = {
+                "dns_request": {"domains": ["evil.com"], "questions": [{"name": "evil.com", "type": "IN A"}]},
+                "dns_response": {"ip": [f"1.2.3.{index + 1}"]},
+            }
         requests.append({"flow": 1, "index": index, **details})
     dr = make_report(
         network={

@@ -13,6 +13,9 @@ from assemblyline.odm.models.ontology.results.malware_config import MalwareConfi
 from assemblyline.odm.models.ontology.results.network import (
     NetworkConnection as NetworkConnectionModel,
 )
+from assemblyline.odm.models.ontology.results.network import (
+    NetworkDNS as NetworkDNSModel,
+)
 from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxModel
 from assemblyline_service_utilities.common.dynamic_service_helper import (
     Attribute,
@@ -32,7 +35,7 @@ from .constants import (
     SERVICE_NAME,
 )
 from .models import Config, Credentials, Ransom
-from .network import _parse_http_headers, _split_addr
+from .network import _normalize_dns_lookup_type, _parse_http_headers, _split_addr
 
 
 def _indicator_text(indicator: dict) -> Optional[str]:
@@ -197,29 +200,56 @@ class DynamicReport:
 
         # Pre-process network.requests[] into a flow_id details map
         request_details: dict[Any, list[dict[str, Any]]] = {}
+        # Triage also emits answers as separate entries with the same flow/index.
+        dns_responses = {
+            (req.get("flow"), req.get("index")): req["dns_response"]
+            for req in self.network.get("requests", [])
+            if "dns_response" in req and req.get("flow") is not None
+        }
         for req in self.network.get("requests", []):
+            if "dns_request" in req or "dns_response" in req:
+                self.dns_evidence.append(req)
             flow_id = req.get("flow")
             if flow_id is None:
                 continue
             if "dns_request" in req:
                 dns_req = req["dns_request"]
-                dns_res = req.get("dns_response", {})
+                dns_res = req.get("dns_response") or dns_responses.get((flow_id, req.get("index")), {})
                 questions = dns_req.get("questions", [])
                 domain = (dns_req.get("domains") or [None])[0]
                 if not domain and questions:
                     domain = questions[0].get("name", "")
-                lookup_type = questions[0].get("type", "A") if questions else "A"
-                if domain:
-                    request_details.setdefault(flow_id, []).append(
-                        {
-                            "dns_details": {
-                                "domain": domain,
-                                "resolved_ips": dns_res.get("ip") or None,
-                                "resolved_domains": dns_res.get("domains") or None,
-                                "lookup_type": lookup_type,
-                            }
-                        }
+                raw_type = questions[0].get("type") if questions else None
+                lookup_type = _normalize_dns_lookup_type(raw_type)
+                # Keep one transaction even when its DNS fields cannot be exported.
+                detail: dict[str, Any] = {}
+                if lookup_type is None:
+                    self.diagnostics.append(
+                        f"Task {self.task_id}, flow {flow_id}: unsupported DNS question type {raw_type!r}; "
+                        "DNS details omitted from ontology; see DNS evidence."
                     )
+                elif domain:
+                    dns_details = {
+                        "domain": domain,
+                        "resolved_ips": dns_res.get("ip") or None,
+                        "resolved_domains": dns_res.get("domains") or None,
+                        "lookup_type": lookup_type,
+                    }
+                    try:
+                        NetworkDNSModel(dns_details)
+                    except (ValueError, TypeError) as exc:
+                        self.diagnostics.append(
+                            f"Task {self.task_id}, flow {flow_id}: invalid DNS details ({type(exc).__name__}); "
+                            "DNS details omitted from ontology; see DNS evidence."
+                        )
+                    else:
+                        detail["dns_details"] = dns_details
+                else:
+                    self.diagnostics.append(
+                        f"Task {self.task_id}, flow {flow_id}: missing DNS question domain; "
+                        "DNS details omitted from ontology; see DNS evidence."
+                    )
+                request_details.setdefault(flow_id, []).append(detail)
             elif "http_request" in req:
                 http_req = req["http_request"]
                 http_res = req.get("http_response", {})
@@ -318,7 +348,7 @@ class DynamicReport:
                 domain=d["domain"],
                 resolved_ips=d.get("resolved_ips") or None,  # ty: ignore[invalid-argument-type]
                 resolved_domains=d.get("resolved_domains") or None,  # ty: ignore[invalid-argument-type]
-                lookup_type=d.get("lookup_type", "A"),
+                lookup_type=d["lookup_type"],
             )
         self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **flow))
 
@@ -483,6 +513,7 @@ class DynamicReport:
         self.network_tags: List[tuple] = []  # type: ignore[type-arg]
         self.malware_config: List[MalwareConfig] = []
         self.diagnostics: list[str] = []
+        self.dns_evidence: list[dict[str, Any]] = []
         self.configs: list[dict[str, Any]] = []
         # Maps procid → the process's unique ObjectID (pid can be reused within a task by
         # the OS, so indicator resolution must go through this, not a procid → pid → pid
