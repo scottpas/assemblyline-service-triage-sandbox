@@ -1,5 +1,6 @@
 import itertools
 import json
+import shlex
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta
 from ipaddress import ip_address
@@ -162,38 +163,54 @@ class DynamicReport:
 
     def __add_processes(self) -> None:
         for process in self.processes or []:
-            p_oid = ProcessModel.get_oid(
-                {
-                    "pid": process["pid"],
-                    "ppid": process["ppid"],
-                    "image": process["image"],
-                    "command_line": process["cmd"],
-                }
-            )
-            object_id = self.ontology.create_objectid(
-                tag=Process.create_objectid_tag(process["image"]),
-                ontology_id=p_oid,
-                time_observed=self.__relative_time_str(process["started"]),
-                session=self.session,
-            )
-            object_id.assign_guid()
-            self.ontology.update_process(
-                objectid=object_id,
-                pid=process["pid"],
-                ppid=process["ppid"],
-                image=process["image"],
-                command_line=process["cmd"],
-                start_time=self.__relative_time_str(process["started"]),
-                end_time=(
-                    self.__relative_time_str(process["terminated"])
-                    if process.get("terminated") is not None
-                    else "9999-12-31 23:59:59.999999"
-                ),
-            )
-            # procid is unique per process instance within a task; pid can be reused by the
-            # OS during the task, so indicators must resolve through this objectid map rather
-            # than pid lookups (which pick an arbitrary matching process on reuse).
-            self._id_objectid_map[process["procid"]] = object_id
+            try:
+                procid = process["procid"]
+                image = process.get("image") or "<unknown_image>"
+                command = process.get("cmd")
+                if isinstance(command, list):
+                    # Argument arrays are rendered with POSIX quoting for display, never
+                    # interpreted as an executable path or run as a shell command.
+                    command = shlex.join(command) or None
+                elif command is not None and not isinstance(command, str):
+                    raise TypeError("Process command must be text or an argument array")
+                p_oid = ProcessModel.get_oid(
+                    {
+                        "pid": process["pid"],
+                        "ppid": process["ppid"],
+                        "image": image,
+                        "command_line": command,
+                    }
+                )
+                object_id = self.ontology.create_objectid(
+                    tag=Process.create_objectid_tag(image),
+                    ontology_id=p_oid,
+                    time_observed=self.__relative_time_str(process["started"]),
+                    session=self.session,
+                )
+                object_id.assign_guid()
+                data = dict(
+                    objectid=object_id,
+                    pid=process["pid"],
+                    ppid=process["ppid"],
+                    image=image,
+                    command_line=command,
+                    start_time=self.__relative_time_str(process["started"]),
+                    end_time=(
+                        self.__relative_time_str(process["terminated"])
+                        if process.get("terminated") is not None
+                        else "9999-12-31 23:59:59.999999"
+                    ),
+                )
+                # Validate before mutating the ontology: helper objects accept values that
+                # the Process ODM may reject later during result emission.
+                ProcessModel({**data, "objectid": object_id.as_primitives()})
+                self.ontology.update_process(**data)
+                # procid is unique per process instance within a task; pid can be reused by the
+                # OS during the task, so indicators must resolve through this objectid map rather
+                # than pid lookups (which pick an arbitrary matching process on reuse).
+                self._id_objectid_map[procid] = object_id
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                self.diagnostics.append(f"Task {self.task_id}: invalid process ({type(exc).__name__}).")
 
     def __add_network(self) -> None:
         if not self.network:

@@ -200,3 +200,31 @@ def test_invalid_config_family_does_not_create_rule_signature(
     assert find_subsection(sandbox, "INVALID_FAMILY_RULE") is None
     assert find_subsection(sandbox, "FABOOKIE") is not None
     assert "invalid malware config" in find_subsection(sandbox, "Analysis completeness").body
+
+
+@pytest.mark.parametrize("malformed", [False, True])
+def test_incomplete_process_preserves_task_evidence(
+    triage_service, triage_client, requests_mock, make_request, malformed
+):
+    report = build_report("behavioral1")
+    report["processes"][0].pop("image")
+    report["processes"][0]["cmd"] = ["com.example.app"]
+    report["signatures"][2]["indicators"] = [{"procid": 1}]
+    if malformed:
+        report["processes"].insert(0, {})
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    for task in ("behavioral1", "behavioral2"):
+        requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/{task}/dump.pcapng", content=b"pcap")
+    request = make_request(extract_pcap=True)
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    task = find_subsection(sandbox, "Task: behavioral1")
+    assert find_subsection(task, "Network IOCs") is not None
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+    assert find_subsection(sandbox, "VIDAR") is not None
+    assert len(request.add_extracted.call_args_list) == 2
+    diagnostic = find_subsection(sandbox, "Analysis completeness")
+    if malformed:
+        assert "invalid process" in diagnostic.body
+    else:
+        assert diagnostic is None
