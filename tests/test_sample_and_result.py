@@ -32,8 +32,8 @@ def test_get_task_reports_filters_non_behavioral(triage_client, sample_json):
         assert report.task_id in {"behavioral1", "behavioral2"}
 
 
-def test_get_task_reports_skips_failed(triage_client, sample_json):
-    """A behavioral task with status 'failed' must be skipped before HTTP fetch."""
+def test_get_task_reports_recovers_failed(triage_client, sample_json):
+    """Failed execution does not preclude a usable behavioral report."""
     sd = copy.deepcopy(sample_json)
     for task in sd["tasks"]:
         if task["id"] == "behavioral2":
@@ -42,8 +42,9 @@ def test_get_task_reports_skips_failed(triage_client, sample_json):
     sample = Sample(**sd)
     sample.get_task_reports(triage_client)
 
-    assert len(sample.task_reports) == 1
-    assert sample.task_reports[0].task_id == "behavioral1"
+    assert len(sample.task_reports) == 2
+    assert sample.task_reports[1].task_id == "behavioral2"
+    assert any("behavioral2: failed" in message for message in sample.diagnostics)
 
 
 def test_get_task_reports_filters_unexpected_fields(triage_client, sample_json):

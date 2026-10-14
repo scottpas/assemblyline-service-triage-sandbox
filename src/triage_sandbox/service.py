@@ -54,7 +54,7 @@ def _attach_dynamic_ontology(service: ServiceBase, ontres: OntologyResults) -> N
 def _is_submission_not_reported(submission: dict | None) -> bool:  # type: ignore[type-arg]
     if not submission:
         return True
-    return submission.get("status") != "reported"
+    return submission.get("status") not in {"reported", "failed"}
 
 
 def _retry_on_not_found(exception: Exception) -> bool:

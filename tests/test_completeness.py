@@ -51,6 +51,7 @@ def test_report_fetch_failure_requires_some_dynamic_evidence(
     sample = build_sample()
     if other_task == "failed":
         sample["tasks"][2]["status"] = "failed"
+        requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral2/report_triage.json", status_code=404)
     requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", json=sample)
     error = ServerError if isinstance(failure, int) else ConnectionError if failure == "connection" else ValueError
     response = (

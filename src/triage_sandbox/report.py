@@ -643,33 +643,53 @@ class Sample:
     def get_task_reports(self, client: TriageClient) -> None:
         self.task_reports = []
         self.diagnostics = []
+        if self.status == "failed":
+            self.diagnostics.append("Sample analysis failed; recovered evidence is incomplete.")
         fetch_error: Optional[Exception] = None
         for task in self.tasks:
             if task["id"].startswith("behavioral"):
-                if task["status"] != "reported":
+                if task["status"] not in {"reported", "failed"}:
                     self.diagnostics.append(f"Task {task['id']}: {task['status']}; no behavioral report processed.")
                     continue
+                if task["status"] == "failed":
+                    self.diagnostics.append(
+                        f"Task {task['id']}: failed execution ({task.get('failure') or 'reason unavailable'}); "
+                        "analysis incomplete."
+                    )
+                # One bounded HTTP request per eligible task, including failed tasks.
                 try:
                     api_response = client.task_report(self.id, task["id"])
                 except (ServerError, RequestException, ValueError) as exc:
-                    fetch_error = exc
-                    self.diagnostics.append(f"Task {task['id']}: report unavailable ({type(exc).__name__}).")
+                    if isinstance(exc, ServerError) and exc.status == 404:
+                        self.diagnostics.append(f"Task {task['id']}: report unavailable (HTTP 404).")
+                        # A failed task may never have produced a report. A reported
+                        # task's missing report still retains the previous outage behavior.
+                        if task["status"] == "reported":
+                            fetch_error = exc
+                    else:
+                        fetch_error = exc
+                        self.diagnostics.append(f"Task {task['id']}: report fetch failed ({type(exc).__name__}).")
                     continue
-                filtered = {k: v for k, v in api_response.items() if k in _EXPECTED_REPORT_FIELDS}
-                self.task_reports.append(
-                    DynamicReport(
+                try:
+                    filtered = {k: v for k, v in api_response.items() if k in _EXPECTED_REPORT_FIELDS}
+                    report = DynamicReport(
                         task_id=task["id"],
                         ontology=OntologyResults(service_name=SERVICE_NAME),
                         **filtered,
                     )
-                )
-
-                self.diagnostics.extend(self.task_reports[-1].diagnostics)
+                except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                    self.diagnostics.append(f"Task {task['id']}: report could not be parsed ({type(exc).__name__}).")
+                    continue
+                self.task_reports.append(report)
+                if report.diagnostics:
+                    self.diagnostics.append(f"Task {task['id']}: report partially parsed; valid evidence retained.")
+                self.diagnostics.extend(report.diagnostics)
                 for error in api_response.get("errors") or []:
                     self.diagnostics.append(f"Task {task['id']}: {error.get('reason') or 'unspecified analysis error'}")
 
         # Partial evidence remains useful, but a total fetch outage must not become
-        # a successful, cacheable analysis. Explicitly failed tasks are not fetch errors.
+        # a successful, cacheable analysis. Missing reports on explicitly failed
+        # tasks are expected; transport/server failures remain fetch errors.
         if fetch_error is not None and not self.task_reports:
             raise fetch_error
 
