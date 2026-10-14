@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
@@ -17,14 +17,47 @@ from assemblyline_v4_service.common.result import (
     ResultProcessTreeSection,
     ResultSection,
     ResultTableSection,
+    TableRow,
 )
 from retrying import RetryError, retry
 
 from .client import ServerError, TriageClient
 from .constants import SUPPORTED_FILE_TYPES
-from .report import TriageResult, _indicator_text, _is_static_yara_resource, _normalize_registry_key
+from .report import TriageResult, _filter_config, _indicator_text, _is_static_yara_resource, _normalize_registry_key
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
+
+
+def _config_rows(value: Any, field: str = "") -> list[dict[str, Any]]:
+    """Flatten typed configuration values into readable field/value rows."""
+    if isinstance(value, dict):
+        return [row for k, v in value.items() for row in _config_rows(v, f"{field}.{k}" if field else k)]
+    if isinstance(value, list):
+        return [row for i, v in enumerate(value, 1) for row in _config_rows(v, f"{field} [{i}]")]
+    if value is None or value == "":
+        return []
+    return [{"Field": field, "Value": value}]
+
+
+def _config_section(cfg: dict[str, Any], resource: Optional[str]) -> ResultTableSection:
+    family = (cfg.get("family") or "").strip().upper() or "UNKNOWN"
+    section = ResultTableSection(title_text=family)
+    for row in _config_rows(_filter_config(cfg)):
+        section.add_row(TableRow(**row))
+    if resource:
+        section.add_row(TableRow(Field="Extraction resource", Value=resource))
+    iocs = ResultTableSection(title_text="Configuration IOCs", auto_collapse=True)
+    extract_iocs_from_text_blob(blob=json.dumps(cfg), result_section=iocs)
+    section.tags.update(iocs.tags)
+    section.add_subsection(iocs)
+    section.set_heuristic(100, signature=family)
+    if family != "UNKNOWN":
+        section.add_tag(tag_type="attribution.family", value=family)
+    section.add_subsection(
+        ResultSection(title_text="Raw Config", body_format="JSON", body=json.dumps(cfg), auto_collapse=True)
+    )
+    return section
+
 
 TRIAGE_POLL_DELAY = 10
 try:
@@ -208,21 +241,8 @@ class TriageSandbox(ServiceBase):
                     overview_section.add_subsection(overview_sigs)
                 if triage_result.overview_configs:
                     overview_mc = ResultSection(title_text="Malware Config", auto_collapse=True)
-                    for cfg in triage_result.overview_configs:
-                        family_upper = cfg.get("family", "UNKNOWN").upper()
-                        m = ResultTableSection(title_text=family_upper)
-                        extract_iocs_from_text_blob(blob=json.dumps(cfg), result_section=m)
-                        m.set_heuristic(100, signature=family_upper)
-                        m.add_tag(tag_type="attribution.family", value=family_upper)
-                        m.add_subsection(
-                            ResultSection(
-                                title_text="Raw Config",
-                                body_format="JSON",
-                                body=json.dumps(cfg),
-                                auto_collapse=True,
-                            )
-                        )
-                        overview_mc.add_subsection(m)
+                    for cfg, resource in zip(triage_result.overview_configs, triage_result.overview_config_resources):
+                        overview_mc.add_subsection(_config_section(cfg, resource))
                     overview_section.add_subsection(overview_mc)
                 sandbox_section.add_subsection(overview_section)
 
@@ -308,21 +328,8 @@ class TriageSandbox(ServiceBase):
                 task_section.add_subsection(ioc_section)
                 if task.extracted:
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)
-                    for cfg in task.configs:
-                        if cfg.get("c2"):
-                            m = ResultTableSection(title_text=f"{cfg['family'].upper()}")
-                            extract_iocs_from_text_blob(blob=json.dumps(cfg), result_section=m)
-                            m.set_heuristic(100, signature=cfg["family"].upper())
-                            m.add_tag(tag_type="attribution.family", value=cfg["family"].upper())
-                            m.add_subsection(
-                                ResultSection(
-                                    title_text="Raw Config",
-                                    body_format="JSON",
-                                    body=json.dumps(cfg),
-                                    auto_collapse=True,
-                                )
-                            )
-                            malware_section.add_subsection(m)
+                    for cfg, resource in zip(task.configs, task.config_resources):
+                        malware_section.add_subsection(_config_section(cfg, resource))
                     if malware_section.subsections:
                         task_section.add_subsection(malware_section)
                 sandbox_section.add_subsection(task_section)

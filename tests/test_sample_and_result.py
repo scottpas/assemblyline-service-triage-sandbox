@@ -321,9 +321,8 @@ def test_behavioral_signature_without_label_or_name_not_seen(requests_mock, samp
     assert tr.overview_signatures == []
 
 
-def test_overview_config_without_family_is_skipped(requests_mock, sample_json):
-    """An overview extracted item whose config has no 'family' must be skipped outright,
-    without ever reaching Config() construction."""
+def test_overview_config_without_family_is_recovered(requests_mock, sample_json):
+    """A meaningful overview config can be recovered without a known family."""
     from conftest import build_report
 
     b1 = build_report("behavioral1")
@@ -338,7 +337,8 @@ def test_overview_config_without_family_is_skipped(requests_mock, sample_json):
     client = TriageClient(token="TESTING")
     tr = TriageResult(client, client.sample_by_id(SAMPLE_ID))
 
-    assert tr.overview_configs == []
+    assert tr.overview_configs == [{"c2": ["http://x.io"]}]
+    assert tr.malware_config[-1].family == ["UNKNOWN"]
 
 
 def test_overview_signature_already_seen_behaviorally_is_not_duplicated(requests_mock, sample_json):

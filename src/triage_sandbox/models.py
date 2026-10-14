@@ -75,7 +75,7 @@ class Ransom:
 
 @dataclass
 class Config:
-    family: str
+    family: Optional[str] = None
     tags: Optional[List[str]] = None
     rule: Optional[str] = None
     c2: Optional[List[str]] = None
@@ -99,7 +99,8 @@ class Config:
     raw: Optional[str] = None
 
     def create_MalwareConfig(self) -> MalwareConfig:
-        data: dict[str, Any] = {"config_extractor": SERVICE_NAME, "family": [self.family.upper()]}
+        family = (self.family or "").strip().upper() or "UNKNOWN"
+        data: dict[str, Any] = {"config_extractor": SERVICE_NAME, "family": [family]}
         if self.version:
             data["version"] = self.version
         if self.campaign:
@@ -141,6 +142,7 @@ class Config:
             data["ftp"] = [
                 FTP(
                     data={
+                        "username": cred.get("username"),
                         "password": cred.get("password"),
                         "hostname": cred.get("host"),
                         "port": cred.get("port"),
@@ -149,8 +151,6 @@ class Config:
                 for cred in self.credentials
                 if cred.get("protocol") == "ftp"
             ]
-            if not self.family:
-                data["family"] = ["UNKNOWN"]
         # Map config.keys[] → MalwareConfig.encryption[]
         encryptions: list[Encryption] = []
         for key_entry in self.keys or []:

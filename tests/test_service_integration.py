@@ -849,7 +849,7 @@ def test_execute_duplicate_signature_merges_processtree_and_attacks(requests_moc
     """When a task's ontology contains the same Signature object twice (behavioral label
     and extracted rule resolve to the same tag), the second occurrence must merge its
     process-tree tag and attack ids into the already-built section rather than duplicate it.
-    The extracted item also has no 'c2', so no Malware Config subsection should be added."""
+    The recovered family config is displayed even without C2."""
     encoded = req_utils.quote(f"sha256:{_DUP_SHA256}")
     requests_mock.get(
         f"https://api.tria.ge/v0/search?query={encoded}&limit=1",
@@ -875,8 +875,7 @@ def test_execute_duplicate_signature_merges_processtree_and_attacks(requests_moc
     assert "T1082" in dup_sections[0].heuristic.attack_ids
     assert dup_sections[0].tags.get("dynamic.processtree_id")
 
-    # No 'c2' in the extracted config -> no Malware Config subsection at all.
-    assert find_subsection(task_section, "Malware Config") is None
+    assert find_subsection(task_section, "Malware Config") is not None
 
 
 # ---------------------------------------------------------------------------
