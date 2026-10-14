@@ -1043,3 +1043,76 @@ def test_multiple_transactions_on_one_flow(protocol):
         assert [c["http_details"]["response_status_code"] for c in conns] == [200, 201, 202]
     else:
         assert [c["dns_details"]["resolved_ips"] for c in conns] == [["1.2.3.1"], ["1.2.3.2"], ["1.2.3.3"]]
+
+
+@pytest.mark.parametrize("image", ["absent", None, "", "app.exe"])
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        ("com.example.app", "com.example.app"),
+        (["com.example.app", "argument with spaces"], "com.example.app 'argument with spaces'"),
+        ([], None),
+        (None, None),
+    ],
+)
+def test_process_optional_image_and_command(image, command, expected):
+    from assemblyline.odm.models.ontology.results import Process as ProcessModel
+    from conftest import build_report
+
+    data = build_report("behavioral1")
+    raw = data["processes"][0]
+    raw["cmd"] = command
+    if image == "absent":
+        raw.pop("image")
+    else:
+        raw["image"] = image
+    data["signatures"][2]["indicators"] = [{"procid": raw["procid"]}]
+    dr = make_report(**data)
+    process = dr.ontology.get_process_by_objectid(dr._id_objectid_map[raw["procid"]])
+    prims = process.as_primitives()
+    model = ProcessModel({k: v for k, v in prims.items() if k in ProcessModel.fields()})
+    assert model.image == ("app.exe" if image == "app.exe" else "<unknown_image>")
+    assert model.command_line == expected
+    assert model.pid == raw["pid"]
+    assert model.ppid == raw["ppid"]
+    assert model.objectid.session == dr.session
+    assert model.objectid.guid
+    signature = next(s for s in dr.ontology.get_signatures() if s.name == "interesting_sig")
+    assert signature.attributes[0].source.guid == model.objectid.guid
+    assert dr.ontology.get_signatures()
+    assert dr.ontology.get_network_connections()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        None,
+        {},
+        {"cmd": 123},
+        {"cmd": ["app", 123]},
+        {"image": 123},
+        {"pid": "bad"},
+        {"started": "bad"},
+        {"terminated": "bad"},
+    ],
+)
+def test_malformed_process_is_isolated(bad):
+    from conftest import build_report
+
+    data = build_report("behavioral1")
+    raw = data["processes"][0]
+    data["processes"][0] = {**raw, **bad} if isinstance(bad, dict) and bad else bad
+    dr = make_report(**data)
+    assert len(dr.ontology.get_processes()) == 1
+    assert set(dr._id_objectid_map) == {2}
+    assert len(dr.diagnostics) == 1
+    assert "invalid process" in dr.diagnostics[0]
+    assert dr.ontology.get_signatures()
+    assert dr.ontology.get_network_connections()
+
+
+def test_process_without_command_preserves_unknown_image():
+    dr = make_report(processes=[{"procid": 1, "pid": 10, "ppid": 1, "started": 0}])
+    process = dr.ontology.get_process_by_objectid(dr._id_objectid_map[1])
+    assert process.image == "<unknown_image>"
+    assert process.command_line is None
