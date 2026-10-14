@@ -2,7 +2,7 @@ import itertools
 import json
 import shlex
 from dataclasses import dataclass, field, fields
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
 from typing import Any, List, Optional, cast
 
@@ -20,6 +20,7 @@ from assemblyline.odm.models.ontology.results.network import (
 from assemblyline.odm.models.ontology.results.network import NetworkHTTP as NetworkHTTPModel
 from assemblyline.odm.models.ontology.results.sandbox import Sandbox as SandboxModel
 from assemblyline_service_utilities.common.dynamic_service_helper import (
+    MAX_TIME,
     Attribute,
     NetworkConnection,
     NetworkDNS,
@@ -38,6 +39,14 @@ from .constants import (
 )
 from .models import Config, Credentials, Ransom
 from .network import _network_transactions, _normalize_dns_lookup_type, _parse_http_headers, _split_addr
+
+
+def _analysis_time(value: str) -> datetime:
+    """Parse the upstream RFC3339 analysis time and normalize it to UTC."""
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        raise ValueError("Analysis timestamps must include a timezone")
+    return parsed.astimezone(timezone.utc)
 
 
 def _indicator_text(indicator: dict) -> Optional[str]:
@@ -158,13 +167,39 @@ class DynamicReport:
         )
         self.ontology.add_sandbox(sandbox)
 
-    def __relative_time_str(self, seconds: int) -> str:
-        return (self.start_time + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S.%f")
+    def __relative_time_str(self, milliseconds: Any, context: str) -> Optional[str]:
+        """Convert Triage's integer millisecond offsets to the helper's UTC format.
+
+        Missing optional values remain unknown. Reject offsets outside the reported
+        analysis window instead of clamping them or trying another unit/epoch.
+        """
+        if milliseconds is None:
+            return None
+        if type(milliseconds) is not int or milliseconds < 0 or milliseconds > self._duration_ms:
+            self.diagnostics.append(f"Task {self.task_id}, {context}: invalid millisecond offset {milliseconds!r}.")
+            return None
+        return (self.start_time + timedelta(milliseconds=milliseconds)).strftime("%Y-%m-%d %H:%M:%S.%f")
 
     def __add_processes(self) -> None:
         for process in self.processes or []:
             try:
                 procid = process["procid"]
+                start_time = self.__relative_time_str(process.get("started"), f"process {procid} started")
+                if start_time is None:
+                    if process.get("started") is None:
+                        self.diagnostics.append(
+                            f"Task {self.task_id}, process {procid}: started time unknown; process omitted."
+                        )
+                    continue
+                # Go's terminated,omitempty uses zero for no observed termination.
+                terminated = process.get("terminated")
+                end_time = self.__relative_time_str(
+                    None if type(terminated) is int and terminated == 0 else terminated,
+                    f"process {procid} terminated",
+                )
+                if end_time is not None and end_time < start_time:
+                    self.diagnostics.append(f"Task {self.task_id}, process {procid}: terminated before started.")
+                    end_time = None
                 image = process.get("image") or "<unknown_image>"
                 command = process.get("cmd")
                 if isinstance(command, list):
@@ -184,7 +219,7 @@ class DynamicReport:
                 object_id = self.ontology.create_objectid(
                     tag=Process.create_objectid_tag(image),
                     ontology_id=p_oid,
-                    time_observed=self.__relative_time_str(process["started"]),
+                    time_observed=start_time,
                     session=self.session,
                 )
                 object_id.assign_guid()
@@ -194,12 +229,8 @@ class DynamicReport:
                     ppid=process["ppid"],
                     image=image,
                     command_line=command,
-                    start_time=self.__relative_time_str(process["started"]),
-                    end_time=(
-                        self.__relative_time_str(process["terminated"])
-                        if process.get("terminated") is not None
-                        else "9999-12-31 23:59:59.999999"
-                    ),
+                    start_time=start_time,
+                    end_time=end_time,
                 )
                 # Validate before mutating the ontology: helper objects accept values that
                 # the Process ODM may reject later during result emission.
@@ -310,11 +341,7 @@ class DynamicReport:
                 "direction": "unknown",
                 "source_ip": _src_ip,
                 "source_port": _src_port,
-                "time_observed": (
-                    self.__relative_time_str(f["first_seen"])
-                    if f.get("first_seen") is not None
-                    else self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f")
-                ),
+                "time_observed": self.__relative_time_str(f.get("first_seen"), f"flow {f['id']} first_seen"),
             }
             try:
                 if ip_address(_src_ip).is_private and ip_address(_dst_ip).is_global:
@@ -541,8 +568,12 @@ class DynamicReport:
                 self.malware_config.append(Credentials(**item["credentials"]).create_MalwareConfig())
 
     def __post_init__(self) -> None:
-        self.start_time = datetime.fromisoformat(self.analysis["submitted"].replace("Z", ""))
-        self.end_time = datetime.fromisoformat(self.analysis["reported"].replace("Z", ""))
+        self.start_time = _analysis_time(self.analysis["submitted"])
+        self.end_time = _analysis_time(self.analysis["reported"])
+        if self.end_time < self.start_time:
+            raise ValueError("Analysis reported time precedes submitted time")
+        duration = self.end_time - self.start_time
+        self._duration_ms = (duration.days * 86400 + duration.seconds) * 1000 + duration.microseconds // 1000
         self.session = f"{self.sample['id']}/{self.task_id}"
         self.network_tags: List[tuple] = []  # type: ignore[type-arg]
         self.malware_config: List[MalwareConfig] = []
@@ -569,6 +600,12 @@ class DynamicReport:
             self.__add_signatures()
         if self.extracted:
             self.__add_extracted()
+        # OntologyResults requires an open-ended sentinel while correlating process
+        # lifetimes. Clear it once mapping is complete, before either ontology or UI
+        # serialization. Network references share these same Process objects.
+        for process in self.ontology.get_processes():
+            if process.end_time == MAX_TIME:
+                cast(Any, process).end_time = None
 
 
 _EXPECTED_REPORT_FIELDS = frozenset(

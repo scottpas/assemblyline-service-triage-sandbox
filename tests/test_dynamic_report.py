@@ -11,7 +11,7 @@ OntologyResults accessors used:
   - ontology.get_signatures()         -> list[Signature]
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -58,8 +58,8 @@ def test_post_init_sets_times_and_session():
 
     assert isinstance(dr.start_time, datetime)
     assert isinstance(dr.end_time, datetime)
-    assert dr.start_time == datetime(2024, 2, 2, 23, 56, 27)
-    assert dr.end_time == datetime(2024, 2, 2, 23, 59, 9)
+    assert dr.start_time == datetime(2024, 2, 2, 23, 56, 27, tzinfo=timezone.utc)
+    assert dr.end_time == datetime(2024, 2, 2, 23, 59, 9, tzinfo=timezone.utc)
 
     assert dr.malware_config == []
 
@@ -99,9 +99,9 @@ def test_add_processes_builds_id_objectid_map():
     procs = dr.ontology.get_processes()
     assert len(procs) == 2
 
-    # procid 1 has no 'terminated' -> end_time should be the sentinel value
+    # No observed termination remains unknown after correlation.
     proc_a = next(p for p in procs if p.pid == 100)
-    assert proc_a.end_time == "9999-12-31 23:59:59.999999"
+    assert proc_a.end_time is None
 
 
 # ---------------------------------------------------------------------------
@@ -1092,8 +1092,6 @@ def test_process_optional_image_and_command(image, command, expected):
         {"cmd": ["app", 123]},
         {"image": 123},
         {"pid": "bad"},
-        {"started": "bad"},
-        {"terminated": "bad"},
     ],
 )
 def test_malformed_process_is_isolated(bad):
