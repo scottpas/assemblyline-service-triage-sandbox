@@ -188,7 +188,7 @@ def test_invalid_config_preserves_rule_detection(triage_service, triage_client, 
     assert find_subsection(sandbox, "FABOOKIE") is not None
 
 
-@pytest.mark.parametrize("family", [None, 123])
+@pytest.mark.parametrize("family", [123])
 def test_invalid_config_family_does_not_create_rule_signature(
     triage_service, triage_client, requests_mock, make_request, family
 ):

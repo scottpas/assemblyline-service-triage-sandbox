@@ -514,12 +514,15 @@ class DynamicReport:
         for item in self.extracted or []:
             if item.get("config"):
                 try:
-                    self.malware_config.append(Config(**_filter_config(item["config"])).create_MalwareConfig())
+                    filtered = _filter_config(item["config"])
+                    mc = Config(**filtered).create_MalwareConfig()
+                    if _has_config_content(filtered):
+                        self.malware_config.append(mc)
+                        self.configs.append(item["config"])
+                        self.config_resources.append(item.get("resource"))
                 except Exception as exc:
                     # Isolate untrusted config conversion, including ODM validation errors.
                     self.diagnostics.append(f"Task {self.task_id}: invalid malware config ({type(exc).__name__}).")
-                else:
-                    self.configs.append(item["config"])
                 # Rule evidence is independent of ancillary config conversion. Only
                 # valid signature metadata may proceed when the config was rejected.
                 cfg = item["config"]
@@ -527,14 +530,14 @@ class DynamicReport:
                     isinstance(cfg, dict)
                     and isinstance(cfg.get("rule"), str)
                     and cfg["rule"]
-                    and isinstance(cfg.get("family", "UNKNOWN"), str)
+                    and (cfg.get("family") is None or isinstance(cfg["family"], str))
                 ):
                     name = item["config"]["rule"]
                     data = {"name": name, "type": "CUCKOO"}
                     tag = SignatureModel.get_tag(data)
                     oid = SignatureModel.get_oid(data)
                     score = 1000
-                    families = [item["config"].get("family", "UNKNOWN").upper()]
+                    families = [(item["config"].get("family") or "").strip().upper() or "UNKNOWN"]
                     object_id = self.ontology.create_objectid(ontology_id=oid, tag=tag, session=self.session)
                     object_id.assign_guid()
                     existing_for_rule = [
@@ -581,6 +584,7 @@ class DynamicReport:
         self.dns_evidence: list[dict[str, Any]] = []
         self.http_evidence: list[dict[str, Any]] = []
         self.configs: list[dict[str, Any]] = []
+        self.config_resources: list[Optional[str]] = []
         # Maps procid → the process's unique ObjectID (pid can be reused within a task by
         # the OS, so indicator resolution must go through this, not a procid → pid → pid
         # lookup, which could resolve to the wrong process instance on reuse)
@@ -731,6 +735,17 @@ def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
     return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
 
 
+def _has_config_content(value: Any) -> bool:
+    """Ignore empty containers and credential protocol placeholders, retaining zero/false settings."""
+    if isinstance(value, dict):
+        return any(_has_config_content(v) for k, v in value.items() if k not in {"protocol", "rule", "tags"})
+    if isinstance(value, list):
+        return any(_has_config_content(v) for v in value)
+    if isinstance(value, str):
+        return bool(value.strip())
+    return value is not None
+
+
 def _filter_sample(sample: dict) -> dict:  # type: ignore[type-arg]
     """Return only keys accepted by the Sample dataclass; drops unknown future Triage sample
     fields (e.g. user_id) so Sample construction never raises TypeError."""
@@ -749,9 +764,8 @@ class TriageResult:
         behavioral_config_keys: set[str] = set()
         for report in self.sample.task_reports:
             for cfg in report.configs:
-                if cfg.get("family"):
-                    key = json.dumps(_filter_config(cfg), sort_keys=True)
-                    behavioral_config_keys.add(key)
+                key = json.dumps(_filter_config(cfg), sort_keys=True)
+                behavioral_config_keys.add(key)
 
         # Collect seen signature names across all behavioral tasks (for overview dedup)
         behavioral_sig_names: set[str] = set()
@@ -762,6 +776,7 @@ class TriageResult:
                     behavioral_sig_names.add(name)
 
         self.overview_configs: list[dict] = []  # type: ignore[type-arg]
+        self.overview_config_resources: list[Optional[str]] = []
         self.overview_signatures: list[dict] = []  # type: ignore[type-arg]
 
         try:
@@ -774,16 +789,16 @@ class TriageResult:
             for item in overview.get("extracted") or []:
                 try:
                     cfg = item.get("config") or {}
-                    family = cfg.get("family", "")
-                    if not family:
-                        continue
                     filtered = _filter_config(cfg)
+                    if not _has_config_content(filtered):
+                        continue
                     key = json.dumps(filtered, sort_keys=True)
                     if key in behavioral_config_keys:
                         continue  # already extracted from a behavioral report
                     mc = Config(**filtered).create_MalwareConfig()
                     self.malware_config.append(mc)
                     self.overview_configs.append(cfg)
+                    self.overview_config_resources.append(item.get("resource"))
                     behavioral_config_keys.add(key)  # prevent double-adding if overview has dupes
                 # Overview data is best-effort and may contain values rejected by
                 # either the Config dataclass or Assemblyline ODM validation.
