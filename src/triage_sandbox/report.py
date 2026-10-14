@@ -530,7 +530,7 @@ class DynamicReport:
                     isinstance(cfg, dict)
                     and isinstance(cfg.get("rule"), str)
                     and cfg["rule"]
-                    and isinstance(cfg.get("family", "UNKNOWN"), str)
+                    and (cfg.get("family") is None or isinstance(cfg["family"], str))
                 ):
                     name = item["config"]["rule"]
                     data = {"name": name, "type": "CUCKOO"}

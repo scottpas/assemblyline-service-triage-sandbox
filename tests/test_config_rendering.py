@@ -77,3 +77,25 @@ def test_overview_only_config_without_c2(triage_service, make_request, mock_tria
     assert {"Field": "mutex [1]", "Value": "overview-mutex"} in rows
     assert {"Field": "attr.enabled", "Value": False} in rows
     assert {"Field": "Extraction resource", "Value": "overview/config.dat"} in rows
+
+
+@pytest.mark.parametrize("family", [None, "", "  "])
+def test_rule_signature_survives_unknown_family(family, triage_service, make_request, mock_triage_api):
+    report = build_report("behavioral1")
+    report["extracted"] = [{"config": {"family": family, "rule": "RecoveredRule", "mutex": ["recovered-mutex"]}}]
+    report["signatures"] = []
+    mock_triage_api.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+    triage_service.execute(request)
+    task = next(s for s in request.result.sections[0].subsections if s.title_text == "Task: behavioral1")
+    signatures = next(s for s in task.subsections if s.title_text == "Signatures")
+    signature = next(s for s in signatures.subsections if s.title_text == "RECOVEREDRULE")
+    assert signature.heuristic.heur_id == 5
+    result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
+    rule = next(
+        s.as_primitives()
+        for s in result.sample.task_reports[0].ontology.get_signatures()
+        if s.as_primitives()["name"] == "RecoveredRule"
+    )
+    assert rule["malware_families"] == ["UNKNOWN"]
+    assert result.malware_config[0].family == ["UNKNOWN"]
