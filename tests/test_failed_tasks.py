@@ -152,3 +152,50 @@ def test_terminal_failed_sample_emits_recovered_task_and_warning(
     assert "failed" in diagnostic.body
     assert "Machine shutdown" in diagnostic.body
     assert diagnostic.heuristic is None
+
+
+@pytest.mark.parametrize("status", ["reported", "failed"])
+@pytest.mark.parametrize(
+    "overview", ["empty", "unavailable", "invalid_config", "nameless_signature", "signature", "config"]
+)
+def test_all_unparseable_reports_require_recovered_evidence(
+    triage_service, triage_client, requests_mock, make_request, status, overview
+):
+    sample = build_sample()
+    for task in sample["tasks"][1:]:
+        task["status"] = status
+        requests_mock.get(report_url(task["id"]), json={})
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}", json=sample)
+    overview_url = f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json"
+    if overview == "unavailable":
+        requests_mock.get(overview_url, status_code=503)
+    else:
+        payload = {
+            "empty": {},
+            "invalid_config": build_overview(configs=[{"family": 123}]),
+            "nameless_signature": build_overview(signatures=[{}]),
+            "signature": build_overview(signatures=[{"label": "recovered", "score": 3}]),
+            "config": build_overview(configs=[{"family": "recovered", "c2": ["https://recovered.example/gate"]}]),
+        }[overview]
+        requests_mock.get(overview_url, json=payload)
+    request = make_request()
+    if overview in {"signature", "config"}:
+        triage_service.execute(request)
+        sandbox = request.result.sections[0]
+        assert find_subsection(sandbox, "RECOVERED") is not None
+        assert "report could not be parsed" in find_subsection(sandbox, "Analysis completeness").body
+    else:
+        with pytest.raises(TypeError, match="required positional arguments"):
+            triage_service.execute(request)
+        assert request.result is None
+
+
+def test_parse_failure_state_is_reset_on_retrieval(triage_client, requests_mock):
+    sample = Sample(**failed_sample())
+    requests_mock.get(report_url("behavioral1"), json={})
+    sample.get_task_reports(triage_client)
+    assert isinstance(sample.parse_error, TypeError)
+    requests_mock.get(report_url("behavioral1"), json=build_report("behavioral1"))
+    sample.get_task_reports(triage_client)
+    assert sample.parse_error is None
+    assert len(sample.task_reports) == 2

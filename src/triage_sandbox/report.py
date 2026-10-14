@@ -639,10 +639,12 @@ class Sample:
     private: Optional[bool] = None
     task_reports: List[DynamicReport] = field(default_factory=list)
     diagnostics: list[str] = field(default_factory=list, init=False)
+    parse_error: Optional[Exception] = field(default=None, init=False, repr=False)
 
     def get_task_reports(self, client: TriageClient) -> None:
         self.task_reports = []
         self.diagnostics = []
+        self.parse_error = None
         if self.status == "failed":
             self.diagnostics.append("Sample analysis failed; recovered evidence is incomplete.")
         fetch_error: Optional[Exception] = None
@@ -678,6 +680,7 @@ class Sample:
                         **filtered,
                     )
                 except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                    self.parse_error = exc
                     self.diagnostics.append(f"Task {task['id']}: report could not be parsed ({type(exc).__name__}).")
                     continue
                 self.task_reports.append(report)
@@ -792,3 +795,14 @@ class TriageResult:
                 if name and name not in behavioral_sig_names:
                     self.overview_signatures.append(sig)
                     behavioral_sig_names.add(name)
+
+        # A successful HTTP response can still contain an unusable report.
+        # Allow overview recovery first, but do not cache an empty analysis after
+        # parse failures. Expected missing reports on failed tasks remain informational.
+        if (
+            self.sample.parse_error is not None
+            and not self.sample.task_reports
+            and not self.overview_signatures
+            and not self.overview_configs
+        ):
+            raise self.sample.parse_error
