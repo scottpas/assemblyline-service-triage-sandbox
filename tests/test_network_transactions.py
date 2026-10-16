@@ -227,6 +227,19 @@ def test_http_headers_without_whitespace_export():
     assert dr.diagnostics == []
 
 
+def test_repeated_set_cookie_keeps_http_details():
+    request, response = halves("http")
+    response["http_response"]["headers"] = ["Set-Cookie: a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "Set-Cookie: b=2"]
+    dr = parse([request, response])
+    details = export_connections(dr)[0]["http_details"]
+    assert details["request_uri"] == "http://query.example.com/"
+    assert json.loads(details["response_headers"]["Set-Cookie"]) == [
+        "a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT",
+        "b=2",
+    ]
+    assert dr.diagnostics == []
+
+
 @pytest.mark.parametrize("half", ["http_request", "http_response"])
 def test_unstorable_header_name_keeps_task_evidence(half):
     request, response = halves("http")
