@@ -220,6 +220,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ inputs.channel }}
+          COMMIT: ${{ steps.version.outputs.commit }}
           GIT_TAG: ${{ steps.version.outputs.git_tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -230,17 +231,16 @@ jobs:
 
           args=("$GIT_TAG" --verify-tag --generate-notes --title "$GIT_TAG")
 
-          # Start notes at the previous release on this channel; by default GitHub
-          # uses the latest release, which for stable is usually a dev release.
-          previous="$(
-            gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 200 \
-              --json tagName,createdAt \
-              --jq "[.[] | select(.tagName | test(\"^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+\\\\.${CHANNEL}[0-9]+\$\"))]
-                    | sort_by(.createdAt) | last | .tagName // empty"
-          )"
-          if [[ -n "$previous" ]]; then
-            args+=(--notes-start-tag "$previous")
-          fi
+          # Start notes at the previous published release on this channel that is an
+          # ancestor of this commit; by default GitHub uses the latest release,
+          # which for stable is usually a dev release.
+          while read -r candidate; do
+            if [[ "$candidate" != "$GIT_TAG" &&
+                  "$(gh release view "$candidate" --json isDraft --jq .isDraft 2>/dev/null)" == "false" ]]; then
+              args+=(--notes-start-tag "$candidate")
+              break
+            fi
+          done < <(git tag --list "v*.${CHANNEL}[0-9]*" --merged "$COMMIT" --sort=-version:refname)
 
           if [[ "$CHANNEL" == "dev" ]]; then
             args+=(--prerelease)
