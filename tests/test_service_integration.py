@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 import requests
+from assemblyline.common.dict_utils import unflatten
+from assemblyline.odm.models.tagging import Tagging
 from requests import utils as req_utils
 from retrying import Attempt, RetryError
 
@@ -299,6 +301,49 @@ def test_execute_network_iocs_section(triage_service, make_request, mock_triage_
     for task_section in sandbox_section.subsections:
         ioc = find_subsection(task_section, "Network IOCs")
         assert ioc is not None, f"No 'Network IOCs' subsection in {task_section.title_text}"
+
+
+def _all_tags(section):
+    tags = {k: list(v) for k, v in section.tags.items()}
+    for sub in section.subsections:
+        for k, v in _all_tags(sub).items():
+            tags.setdefault(k, []).extend(v)
+    return tags
+
+
+def test_execute_single_label_flow_domain_passes_tag_validation(
+    triage_service, make_request, mock_triage_api, behavioral1_json
+):
+    """A single-label flow hostname must not produce a domain tag AL rejects, but stays visible as evidence."""
+    report = behavioral1_json
+    report["network"]["flows"] = [
+        {
+            "id": 1,
+            "src": "10.0.0.5:1000",
+            "dst": "8.8.8.8:53",
+            "proto": "udp",
+            "domain": "debian12-armhf-20260513-en-8",
+        },
+        {"id": 2, "src": "10.0.0.5:1001", "dst": "1.2.3.4:443", "proto": "tcp", "domain": "evil.example.com"},
+    ]
+    mock_triage_api.get(
+        f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json",
+        text=json.dumps(report),
+    )
+    req = make_request()
+    triage_service.execute(req)
+
+    tags = {}
+    for section in req.result.sections:
+        for k, v in _all_tags(section).items():
+            tags.setdefault(k, []).extend(v)
+    Tagging(unflatten(tags))  # raises on any value AL would reject
+    assert "debian12-armhf-20260513-en-8" not in tags.get("network.dynamic.domain", [])
+    assert tags["network.dynamic.domain"].count("evil.example.com") >= 1
+
+    task_section = find_subsection(req.result.sections[0], "Task: behavioral1")
+    ioc = find_subsection(task_section, "Network IOCs")
+    assert json.dumps({"ioc_type": "hostname", "ioc": "debian12-armhf-20260513-en-8"}) in ioc.section_body.body
 
 
 def test_execute_malware_config_section(triage_service, make_request, mock_triage_api):
