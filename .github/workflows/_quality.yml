@@ -8,15 +8,15 @@ on:
         required: false
         type: string
         default: ""
-      run_codecov:
-        description: Upload coverage and test results through the Codecov workflow
+      upload_reports:
+        description: Upload coverage and JUnit reports as the codecov-reports artifact
         required: false
         type: boolean
         default: false
-    secrets:
-      CODECOV_TOKEN:
-        description: Token used to upload reports to Codecov
-        required: false
+    outputs:
+      reports_available:
+        description: Whether the codecov-reports artifact was uploaded
+        value: ${{ jobs.quality.outputs.reports_available }}
 
 permissions:
   contents: read
@@ -89,7 +89,7 @@ jobs:
 
       - name: Check Codecov reports
         id: reports
-        if: ${{ inputs.run_codecov && !cancelled() }}
+        if: ${{ inputs.upload_reports && !cancelled() }}
         run: |
           available=false
           if [[ -s coverage.xml && -s junit.xml ]]; then
@@ -107,16 +107,3 @@ jobs:
             junit.xml
           if-no-files-found: error
           retention-days: 1
-
-  codecov:
-    name: Codecov
-    needs: quality
-    if: >-
-      always() && !cancelled() && inputs.run_codecov &&
-      needs.quality.outputs.reports_available == 'true'
-    uses: ./.github/workflows/codecov.yml
-    with:
-      artifact_name: codecov-reports
-      ref: ${{ inputs.ref }}
-    secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

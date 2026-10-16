@@ -31,7 +31,6 @@ jobs:
     needs: quality
     permissions:
       contents: write
-      security-events: write
     uses: ./.github/workflows/_publish.yml
     with:
       channel: stable

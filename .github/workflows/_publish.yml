@@ -24,7 +24,6 @@ concurrency:
 
 permissions:
   contents: write
-  security-events: write
 
 jobs:
   publish:
@@ -52,6 +51,7 @@ jobs:
       - name: Calculate release version
         id: version
         env:
+          GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ inputs.channel }}
         run: |
           ASSEMBLYLINE_VERSION="$(sed -n 's/^ASSEMBLYLINE_VERSION=//p' .release-version)"
@@ -66,17 +66,44 @@ jobs:
             exit 1
           fi
 
+          commit="$(git rev-parse HEAD)"
           prefix="v${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}"
-          latest="$(git tag --list "${prefix}[0-9]*" --sort=-version:refname | head -n 1)"
-          if [[ -n "$latest" ]]; then
-            minor="${latest#${prefix}}"
+
+          tag_minor() {
+            local minor="${1#"${prefix}"}"
             if [[ ! "$minor" =~ ^[0-9]+$ ]]; then
-              echo "Invalid existing release tag: $latest" >&2
+              echo "Invalid existing release tag: $1" >&2
               exit 1
             fi
-            minor=$((10#$minor + 1))
+            echo "$((10#$minor))"
+          }
+
+          # A tag already on this commit means an earlier run reserved it. Finish
+          # that release unless it was published (a draft is left behind when
+          # `gh release create` fails part-way).
+          resume=false
+          current="$(git tag --list "${prefix}[0-9]*" --points-at "$commit" --sort=-version:refname | head -n 1)"
+          if [[ -n "$current" ]]; then
+            is_draft="$(gh release view "$current" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || true)"
+            if [[ "$is_draft" == "false" ]]; then
+              echo "This commit is already released as $current" >&2
+              exit 1
+            fi
+            echo "Resuming unfinished release $current"
+            resume=true
+            minor="$(tag_minor "$current")"
           else
-            minor=0
+            latest="$(git tag --list "${prefix}[0-9]*" --sort=-version:refname | head -n 1)"
+            if [[ -n "$latest" ]]; then
+              if ! git merge-base --is-ancestor "$latest" "$commit"; then
+                echo "$latest is newer than this commit; refusing to publish older code as a later version." >&2
+                exit 1
+              fi
+              latest_minor="$(tag_minor "$latest")"
+              minor=$((latest_minor + 1))
+            else
+              minor=0
+            fi
           fi
 
           version="${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}${minor}"
@@ -89,8 +116,8 @@ jobs:
           {
             echo "version=$version"
             echo "git_tag=$git_tag"
-            echo "tag_prefix=$prefix"
-            echo "commit=$(git rev-parse HEAD)"
+            echo "commit=$commit"
+            echo "resume=$resume"
             if [[ "$CHANNEL" == "dev" ]]; then
               echo "base_tag=latest"
             else
@@ -98,20 +125,24 @@ jobs:
             fi
           } >> "$GITHUB_OUTPUT"
 
-      - name: Prevent duplicate stable release
-        if: ${{ inputs.channel == 'stable' }}
-        env:
-          COMMIT: ${{ steps.version.outputs.commit }}
-          TAG_PREFIX: ${{ steps.version.outputs.tag_prefix }}
-        run: |
-          latest_stable="$(git tag --list "${TAG_PREFIX}[0-9]*" --sort=-version:refname | head -n 1)"
-          if [[ -n "$latest_stable" && "$(git rev-list -n 1 "$latest_stable")" == "$COMMIT" ]]; then
-            echo "The current main commit is already released as $latest_stable" >&2
-            exit 1
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Both builds below must use the same base image: the base tags are
+      # mutable, and the pushed image has to match the one that was smoke-tested.
+      - name: Resolve base image
+        id: base
+        env:
+          BASE_TAG: ${{ steps.version.outputs.base_tag }}
+        run: |
+          digest="$(docker buildx imagetools inspect "cccs/assemblyline-v4-service-base:${BASE_TAG}" \
+            --format '{{ json .Manifest }}' | jq -r .digest)"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Could not resolve cccs/assemblyline-v4-service-base:${BASE_TAG}: $digest" >&2
+            exit 1
+          fi
+          echo "Using cccs/assemblyline-v4-service-base:${BASE_TAG}@${digest}"
+          echo "branch=${BASE_TAG}@${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Build container
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -123,43 +154,15 @@ jobs:
           push: false
           build-args: |
             version=${{ steps.version.outputs.version }}
-            branch=${{ steps.version.outputs.base_tag }}
+            branch=${{ steps.base.outputs.branch }}
           tags: ${{ github.repository }}:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Generate SBOM
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
-          format: cyclonedx
-          output: trivy-sbom.cdx.json
-
-      - name: Scan container
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
-          format: sarif
-          output: trivy-container.sarif
-          exit-code: "0"
-          severity: HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          ignore-unfixed: true
-          trivyignores: .trivyignore.yaml
-
-      - name: Upload container scan to code scanning
-        if: ${{ always() && !cancelled() }}
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
-        with:
-          sarif_file: trivy-container.sarif
-          category: trivy-container-${{ inputs.channel }}
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: sbom-${{ steps.version.outputs.version }}
-          path: trivy-sbom.cdx.json
-          if-no-files-found: error
+      - name: Smoke test container
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: .github/scripts/smoke-test-image.sh "${GITHUB_REPOSITORY}:${VERSION}" "$VERSION"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -167,10 +170,67 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image
+      - name: Check for an existing image
+        id: existing
         env:
+          RESUME: ${{ steps.version.outputs.resume }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: docker push "${GITHUB_REPOSITORY}:${VERSION}"
+        run: |
+          image="docker.io/${GITHUB_REPOSITORY}:${VERSION}"
+          if output="$(docker buildx imagetools inspect "$image" 2>&1)"; then
+            if [[ "$RESUME" != "true" ]]; then
+              echo "$image already exists on Docker Hub; refusing to overwrite it." >&2
+              exit 1
+            fi
+            # Only a run for this commit can reserve this tag, so the image was
+            # pushed by an earlier attempt of this release.
+            echo "Reusing $image pushed by the unfinished release"
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! grep -qi "not found" <<< "$output"; then
+            echo "Could not check whether $image exists:" >&2
+            echo "$output" >&2
+            exit 1
+          fi
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+
+      # Reserving the tag before pushing means a failed run can never hand the
+      # same version to a later run and overwrite an image that was already pushed.
+      - name: Reserve release tag
+        if: ${{ steps.version.outputs.resume != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+          GIT_TAG: ${{ steps.version.outputs.git_tag }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${GIT_TAG}" \
+            -f sha="$COMMIT" > /dev/null
+
+      - name: Push image
+        if: ${{ steps.existing.outputs.pushed != 'true' }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            version=${{ steps.version.outputs.version }}
+            branch=${{ steps.base.outputs.branch }}
+          tags: docker.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+
+      - name: Export SBOM
+        env:
+          IMAGE: docker.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "$IMAGE" --format '{{ json .SBOM.SPDX }}' > "sbom-${VERSION}.spdx.json"
+          jq -e '.spdxVersion' "sbom-${VERSION}.spdx.json" > /dev/null
 
       - name: Create GitHub release
         env:
@@ -178,15 +238,27 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
           COMMIT: ${{ steps.version.outputs.commit }}
           GIT_TAG: ${{ steps.version.outputs.git_tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          args=("$GIT_TAG" --target "$COMMIT" --generate-notes --title "$GIT_TAG")
+          if [[ "$(gh release view "$GIT_TAG" --json isDraft --jq .isDraft 2>/dev/null)" == "true" ]]; then
+            echo "Deleting draft left by an earlier attempt"
+            gh release delete "$GIT_TAG" --yes
+          fi
+
+          args=("$GIT_TAG" --verify-tag --generate-notes --title "$GIT_TAG")
+
+          # Start notes at the previous published release on this channel that is an
+          # ancestor of this commit; by default GitHub uses the latest release,
+          # which for stable is usually a dev release.
+          while read -r candidate; do
+            if [[ "$candidate" != "$GIT_TAG" &&
+                  "$(gh release view "$candidate" --json isDraft --jq .isDraft 2>/dev/null)" == "false" ]]; then
+              args+=(--notes-start-tag "$candidate")
+              break
+            fi
+          done < <(git tag --list "v*.${CHANNEL}[0-9]*" --merged "$COMMIT" --sort=-version:refname)
+
           if [[ "$CHANNEL" == "dev" ]]; then
             args+=(--prerelease)
           fi
-          gh release create "${args[@]}"
-
-      - name: Attach SBOM to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GIT_TAG: ${{ steps.version.outputs.git_tag }}
-        run: gh release upload "$GIT_TAG" trivy-sbom.cdx.json
+          gh release create "${args[@]}" "sbom-${VERSION}.spdx.json"
