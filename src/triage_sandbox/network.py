@@ -6,8 +6,10 @@ from typing import Any
 
 from assemblyline.odm.models.ontology.results.network import LOOKUP_TYPES, NetworkHTTP
 
-# RFC 6838 type/subtype restricted names (at most 127 characters each), compared lowercased
-_MEDIA_TYPE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$")
+# RFC 6838 type/subtype restricted names (at most 127 characters each). Explicit
+# ASCII classes, matched before lowercasing: some non-ASCII letters (e.g. the
+# Kelvin sign) lowercase to ASCII and would otherwise pass as a fabricated type.
+_MEDIA_TYPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$")
 
 
 @dataclass
@@ -107,10 +109,10 @@ def _response_mimetype(headers: Any) -> str | None:
         for element in elements:
             if not element.strip():
                 continue
-            mimetype = element.partition(";")[0].strip().lower()
+            mimetype = element.partition(";")[0].strip()
             if not _MEDIA_TYPE.match(mimetype):
                 return None
-            types.add(mimetype)
+            types.add(mimetype.lower())
     return types.pop() if len(types) == 1 else None
 
 

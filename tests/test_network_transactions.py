@@ -250,6 +250,8 @@ def test_http_headers_without_whitespace_export():
         (['Content-Type: multipart/form-data; boundary="a\\'], None),
         (["Content-Type: text/html", "Content-Type: text/html; q=1, , "], "text/html"),
         (["Content-Type: */*"], None),
+        (["Content-Type: text/\u212atml"], None),
+        (["Content-Type: \u0130mage/png"], None),
         ([f"Content-Type: {'a' * 127}/{'b' * 127}"], f"{'a' * 127}/{'b' * 127}"),
         ([f"Content-Type: application/{'b' * 128}"], None),
         ([f"Content-Type: {'a' * 128}/json"], None),
