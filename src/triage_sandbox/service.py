@@ -325,6 +325,8 @@ class TriageSandbox(ServiceBase):
                 extract_iocs_from_text_blob(blob=json.dumps(task.network), result_section=ioc_section)
                 for tag_type, value in task.network_tags:
                     ioc_section.add_tag(tag_type=tag_type, value=value)
+                for hostname in dict.fromkeys(task.untagged_flow_domains):
+                    ioc_section.add_row(TableRow(ioc_type="hostname", ioc=hostname))
                 task_section.add_subsection(ioc_section)
                 if task.extracted:
                     malware_section = ResultSection(title_text="Malware Config", auto_collapse=True)

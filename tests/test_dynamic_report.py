@@ -591,6 +591,35 @@ def test_flow_domain_ip_tagged_as_network_dynamic_ip():
     assert ("network.dynamic.domain", "5.180.253.105") not in dr.network_tags
 
 
+def test_flow_single_label_hostname_not_tagged_as_domain():
+    # AL's domain tag requires a dot and a known TLD; a sandbox guest hostname
+    # would be rejected at result validation, so it is kept as untagged evidence.
+    network = {
+        "flows": [
+            {
+                "id": 1,
+                "dst": "8.8.8.8:53",
+                "src": "10.0.0.5:1000",
+                "proto": "udp",
+                "domain": "debian12-armhf-20260513-en-8",
+            }
+        ]
+    }
+    dr = make_report(network=network)
+    assert not [t for t in dr.network_tags if t[0] == "network.dynamic.domain"]
+    assert dr.untagged_flow_domains == ["debian12-armhf-20260513-en-8"]
+    assert len(dr.ontology.get_network_connections()) == 1
+
+
+@pytest.mark.parametrize("domain", [["evil.example.com"], 1.5, ""])
+def test_flow_non_string_or_empty_domain_ignored(domain):
+    network = {"flows": [{"id": 1, "dst": "1.2.3.4:443", "src": "10.0.0.1:5000", "proto": "tcp", "domain": domain}]}
+    dr = make_report(network=network)
+    assert dr.network_tags == []
+    assert dr.untagged_flow_domains == []
+    assert len(dr.ontology.get_network_connections()) == 1
+
+
 def test_tls_fingerprints_added_to_network_tags():
     network = {
         "flows": [

@@ -8,6 +8,7 @@ from typing import Any, List, Optional, cast
 
 from assemblyline.common.attack_map import attack_map
 from assemblyline.common.dict_utils import get_dict_fingerprint_hash
+from assemblyline.odm.base import Domain as DomainField
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Signature as SignatureModel
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
@@ -39,6 +40,9 @@ from .constants import (
 )
 from .models import Config, Credentials, Ransom
 from .network import _network_transactions, _normalize_dns_lookup_type, _parse_http_headers, _split_addr
+
+# Same validator AL applies to network.dynamic.domain tags at result validation
+_DOMAIN_FIELD = DomainField()
 
 
 def _analysis_time(value: str) -> datetime:
@@ -353,12 +357,19 @@ class DynamicReport:
 
             # Triage sets flow.domain to the raw destination IP when no hostname
             # is resolved; AL rejects IPs in network.dynamic.domain
-            if f.get("domain"):
+            domain = f.get("domain")
+            if isinstance(domain, str) and domain:
                 try:
-                    ip_address(f["domain"])
-                    self.network_tags.append(("network.dynamic.ip", f["domain"]))
+                    ip_address(domain)
+                    self.network_tags.append(("network.dynamic.ip", domain))
                 except ValueError:
-                    self.network_tags.append(("network.dynamic.domain", f["domain"]))
+                    # Guest hostnames are single-label; AL's domain tag rejects them
+                    try:
+                        _DOMAIN_FIELD.check(domain)
+                    except ValueError:
+                        self.untagged_flow_domains.append(domain)
+                    else:
+                        self.network_tags.append(("network.dynamic.domain", domain))
 
             # TLS fingerprints → network tags
             for triage_key, tag_type in (
@@ -579,6 +590,7 @@ class DynamicReport:
         self._duration_ms = (duration.days * 86400 + duration.seconds) * 1000 + duration.microseconds // 1000
         self.session = f"{self.sample['id']}/{self.task_id}"
         self.network_tags: List[tuple] = []  # type: ignore[type-arg]
+        self.untagged_flow_domains: list[str] = []
         self.malware_config: List[MalwareConfig] = []
         self.diagnostics: list[str] = []
         self.dns_evidence: list[dict[str, Any]] = []
