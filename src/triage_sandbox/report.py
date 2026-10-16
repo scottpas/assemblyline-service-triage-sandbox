@@ -43,6 +43,7 @@ from .network import (
     _network_transactions,
     _normalize_dns_lookup_type,
     _parse_http_headers,
+    _response_mimetype,
     _split_addr,
 )
 
@@ -319,6 +320,9 @@ class DynamicReport:
             else:
                 http_req = transaction.request
                 http_res = transaction.response or {}
+                # Triage reports carry no HTTP message content: request/response hold
+                # only the start lines and stream is the HTTP/2 stream number, so the
+                # body fields stay unset. Full content is only in the task PCAP.
                 http_details = {
                     "request_uri": http_req.get("url", ""),
                     "request_method": http_req.get("method", "GET"),
@@ -333,6 +337,9 @@ class DynamicReport:
                             f"{context}: {dropped} HTTP {kind} header(s) with unsupported names "
                             "omitted from ontology; see HTTP evidence."
                         )
+                http_details["response_content_mimetype"] = _response_mimetype(
+                    cast(dict[str, Any], http_details["response_headers"])
+                )
                 try:
                     if not http_details["request_uri"]:
                         raise ValueError("Missing HTTP request URI")
@@ -426,6 +433,10 @@ class DynamicReport:
                 response_headers=d.get("response_headers") or None,
                 response_status_code=d.get("response_status_code"),
             )
+            if d.get("response_content_mimetype"):
+                # The helper has no parameter for this ODM field and update() ignores
+                # undeclared attributes; as_primitives() exports every attribute set.
+                flow["http_details"].response_content_mimetype = d["response_content_mimetype"]  # ty: ignore[unresolved-attribute]
         if isinstance(flow.get("dns_details"), dict):
             d = cast(dict[str, Any], flow["dns_details"])
             flow["dns_details"] = NetworkDNS(

@@ -1,8 +1,12 @@
+import re
 from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Any
 
 from assemblyline.odm.models.ontology.results.network import LOOKUP_TYPES, NetworkHTTP
+
+# RFC 6838 type/subtype restricted names, compared lowercased
+_MEDIA_TYPE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$")
 
 
 @dataclass
@@ -55,6 +59,26 @@ def _network_transactions(records: list[dict[str, Any]]) -> list[NetworkTransact
         for occurrence, (position, request, response) in enumerate(sorted(paired, key=lambda item: item[0])):
             transactions.append((position, NetworkTransaction(flow, index, protocol, occurrence, request, response)))
     return [transaction for _, transaction in sorted(transactions, key=lambda item: item[0])]
+
+
+def _response_mimetype(headers: dict[str, Any]) -> str | None:
+    """Media type of the observed response Content-Type, without parameters.
+
+    Repeated lines arrive comma-combined, so each comma-separated part with a
+    slash is a candidate type; parts without one are parameter fragments.
+    Unset when the header is absent, malformed or the candidates disagree.
+    """
+    types = {
+        part.partition(";")[0].strip().lower()
+        for name, value in headers.items()
+        if name.lower() == "content-type" and isinstance(value, str)
+        for part in value.split(",")
+        if "/" in part.partition(";")[0]
+    }
+    if len(types) != 1:
+        return None
+    mimetype = types.pop()
+    return mimetype if _MEDIA_TYPE.match(mimetype) else None
 
 
 def _normalize_dns_lookup_type(raw: Any) -> str | None:

@@ -227,6 +227,54 @@ def test_http_headers_without_whitespace_export():
     assert dr.diagnostics == []
 
 
+@pytest.mark.parametrize(
+    "headers,expected",
+    [
+        (["Content-Type: text/html; charset=UTF-8"], "text/html"),
+        (["content-type:Application/JSON"], "application/json"),
+        (["Content-Type: application/vnd.ms-excel+xml ; q=1"], "application/vnd.ms-excel+xml"),
+        (["Content-Type: text/html", "content-type: text/html;charset=utf-8"], "text/html"),
+        ([], None),
+        (["Content-Type: garbage"], None),
+        (["Content-Type: "], None),
+        (["Content-Type: text/html", "Content-Type: text/plain"], None),
+        (["Content-Type: text/html", "content-type: text/plain"], None),
+        (["Content-Type: application/json; charset=UTF-8", "Content-Type: application/json"], "application/json"),
+        (['Content-Type: multipart/form-data; boundary="a,b"'], "multipart/form-data"),
+        (["Content-Type: */*"], None),
+        ([{"name": "Content-Type", "value": 7}], None),
+    ],
+)
+def test_response_mimetype_from_observed_content_type(headers, expected):
+    request, response = halves("http")
+    response["http_response"]["headers"] = headers
+    dr = parse([request, response])
+    details = export_connections(dr)[0]["http_details"]
+    assert details["request_uri"] == "http://query.example.com/"
+    assert details.get("response_content_mimetype") == expected
+
+
+def test_request_content_type_or_missing_response_leaves_mimetype_unset():
+    request, _ = halves("http")
+    request["http_request"]["headers"] = ["Content-Type: application/json"]
+    details = export_connections(parse([request]))[0]["http_details"]
+    assert details["request_headers"] == {"Content-Type": "application/json"}
+    assert details.get("response_content_mimetype") is None
+
+
+def test_start_lines_and_stream_are_not_mapped_as_bodies():
+    # Triage's request/response fields hold the HTTP start lines and stream holds
+    # the HTTP/2 stream number; neither is message content.
+    request, response = halves("http")
+    request["http_request"].update(request="POST / HTTP/1.1", stream=3)
+    response["http_response"].update(response="HTTP/1.1 201 Created", stream=3)
+    dr = parse([request, response])
+    details = export_connections(dr)[0]["http_details"]
+    assert details.get("request_body") is None
+    assert details.get("response_body") is None
+    assert dr.http_evidence == [request, response]
+
+
 def test_repeated_set_cookie_keeps_http_details():
     request, response = halves("http")
     response["http_response"]["headers"] = ["Set-Cookie: a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "Set-Cookie: b=2"]
