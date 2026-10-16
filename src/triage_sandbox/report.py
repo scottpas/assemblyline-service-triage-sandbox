@@ -337,9 +337,7 @@ class DynamicReport:
                             f"{context}: {dropped} HTTP {kind} header(s) with unsupported names "
                             "omitted from ontology; see HTTP evidence."
                         )
-                http_details["response_content_mimetype"] = _response_mimetype(
-                    cast(dict[str, Any], http_details["response_headers"])
-                )
+                http_details["response_content_mimetype"] = _response_mimetype(http_res.get("headers"))
                 try:
                     if not http_details["request_uri"]:
                         raise ValueError("Missing HTTP request URI")

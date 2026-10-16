@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Any
@@ -88,18 +89,19 @@ def _split_field_values(value: str) -> list[str] | None:
     return parts
 
 
-def _response_mimetype(headers: dict[str, Any]) -> str | None:
+def _response_mimetype(headers: Any) -> str | None:
     """Media type of the observed response Content-Type, without parameters.
 
-    Repeated lines arrive comma-combined, so every non-empty element must be a
-    valid media type and all must agree. Unset when the header is absent,
-    any element is malformed or the elements disagree.
+    Reads the original header lines rather than the combined mapping, so each
+    line keeps its own boundaries. Every non-empty element of every
+    Content-Type line must be a valid media type and all must agree; unset
+    when the header is absent, any line is malformed or the types disagree.
     """
     types: set[str] = set()
-    for name, value in headers.items():
-        if name.lower() != "content-type" or not isinstance(value, str):
+    for name, value in _http_header_lines(headers):
+        if name.lower() != "content-type":
             continue
-        elements = _split_field_values(value)
+        elements = _split_field_values(value) if isinstance(value, str) else None
         if elements is None:
             return None
         for element in elements:
@@ -135,6 +137,25 @@ def _split_addr(addr: str) -> tuple[str, int]:
     return ip, port
 
 
+def _http_header_lines(headers: Any) -> Iterator[tuple[str, Any]]:
+    """Yield (name, value) for each Triage HTTP header line, in recorded order.
+
+    Accepts 'name:value' strings, split at the first colon, and name/value
+    dicts. Names and string values are stripped and a missing value becomes
+    an empty string; entries without a usable name are skipped.
+    """
+    for h in headers or []:
+        if isinstance(h, dict):
+            name, value = h.get("name"), h.get("value")
+        elif isinstance(h, str) and ":" in h:
+            name, _, value = h.partition(":")
+        else:
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+        yield name.strip(), "" if value is None else value.strip() if isinstance(value, str) else value
+
+
 # Request and response headers share this Mapping type and its key sanitizer
 _HTTP_HEADERS_FIELD = NetworkHTTP.fields()["request_headers"]
 
@@ -150,17 +171,7 @@ def _parse_http_headers(headers: Any) -> tuple[dict[str, Any], int]:
     """
     result: dict[str, Any] = {}
     dropped = 0
-    for h in headers or []:
-        if isinstance(h, dict):
-            name, value = h.get("name"), h.get("value")
-        elif isinstance(h, str) and ":" in h:
-            name, _, value = h.partition(":")
-        else:
-            continue
-        if not isinstance(name, str) or not name.strip():
-            continue
-        name = name.strip()
-        value = "" if value is None else value.strip() if isinstance(value, str) else value
+    for name, value in _http_header_lines(headers):
         try:
             _HTTP_HEADERS_FIELD.check({name: value})
         except KeyError:

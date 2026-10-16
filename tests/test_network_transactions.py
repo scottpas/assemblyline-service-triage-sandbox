@@ -245,6 +245,8 @@ def test_http_headers_without_whitespace_export():
         (['Content-Type: multipart/form-data; boundary="a\\",b/c"'], "multipart/form-data"),
         (["Content-Type: text/html", "Content-Type: garbage"], None),
         (['Content-Type: multipart/form-data; boundary="a', "Content-Type: text/plain"], None),
+        (['Content-Type: multipart/form-data; boundary="a', 'Content-Type: text/plain"'], None),
+        (["Content-Type: text/html", {"name": "content-type", "value": 7}], None),
         (['Content-Type: multipart/form-data; boundary="a\\'], None),
         (["Content-Type: text/html", "Content-Type: text/html; q=1, , "], "text/html"),
         (["Content-Type: */*"], None),
