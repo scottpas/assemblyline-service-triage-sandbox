@@ -61,24 +61,46 @@ def _network_transactions(records: list[dict[str, Any]]) -> list[NetworkTransact
     return [transaction for _, transaction in sorted(transactions, key=lambda item: item[0])]
 
 
+def _split_field_values(value: str) -> list[str]:
+    """Split a comma-combined field value at commas outside quoted strings (RFC 9110 5.6)."""
+    parts: list[str] = []
+    current: list[str] = []
+    quoted = escaped = False
+    for char in value:
+        if escaped:
+            escaped = False
+        elif quoted and char == "\\":
+            escaped = True
+        elif char == '"':
+            quoted = not quoted
+        elif char == "," and not quoted:
+            parts.append("".join(current))
+            current = []
+            continue
+        current.append(char)
+    parts.append("".join(current))
+    return parts
+
+
 def _response_mimetype(headers: dict[str, Any]) -> str | None:
     """Media type of the observed response Content-Type, without parameters.
 
-    Repeated lines arrive comma-combined, so each comma-separated part with a
-    slash is a candidate type; parts without one are parameter fragments.
-    Unset when the header is absent, malformed or the candidates disagree.
+    Repeated lines arrive comma-combined, so every non-empty element must be a
+    valid media type and all must agree. Unset when the header is absent,
+    any element is malformed or the elements disagree.
     """
-    types = {
-        part.partition(";")[0].strip().lower()
-        for name, value in headers.items()
-        if name.lower() == "content-type" and isinstance(value, str)
-        for part in value.split(",")
-        if "/" in part.partition(";")[0]
-    }
-    if len(types) != 1:
-        return None
-    mimetype = types.pop()
-    return mimetype if _MEDIA_TYPE.match(mimetype) else None
+    types: set[str] = set()
+    for name, value in headers.items():
+        if name.lower() != "content-type" or not isinstance(value, str):
+            continue
+        for element in _split_field_values(value):
+            if not element.strip():
+                continue
+            mimetype = element.partition(";")[0].strip().lower()
+            if not _MEDIA_TYPE.match(mimetype):
+                return None
+            types.add(mimetype)
+    return types.pop() if len(types) == 1 else None
 
 
 def _normalize_dns_lookup_type(raw: Any) -> str | None:
