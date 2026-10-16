@@ -61,8 +61,12 @@ def _network_transactions(records: list[dict[str, Any]]) -> list[NetworkTransact
     return [transaction for _, transaction in sorted(transactions, key=lambda item: item[0])]
 
 
-def _split_field_values(value: str) -> list[str]:
-    """Split a comma-combined field value at commas outside quoted strings (RFC 9110 5.6)."""
+def _split_field_values(value: str) -> list[str] | None:
+    """Split a comma-combined field value at commas outside quoted strings (RFC 9110 5.6).
+
+    None when a quoted string is left open, since its closing quote may have
+    belonged to a later line and the element boundaries are then unknown.
+    """
     parts: list[str] = []
     current: list[str] = []
     quoted = escaped = False
@@ -78,6 +82,8 @@ def _split_field_values(value: str) -> list[str]:
             current = []
             continue
         current.append(char)
+    if quoted:
+        return None
     parts.append("".join(current))
     return parts
 
@@ -93,7 +99,10 @@ def _response_mimetype(headers: dict[str, Any]) -> str | None:
     for name, value in headers.items():
         if name.lower() != "content-type" or not isinstance(value, str):
             continue
-        for element in _split_field_values(value):
+        elements = _split_field_values(value)
+        if elements is None:
+            return None
+        for element in elements:
             if not element.strip():
                 continue
             mimetype = element.partition(";")[0].strip().lower()
