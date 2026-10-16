@@ -339,7 +339,7 @@ def test_execute_single_label_flow_domain_passes_tag_validation(
             tags.setdefault(k, []).extend(v)
     Tagging(unflatten(tags))  # raises on any value AL would reject
     assert "debian12-armhf-20260513-en-8" not in tags.get("network.dynamic.domain", [])
-    assert "evil.example.com" in tags["network.dynamic.domain"]
+    assert tags["network.dynamic.domain"].count("evil.example.com") >= 1
 
     task_section = find_subsection(req.result.sections[0], "Task: behavioral1")
     ioc = find_subsection(task_section, "Network IOCs")
