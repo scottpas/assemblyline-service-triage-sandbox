@@ -6,8 +6,8 @@ from typing import Any
 
 from assemblyline.odm.models.ontology.results.network import LOOKUP_TYPES, NetworkHTTP
 
-# RFC 6838 type/subtype restricted names, compared lowercased
-_MEDIA_TYPE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$")
+# RFC 6838 type/subtype restricted names (at most 127 characters each), compared lowercased
+_MEDIA_TYPE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$")
 
 
 @dataclass
