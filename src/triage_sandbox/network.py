@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Any
 
-from assemblyline.odm.models.ontology.results.network import LOOKUP_TYPES
+from assemblyline.odm.models.ontology.results.network import LOOKUP_TYPES, NetworkHTTP
 
 
 @dataclass
@@ -80,14 +80,42 @@ def _split_addr(addr: str) -> tuple[str, int]:
     return ip, port
 
 
-def _parse_http_headers(headers: Any) -> dict[str, str]:
-    """Parse Triage HTTP headers (list of 'name: value' strings or dicts) into a dict."""
-    result: dict[str, str] = {}
+# Request and response headers share this Mapping type and its key sanitizer
+_HTTP_HEADERS_FIELD = NetworkHTTP.fields()["request_headers"]
+
+
+def _parse_http_headers(headers: Any) -> tuple[dict[str, Any], int]:
+    """Parse Triage HTTP headers (list of 'name:value' strings or dicts) into (headers, dropped).
+
+    Strings split at the first colon, so whitespace around either side is optional
+    and colons inside the value are kept. Repeated names combine into one
+    comma-separated value in recorded order (RFC 9110 5.3), except Set-Cookie,
+    whose values can contain commas and so are kept as a list. Header lines whose
+    name the NetworkHTTP mapping rejects are counted in `dropped` and left out.
+    """
+    result: dict[str, Any] = {}
+    dropped = 0
     for h in headers or []:
         if isinstance(h, dict):
-            result[h.get("name", "")] = h.get("value", "")
-        elif isinstance(h, str):
-            name, _, value = h.partition(": ")
-            if name:
-                result[name] = value
-    return result
+            name, value = h.get("name"), h.get("value")
+        elif isinstance(h, str) and ":" in h:
+            name, _, value = h.partition(":")
+        else:
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+        name = name.strip()
+        value = "" if value is None else value.strip() if isinstance(value, str) else value
+        try:
+            _HTTP_HEADERS_FIELD.check({name: value})
+        except KeyError:
+            dropped += 1
+            continue
+        if name not in result:
+            result[name] = value
+        elif name.lower() == "set-cookie":
+            previous = result[name]
+            result[name] = [*(previous if isinstance(previous, list) else [previous]), value]
+        else:
+            result[name] = f"{result[name]}, {value}"
+    return result, dropped

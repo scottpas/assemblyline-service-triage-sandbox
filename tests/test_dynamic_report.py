@@ -776,18 +776,62 @@ def test_signature_descriptions_empty_when_no_desc():
 
 def test_parse_http_headers_dict_style():
     headers = [{"name": "Host", "value": "evil.com"}, {"name": "Accept", "value": "*/*"}]
-    assert _parse_http_headers(headers) == {"Host": "evil.com", "Accept": "*/*"}
+    assert _parse_http_headers(headers) == ({"Host": "evil.com", "Accept": "*/*"}, 0)
 
 
 def test_parse_http_headers_skips_invalid_entries_and_empty_names():
-    # A non-str/non-dict element is silently dropped; a string with an empty name
-    # (before the ": " separator) is also dropped.
-    headers = [123, ": no-name-value", "Host: evil.com"]
-    assert _parse_http_headers(headers) == {"Host": "evil.com"}
+    # A non-str/non-dict element, a string with an empty name before the first
+    # colon, a string without a colon and a dict without a string name are dropped.
+    headers = [123, ": no-name-value", "  :x", "no-colon", {"name": 5, "value": "x"}, {"value": "x"}, "Host: evil.com"]
+    assert _parse_http_headers(headers) == ({"Host": "evil.com"}, 0)
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Content-Type:application/octet-stream", {"Content-Type": "application/octet-stream"}),
+        ("Content-Type: application/octet-stream", {"Content-Type": "application/octet-stream"}),
+        (" Content-Type \t:  application/octet-stream ", {"Content-Type": "application/octet-stream"}),
+        ("Location:http://evil.com:8080/a:b", {"Location": "http://evil.com:8080/a:b"}),
+        ("X-Empty:", {"X-Empty": ""}),
+    ],
+)
+def test_parse_http_headers_splits_at_first_colon(raw, expected):
+    assert _parse_http_headers([raw]) == (expected, 0)
+
+
+def test_parse_http_headers_dict_style_strips_name_and_value():
+    headers = [
+        {"name": " Host ", "value": " evil.com:8080 "},
+        {"name": "X-Count", "value": 3},
+        {"name": "X-None"},
+        {"name": "X-Null", "value": None},
+    ]
+    assert _parse_http_headers(headers) == ({"Host": "evil.com:8080", "X-Count": 3, "X-None": "", "X-Null": ""}, 0)
+
+
+def test_parse_http_headers_combines_repeated_names_in_order():
+    # RFC 9110 5.3: repeated field lines combine into one comma-separated value.
+    headers = ["Accept: text/html", {"name": "Accept", "value": None}, "Accept: */*", "accept: x"]
+    assert _parse_http_headers(headers) == ({"Accept": "text/html, , */*", "accept": "x"}, 0)
+
+
+def test_parse_http_headers_keeps_repeated_set_cookie_as_list():
+    # Set-Cookie values contain commas (Expires dates), so they cannot be combined.
+    headers = ["Set-Cookie: a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "set-cookie:b=2", "Set-Cookie: c=3"]
+    assert _parse_http_headers(headers) == (
+        {"Set-Cookie": ["a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "c=3"], "set-cookie": "b=2"},
+        0,
+    )
+
+
+def test_parse_http_headers_counts_each_unstorable_line():
+    headers = ["X/Auth: one", "X/Auth: two", "Ünï: three", "Host: evil.com"]
+    assert _parse_http_headers(headers) == ({"Host": "evil.com"}, 3)
 
 
 def test_parse_http_headers_none_returns_empty_dict():
-    assert _parse_http_headers(None) == {}
+    assert _parse_http_headers(None) == ({}, 0)
 
 
 # ---------------------------------------------------------------------------
