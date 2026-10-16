@@ -11,6 +11,9 @@ on:
         description: Git ref to publish
         required: true
         type: string
+    # Callers must pass these by name even though they only need to exist in the
+    # dockerhub environment: GitHub resolves an unpassed secret to an empty
+    # string, and the environment's value takes precedence in the job below.
     secrets:
       DOCKERHUB_USERNAME:
         description: Docker Hub username
