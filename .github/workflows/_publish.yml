@@ -51,6 +51,7 @@ jobs:
       - name: Calculate release version
         id: version
         env:
+          GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ inputs.channel }}
         run: |
           ASSEMBLYLINE_VERSION="$(sed -n 's/^ASSEMBLYLINE_VERSION=//p' .release-version)"
@@ -65,15 +66,30 @@ jobs:
             exit 1
           fi
 
+          commit="$(git rev-parse HEAD)"
           prefix="v${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}"
           latest="$(git tag --list "${prefix}[0-9]*" --sort=-version:refname | head -n 1)"
+          resume=false
           if [[ -n "$latest" ]]; then
-            minor="${latest#${prefix}}"
+            minor="${latest#"${prefix}"}"
             if [[ ! "$minor" =~ ^[0-9]+$ ]]; then
               echo "Invalid existing release tag: $latest" >&2
               exit 1
             fi
-            minor=$((10#$minor + 1))
+            if [[ "$(git rev-list -n 1 "$latest")" == "$commit" ]]; then
+              if ! gh release view "$latest" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                # A previous run for this commit reserved the tag but did not
+                # finish; pick up where it stopped instead of skipping a version.
+                echo "Resuming unfinished release $latest"
+                resume=true
+              elif [[ "$CHANNEL" == "stable" ]]; then
+                echo "The current main commit is already released as $latest" >&2
+                exit 1
+              fi
+            fi
+            if [[ "$resume" != "true" ]]; then
+              minor=$((10#$minor + 1))
+            fi
           else
             minor=0
           fi
@@ -88,31 +104,14 @@ jobs:
           {
             echo "version=$version"
             echo "git_tag=$git_tag"
-            echo "tag_prefix=$prefix"
-            echo "commit=$(git rev-parse HEAD)"
+            echo "commit=$commit"
+            echo "resume=$resume"
             if [[ "$CHANNEL" == "dev" ]]; then
               echo "base_tag=latest"
             else
               echo "base_tag=stable"
             fi
           } >> "$GITHUB_OUTPUT"
-
-      - name: Prevent duplicate stable release
-        if: ${{ inputs.channel == 'stable' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          COMMIT: ${{ steps.version.outputs.commit }}
-          TAG_PREFIX: ${{ steps.version.outputs.tag_prefix }}
-        run: |
-          latest_stable="$(git tag --list "${TAG_PREFIX}[0-9]*" --sort=-version:refname | head -n 1)"
-          if [[ -n "$latest_stable" && "$(git rev-list -n 1 "$latest_stable")" == "$COMMIT" ]]; then
-            if gh release view "$latest_stable" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              echo "The current main commit is already released as $latest_stable" >&2
-            else
-              echo "$latest_stable was reserved by a run that did not finish; delete the tag and re-run." >&2
-            fi
-            exit 1
-          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -143,24 +142,35 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Ensure image tag is unused
+      - name: Check for an existing image
+        id: existing
         env:
+          RESUME: ${{ steps.version.outputs.resume }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           image="docker.io/${GITHUB_REPOSITORY}:${VERSION}"
           if output="$(docker buildx imagetools inspect "$image" 2>&1)"; then
-            echo "$image already exists on Docker Hub; refusing to overwrite it." >&2
-            exit 1
+            if [[ "$RESUME" != "true" ]]; then
+              echo "$image already exists on Docker Hub; refusing to overwrite it." >&2
+              exit 1
+            fi
+            # Only a run for this commit can reserve this tag, so the image was
+            # pushed by an earlier attempt of this release.
+            echo "Reusing $image pushed by the unfinished release"
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           if ! grep -qi "not found" <<< "$output"; then
             echo "Could not check whether $image exists:" >&2
             echo "$output" >&2
             exit 1
           fi
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
 
       # Reserving the tag before pushing means a failed run can never hand the
       # same version to a later run and overwrite an image that was already pushed.
       - name: Reserve release tag
+        if: ${{ steps.version.outputs.resume != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           COMMIT: ${{ steps.version.outputs.commit }}
@@ -171,7 +181,7 @@ jobs:
             -f sha="$COMMIT" > /dev/null
 
       - name: Push image
-        id: push
+        if: ${{ steps.existing.outputs.pushed != 'true' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -188,7 +198,7 @@ jobs:
 
       - name: Export SBOM
         env:
-          IMAGE: docker.io/${{ github.repository }}@${{ steps.push.outputs.digest }}
+          IMAGE: docker.io/${{ github.repository }}:${{ steps.version.outputs.version }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           docker buildx imagetools inspect "$IMAGE" --format '{{ json .SBOM.SPDX }}' > "sbom-${VERSION}.spdx.json"
