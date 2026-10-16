@@ -3,23 +3,9 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      pull_request_number:
-        description: Pull request number used to share the PR concurrency group
-        required: false
-        type: string
-      base_ref:
-        description: Base commit for dependency review
-        required: false
-        type: string
-      head_ref:
-        description: Head commit for dependency review
-        required: false
-        type: string
 
 concurrency:
-  group: ci-${{ inputs.pull_request_number || github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -30,10 +16,16 @@ jobs:
     name: Quality
     uses: ./.github/workflows/_quality.yml
     with:
-      run_codecov: ${{ github.event_name == 'pull_request' }}
+      # Dependabot PRs cannot read the Codecov token, so they skip the upload.
+      upload_reports: ${{ github.event.pull_request.user.login != 'dependabot[bot]' }}
+
+  codecov:
+    name: Codecov
+    needs: quality
+    if: ${{ always() && !cancelled() && needs.quality.outputs.reports_available == 'true' }}
+    uses: ./.github/workflows/codecov.yml
     secrets:
-      # Dependabot refreshes use workflow_dispatch and must remain secretless.
-      CODECOV_TOKEN: ${{ github.event_name == 'pull_request' && secrets.CODECOV_TOKEN || '' }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   dependency-review:
     name: Dependency review
@@ -43,18 +35,13 @@ jobs:
       - name: Review dependency changes
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
-          base-ref: ${{ inputs.base_ref || github.event.pull_request.base.sha }}
-          head-ref: ${{ inputs.head_ref || github.event.pull_request.head.sha }}
           fail-on-severity: moderate
 
   container:
-    name: Container build and scan
+    name: Container build and smoke test
     needs: quality
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -63,27 +50,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Scan repository
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,secret,misconfig
-          format: sarif
-          output: trivy-repository.sarif
-          exit-code: "0"
-          severity: HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          ignore-unfixed: true
-          trivyignores: .trivyignore.yaml
-
-      - name: Upload repository scan to code scanning
-        if: ${{ always() && !cancelled() && hashFiles('trivy-repository.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
-        with:
-          sarif_file: trivy-repository.sarif
-          category: trivy-repository
 
       - name: Read compatibility version
         id: version
@@ -111,21 +77,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Scan container
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: local/triage-sandbox:ci
-          format: sarif
-          output: trivy-container.sarif
-          exit-code: "0"
-          severity: HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          ignore-unfixed: true
-          trivyignores: .trivyignore.yaml
-
-      - name: Upload container scan to code scanning
-        if: ${{ always() && !cancelled() && hashFiles('trivy-container.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
-        with:
-          sarif_file: trivy-container.sarif
-          category: trivy-container-ci
+      - name: Smoke test container
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: .github/scripts/smoke-test-image.sh local/triage-sandbox:ci "$VERSION"

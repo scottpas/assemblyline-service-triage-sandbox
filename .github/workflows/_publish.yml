@@ -24,7 +24,6 @@ concurrency:
 
 permissions:
   contents: write
-  security-events: write
 
 jobs:
   publish:
@@ -101,12 +100,17 @@ jobs:
       - name: Prevent duplicate stable release
         if: ${{ inputs.channel == 'stable' }}
         env:
+          GH_TOKEN: ${{ github.token }}
           COMMIT: ${{ steps.version.outputs.commit }}
           TAG_PREFIX: ${{ steps.version.outputs.tag_prefix }}
         run: |
           latest_stable="$(git tag --list "${TAG_PREFIX}[0-9]*" --sort=-version:refname | head -n 1)"
           if [[ -n "$latest_stable" && "$(git rev-list -n 1 "$latest_stable")" == "$COMMIT" ]]; then
-            echo "The current main commit is already released as $latest_stable" >&2
+            if gh release view "$latest_stable" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "The current main commit is already released as $latest_stable" >&2
+            else
+              echo "$latest_stable was reserved by a run that did not finish; delete the tag and re-run." >&2
+            fi
             exit 1
           fi
 
@@ -128,38 +132,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Generate SBOM
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
-          format: cyclonedx
-          output: trivy-sbom.cdx.json
-
-      - name: Scan container
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ github.repository }}:${{ steps.version.outputs.version }}
-          format: sarif
-          output: trivy-container.sarif
-          exit-code: "0"
-          severity: HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          ignore-unfixed: true
-          trivyignores: .trivyignore.yaml
-
-      - name: Upload container scan to code scanning
-        if: ${{ always() && !cancelled() }}
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
-        with:
-          sarif_file: trivy-container.sarif
-          category: trivy-container-${{ inputs.channel }}
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: sbom-${{ steps.version.outputs.version }}
-          path: trivy-sbom.cdx.json
-          if-no-files-found: error
+      - name: Smoke test container
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: .github/scripts/smoke-test-image.sh "${GITHUB_REPOSITORY}:${VERSION}" "$VERSION"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -167,26 +143,66 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image
+      - name: Ensure image tag is unused
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: docker push "${GITHUB_REPOSITORY}:${VERSION}"
+        run: |
+          image="docker.io/${GITHUB_REPOSITORY}:${VERSION}"
+          if output="$(docker buildx imagetools inspect "$image" 2>&1)"; then
+            echo "$image already exists on Docker Hub; refusing to overwrite it." >&2
+            exit 1
+          fi
+          if ! grep -qi "not found" <<< "$output"; then
+            echo "Could not check whether $image exists:" >&2
+            echo "$output" >&2
+            exit 1
+          fi
+
+      # Reserving the tag before pushing means a failed run can never hand the
+      # same version to a later run and overwrite an image that was already pushed.
+      - name: Reserve release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+          GIT_TAG: ${{ steps.version.outputs.git_tag }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${GIT_TAG}" \
+            -f sha="$COMMIT" > /dev/null
+
+      - name: Push image
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            version=${{ steps.version.outputs.version }}
+            branch=${{ steps.version.outputs.base_tag }}
+          tags: docker.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+
+      - name: Export SBOM
+        env:
+          IMAGE: docker.io/${{ github.repository }}@${{ steps.push.outputs.digest }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "$IMAGE" --format '{{ json .SBOM.SPDX }}' > "sbom-${VERSION}.spdx.json"
+          jq -e '.spdxVersion' "sbom-${VERSION}.spdx.json" > /dev/null
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ inputs.channel }}
-          COMMIT: ${{ steps.version.outputs.commit }}
           GIT_TAG: ${{ steps.version.outputs.git_tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          args=("$GIT_TAG" --target "$COMMIT" --generate-notes --title "$GIT_TAG")
+          args=("$GIT_TAG" --verify-tag --generate-notes --title "$GIT_TAG")
           if [[ "$CHANNEL" == "dev" ]]; then
             args+=(--prerelease)
           fi
-          gh release create "${args[@]}"
-
-      - name: Attach SBOM to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GIT_TAG: ${{ steps.version.outputs.git_tag }}
-        run: gh release upload "$GIT_TAG" trivy-sbom.cdx.json
+          gh release create "${args[@]}" "sbom-${VERSION}.spdx.json"

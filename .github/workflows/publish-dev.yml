@@ -13,7 +13,15 @@ jobs:
     uses: ./.github/workflows/_quality.yml
     with:
       ref: ${{ github.sha }}
-      run_codecov: true
+      upload_reports: true
+
+  codecov:
+    name: Codecov
+    needs: quality
+    if: ${{ always() && !cancelled() && needs.quality.outputs.reports_available == 'true' }}
+    uses: ./.github/workflows/codecov.yml
+    with:
+      ref: ${{ github.sha }}
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -22,7 +30,6 @@ jobs:
     needs: quality
     permissions:
       contents: write
-      security-events: write
     uses: ./.github/workflows/_publish.yml
     with:
       channel: dev
