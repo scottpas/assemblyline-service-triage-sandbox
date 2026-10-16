@@ -68,30 +68,42 @@ jobs:
 
           commit="$(git rev-parse HEAD)"
           prefix="v${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}"
-          latest="$(git tag --list "${prefix}[0-9]*" --sort=-version:refname | head -n 1)"
-          resume=false
-          if [[ -n "$latest" ]]; then
-            minor="${latest#"${prefix}"}"
+
+          tag_minor() {
+            local minor="${1#"${prefix}"}"
             if [[ ! "$minor" =~ ^[0-9]+$ ]]; then
-              echo "Invalid existing release tag: $latest" >&2
+              echo "Invalid existing release tag: $1" >&2
               exit 1
             fi
-            if [[ "$(git rev-list -n 1 "$latest")" == "$commit" ]]; then
-              if ! gh release view "$latest" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-                # A previous run for this commit reserved the tag but did not
-                # finish; pick up where it stopped instead of skipping a version.
-                echo "Resuming unfinished release $latest"
-                resume=true
-              elif [[ "$CHANNEL" == "stable" ]]; then
-                echo "The current main commit is already released as $latest" >&2
+            echo "$((10#$minor))"
+          }
+
+          # A tag already on this commit means an earlier run reserved it. Finish
+          # that release unless it was published (a draft is left behind when
+          # `gh release create` fails part-way).
+          resume=false
+          current="$(git tag --list "${prefix}[0-9]*" --points-at "$commit" --sort=-version:refname | head -n 1)"
+          if [[ -n "$current" ]]; then
+            is_draft="$(gh release view "$current" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || true)"
+            if [[ "$is_draft" == "false" ]]; then
+              echo "This commit is already released as $current" >&2
+              exit 1
+            fi
+            echo "Resuming unfinished release $current"
+            resume=true
+            minor="$(tag_minor "$current")"
+          else
+            latest="$(git tag --list "${prefix}[0-9]*" --sort=-version:refname | head -n 1)"
+            if [[ -n "$latest" ]]; then
+              if ! git merge-base --is-ancestor "$latest" "$commit"; then
+                echo "$latest is newer than this commit; refusing to publish older code as a later version." >&2
                 exit 1
               fi
+              latest_minor="$(tag_minor "$latest")"
+              minor=$((latest_minor + 1))
+            else
+              minor=0
             fi
-            if [[ "$resume" != "true" ]]; then
-              minor=$((10#$minor + 1))
-            fi
-          else
-            minor=0
           fi
 
           version="${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.${CHANNEL}${minor}"
@@ -211,6 +223,11 @@ jobs:
           GIT_TAG: ${{ steps.version.outputs.git_tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          if [[ "$(gh release view "$GIT_TAG" --json isDraft --jq .isDraft 2>/dev/null)" == "true" ]]; then
+            echo "Deleting draft left by an earlier attempt"
+            gh release delete "$GIT_TAG" --yes
+          fi
+
           args=("$GIT_TAG" --verify-tag --generate-notes --title "$GIT_TAG")
 
           # Start notes at the previous release on this channel; by default GitHub
