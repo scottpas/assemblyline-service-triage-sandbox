@@ -202,6 +202,19 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           args=("$GIT_TAG" --verify-tag --generate-notes --title "$GIT_TAG")
+
+          # Start notes at the previous release on this channel; by default GitHub
+          # uses the latest release, which for stable is usually a dev release.
+          previous="$(
+            gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 200 \
+              --json tagName,createdAt \
+              --jq "[.[] | select(.tagName | test(\"^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+\\\\.${CHANNEL}[0-9]+\$\"))]
+                    | sort_by(.createdAt) | last | .tagName // empty"
+          )"
+          if [[ -n "$previous" ]]; then
+            args+=(--notes-start-tag "$previous")
+          fi
+
           if [[ "$CHANNEL" == "dev" ]]; then
             args+=(--prerelease)
           fi
