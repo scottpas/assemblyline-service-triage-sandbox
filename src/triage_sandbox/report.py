@@ -39,7 +39,12 @@ from .constants import (
     SERVICE_NAME,
 )
 from .models import Config, Credentials, Ransom
-from .network import _network_transactions, _normalize_dns_lookup_type, _parse_http_headers, _split_addr
+from .network import (
+    _network_transactions,
+    _normalize_dns_lookup_type,
+    _parse_http_headers,
+    _split_addr,
+)
 
 # Same validator AL applies to network.dynamic.domain tags at result validation
 _DOMAIN_FIELD = DomainField()
@@ -317,15 +322,22 @@ class DynamicReport:
                 http_details = {
                     "request_uri": http_req.get("url", ""),
                     "request_method": http_req.get("method", "GET"),
-                    "request_headers": _parse_http_headers(http_req.get("headers")),
-                    "response_headers": _parse_http_headers(http_res.get("headers")),
                     "response_status_code": http_res.get("status") or None,
                 }
+                for kind, half in (("request", http_req), ("response", http_res)):
+                    # Drop only the header names AL cannot store; the raw evidence keeps them.
+                    headers, dropped = _parse_http_headers(half.get("headers"))
+                    http_details[f"{kind}_headers"] = headers
+                    if dropped:
+                        self.diagnostics.append(
+                            f"{context}: {dropped} HTTP {kind} header(s) with unsupported names "
+                            "omitted from ontology; see HTTP evidence."
+                        )
                 try:
                     if not http_details["request_uri"]:
                         raise ValueError("Missing HTTP request URI")
                     http_details = NetworkHTTPModel(http_details).as_primitives()
-                except (ValueError, TypeError) as exc:
+                except (KeyError, ValueError, TypeError) as exc:
                     self.diagnostics.append(
                         f"{context}: invalid HTTP details ({type(exc).__name__}); "
                         "HTTP details omitted from ontology; see HTTP evidence."

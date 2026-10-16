@@ -216,6 +216,68 @@ def test_invalid_http_request_keeps_connection_and_response_evidence(bad_field, 
     assert dr.http_evidence == [request, response]
 
 
+def test_http_headers_without_whitespace_export():
+    request, response = halves("http")
+    request["http_request"]["headers"] = ["Host:query.example.com", "X-Forwarded:a:b"]
+    response["http_response"]["headers"] = ["Content-Type:application/octet-stream"]
+    dr = parse([request, response])
+    details = export_connections(dr)[0]["http_details"]
+    assert details["request_headers"] == {"Host": "query.example.com", "X-Forwarded": "a:b"}
+    assert details["response_headers"] == {"Content-Type": "application/octet-stream"}
+    assert dr.diagnostics == []
+
+
+@pytest.mark.parametrize("half", ["http_request", "http_response"])
+def test_unstorable_header_name_keeps_task_evidence(half):
+    request, response = halves("http")
+    record = request if half == "http_request" else response
+    secret = "Bearer s3cr3t"
+    record[half]["headers"] += [f"X/Auth: {secret}", f"Ünï: {secret}"]
+    dr = parse([request, response])
+
+    # The task report survives with its unrelated evidence.
+    assert dr.ontology.get_processes()
+    assert dr.signatures
+    assert dr.malware_config
+    # Valid HTTP fields and headers still export; only the unstorable names are dropped.
+    details = export_connections(dr)[0]["http_details"]
+    assert details["request_uri"] == "http://query.example.com/"
+    assert details["request_headers"] == {"X-Request": "yes"}
+    assert details["response_headers"] == {"X-Response": "yes"}
+    # Raw evidence keeps the original headers; the diagnostic names neither header nor value.
+    assert dr.http_evidence == [request, response]
+    kind = "request" if half == "http_request" else "response"
+    assert dr.diagnostics == [
+        f"Task behavioral1, flow 1, index 1: 2 HTTP {kind} header(s) with unsupported names "
+        "omitted from ontology; see HTTP evidence."
+    ]
+    assert not any(secret in d or "X/Auth" in d for d in dr.diagnostics)
+
+
+def test_unstorable_header_name_does_not_discard_task_report(
+    triage_service, triage_client, requests_mock, make_request
+):
+    report = build_report("behavioral1")
+    report["network"]["requests"] = [
+        {
+            "flow": report["network"]["flows"][0]["id"],
+            "index": 0,
+            "http_request": {"url": "http://query.example.com/", "method": "GET", "headers": ["Bad/Name:x"]},
+        }
+    ]
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+
+    triage_service.execute(request)
+
+    sandbox = request.result.sections[0]
+    completeness = find_subsection(sandbox, "Analysis completeness")
+    assert completeness is not None
+    assert "could not be parsed" not in completeness.body
+    assert "header(s) with unsupported names" in completeness.body
+    assert find_subsection(sandbox, "FABOOKIE") is not None
+
+
 @pytest.mark.parametrize("status", [None, "", "not-a-status"])
 def test_http_optional_or_invalid_status_retains_raw_evidence(status):
     request, response = halves("http")
