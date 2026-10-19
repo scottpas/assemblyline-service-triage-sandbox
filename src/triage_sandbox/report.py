@@ -1168,12 +1168,25 @@ class TriageResult:
 
 
 def _overview_tasks(overview: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Index overview task entries ("<sample>-behavioral1": {...}) by short task name."""
+    """Index overview task entries ("<sample>-behavioral1": {...}) by short task name.
+
+    Entries without a "name" take it from the mapping key's last "-" component;
+    sample ids themselves contain "-", so only the final part is the task name.
+    """
     tasks = overview.get("tasks") if overview else None
-    entries = tasks.values() if isinstance(tasks, dict) else tasks if isinstance(tasks, list) else []
+    entries: Any = (
+        tasks.items()
+        if isinstance(tasks, dict)
+        else [(None, t) for t in tasks or []]
+        if isinstance(tasks, list)
+        else []
+    )
     indexed: dict[str, dict[str, Any]] = {}
-    for entry in entries:
-        if isinstance(entry, dict) and (name := _text(entry.get("name"))):
+    for key, entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name = _text(entry.get("name"), key.rsplit("-", 1)[-1] if isinstance(key, str) else None)
+        if name:
             indexed.setdefault(name, entry)
     return indexed
 

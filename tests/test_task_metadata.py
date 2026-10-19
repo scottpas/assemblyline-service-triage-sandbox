@@ -390,3 +390,34 @@ def test_parse_rejection_survives_recovery(triage_client, requests_mock):
 )
 def test_diagnostic_text(value, expected):
     assert _diagnostic_text(value) == expected
+
+
+def test_overview_task_name_falls_back_to_mapping_key(triage_client, requests_mock):
+    sample = build_sample()
+    sample["tasks"][2]["status"] = "failed"
+    requests_mock.get(report_url("behavioral2"), status_code=404)
+    requests_mock.get(
+        OVERVIEW_URL,
+        json={
+            "tasks": {
+                f"{SAMPLE_ID}-behavioral2": {"failure": "Machine shutdown", "os": "windows10-2004-x64"},
+                f"{SAMPLE_ID}-behavioral5": {"target": "late.exe"},
+                5: {"target": "ignored.exe"},
+            }
+        },
+    )
+    result = TriageResult(triage_client, sample)
+    assert "Task behavioral2: failed execution (Machine shutdown); analysis incomplete." in result.diagnostics
+    rows = {row["Task"]: row for row in result.task_rows}
+    assert rows["behavioral2"]["Platform"] == "windows10-2004-x64"
+    assert rows["behavioral5"]["Target"] == "late.exe"
+    assert set(rows) == {"behavioral1", "behavioral2", "behavioral5"}
+
+
+def test_overview_tasks_without_any_name_are_skipped():
+    from triage_sandbox.report import _overview_tasks
+
+    assert _overview_tasks({"tasks": [{"target": "x"}, {"name": "behavioral1"}]}) == {
+        "behavioral1": {"name": "behavioral1"}
+    }
+    assert _overview_tasks({"tasks": {"": {"target": "x"}}}) == {}
