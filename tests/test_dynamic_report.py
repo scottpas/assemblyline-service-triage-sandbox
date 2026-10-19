@@ -85,16 +85,16 @@ def test_add_sandbox_recorded():
 # ---------------------------------------------------------------------------
 
 
-def test_add_processes_builds_id_objectid_map():
+def test_add_processes_builds_procid_map():
     procs_input = [
         {"procid": 1, "pid": 100, "ppid": 4, "image": "a.exe", "cmd": "a", "started": 1},
         {"procid": 2, "pid": 200, "ppid": 100, "image": "b.exe", "cmd": "b", "started": 2, "terminated": 5},
     ]
     dr = make_report(processes=procs_input)
 
-    assert set(dr._id_objectid_map) == {1, 2}
-    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[1]).pid == 100
-    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[2]).pid == 200
+    assert set(dr._procid_process) == {1, 2}
+    assert dr._procid_process[1].pid == 100
+    assert dr._procid_process[2].pid == 200
 
     procs = dr.ontology.get_processes()
     assert len(procs) == 2
@@ -273,41 +273,36 @@ def test_add_signatures_no_description_when_indicators_have_no_text():
 
 
 # ---------------------------------------------------------------------------
-# 7a. __add_signatures — indicator references a process the ontology silently dropped
+# 7a. __add_signatures — indicators on an instance whose pid was reused
 # ---------------------------------------------------------------------------
 
 
-def test_add_signatures_skips_attribute_when_process_dropped_by_ontology_validation():
-    """A procid present in _id_objectid_map does NOT guarantee OntologyResults actually
-    stored that process: add_process() silently drops a process that reuses a pid within
-    an overlapping time window (see assemblyline_service_utilities' _handle_pid_match).
-    An indicator referencing such a dropped procid must not crash signature processing."""
+def test_add_signatures_attaches_attribute_to_reused_pid_instance():
+    """A later instance reusing an open-ended instance's pid stays distinct, and its
+    indicators resolve to that instance rather than the earlier one."""
     processes = [
-        {"procid": 1, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a.exe", "started": 0},
-        # Same pid, overlapping (open-ended) time window as procid 1 -> dropped by add_process().
-        {"procid": 2, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "b.exe", "cmd": "b.exe", "started": 5},
+        {"procid": 1, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a.exe", "started": 0},
+        {"procid": 2, "pid": 100, "ppid": 0, "image": "b.exe", "cmd": "b.exe", "started": 5},
     ]
     dr = make_report(
         processes=processes,
         signatures=[{"label": "some_sig", "score": 3, "indicators": [{"procid": 2}]}],
     )
-    assert dr.ontology.get_process_by_objectid(dr._id_objectid_map[2]) is None  # confirms the drop actually happened
     sigs = dr.ontology.get_signatures()
     assert len(sigs) == 1
-    assert sigs[0].attributes == []
+    assert [a.source.guid for a in sigs[0].attributes] == [dr._procid_process[2].objectid.guid]
 
 
-def test_add_signatures_program_crash_skips_target_when_process_dropped_by_ontology_validation():
-    """Same silent-drop scenario, but for the procid_target path used by program_crash."""
+def test_add_signatures_program_crash_captures_reused_pid_target():
     processes = [
-        {"procid": 1, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a.exe", "started": 0},
-        {"procid": 2, "procid_parent": 0, "pid": 100, "ppid": 0, "image": "b.exe", "cmd": "b.exe", "started": 5},
+        {"procid": 1, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a.exe", "started": 0},
+        {"procid": 2, "pid": 100, "ppid": 0, "image": "b.exe", "cmd": "b.exe", "started": 5},
     ]
     dr = make_report(
         processes=processes,
         signatures=[{"label": "program_crash", "score": 3, "indicators": [{"procid_target": 2}]}],
     )
-    assert dr.crashed_processes.get("program_crash", []) == []
+    assert [p.image for p in dr.crashed_processes["program_crash"]] == ["b.exe"]
 
 
 # ---------------------------------------------------------------------------
@@ -1046,15 +1041,16 @@ def test_add_extracted_duplicate_rule_reuses_existing_signature():
     assert sigs[0] is sigs[1]
 
 
-def test_add_extracted_resource_pid_attaches_attribute_to_process():
+def test_add_extracted_resource_attaches_attribute_to_dumping_process():
     procs_input = [{"procid": 1, "pid": 2356, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
     extracted = [
         {
             "config": {"family": "emotet", "rule": "EmotetRule"},
-            "resource": "files/2356-behavioral1-0x1.dat",
+            "resource": "behavioral1/memory/2356-1-0x1-memory.dmp",
         }
     ]
-    dr = make_report(processes=procs_input, extracted=extracted)
+    dumped = [{"name": "memory/2356-1-0x1-memory.dmp", "procid": 1, "pid": 2356, "kind": "region"}]
+    dr = make_report(processes=procs_input, extracted=extracted, dumped=dumped)
     sigs = [s for s in dr.ontology.get_signatures() if s.name == "EmotetRule"]
     assert len(sigs) == 1
     assert len(sigs[0].attributes) == 1
@@ -1141,7 +1137,7 @@ def test_process_optional_image_and_command(image, command, expected):
         raw["image"] = image
     data["signatures"][2]["indicators"] = [{"procid": raw["procid"]}]
     dr = make_report(**data)
-    process = dr.ontology.get_process_by_objectid(dr._id_objectid_map[raw["procid"]])
+    process = dr._procid_process[raw["procid"]]
     prims = process.as_primitives()
     model = ProcessModel({k: v for k, v in prims.items() if k in ProcessModel.fields()})
     assert model.image == ("app.exe" if image == "app.exe" else "<unknown_image>")
@@ -1175,7 +1171,7 @@ def test_malformed_process_is_isolated(bad):
     data["processes"][0] = {**raw, **bad} if isinstance(bad, dict) and bad else bad
     dr = make_report(**data)
     assert len(dr.ontology.get_processes()) == 1
-    assert set(dr._id_objectid_map) == {2}
+    assert set(dr._procid_process) == {2}
     assert len(dr.diagnostics) == 1
     assert "invalid process" in dr.diagnostics[0]
     assert dr.ontology.get_signatures()
@@ -1184,6 +1180,6 @@ def test_malformed_process_is_isolated(bad):
 
 def test_process_without_command_preserves_unknown_image():
     dr = make_report(processes=[{"procid": 1, "pid": 10, "ppid": 1, "started": 0}])
-    process = dr.ontology.get_process_by_objectid(dr._id_objectid_map[1])
+    process = dr._procid_process[1]
     assert process.image == "<unknown_image>"
     assert process.command_line is None
