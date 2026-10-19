@@ -82,6 +82,74 @@ def _indicator_text(indicator: dict) -> Optional[str]:
     return desc or ioc
 
 
+_MAX_DIAGNOSTIC_LENGTH = 200
+
+
+def _diagnostic_text(value: Any) -> Optional[str]:
+    """Reduce an upstream failure reason to its first line, bounded in length.
+
+    Reasons can carry multi-line crash dumps or tool output; only the summary
+    line is shown so completeness messages stay readable and stable.
+    """
+    if not isinstance(value, str):
+        return None
+    line = next((line.strip() for line in value.splitlines() if line.strip()), None)
+    if line and len(line) > _MAX_DIAGNOSTIC_LENGTH:
+        return line[: _MAX_DIAGNOSTIC_LENGTH - 3] + "..."
+    return line
+
+
+# Architecture suffixes seen on Triage platform labels, longest first so "x86_64"
+# is not read as "64". Only x64/x86 fit the Processor ODM; amd64, x86_64, i386 and
+# i686 are aliases of those, and ARM/MIPS variants stay in the raw label only.
+_ARCH_TOKENS = tuple(
+    sorted(
+        {"x86_64", "amd64", "x64", "x86", "i386", "i686", "aarch64", "arm64", "armhf", "armel", "arm"}
+        | {"mips64el", "mips64", "mipsel", "mips", "ppc64le", "ppc64", "ppc", "s390x", "riscv64"},
+        key=len,
+        reverse=True,
+    )
+)
+_ARCH_ALIASES = {"x86_64": "x64", "amd64": "x64", "x64": "x64", "i386": "x86", "i686": "x86", "x86": "x86"}
+# Label prefix to Platform ODM value. Linux distribution names are kept as the version.
+_PLATFORM_PREFIXES = (
+    ("windows", "Windows"),
+    ("android", "Android"),
+    ("macos", "MacOS"),
+    ("ios", "iOS"),
+    ("linux", "Linux"),
+    ("ubuntu", "Linux"),
+    ("debian", "Linux"),
+)
+
+
+def _machine_platform(label: Any) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Split a Triage platform label into Sandbox ODM (platform, version, architecture).
+
+    Labels are "<os>[-<version>]<sep><arch>", e.g. "windows10-2004_x64",
+    "windows11-ltsc_2024_x64", "android_x86_64" or overview "os" values such as
+    "windows10-2004-x64". Unknown parts are left unset rather than guessed.
+    """
+    if not isinstance(label, str):
+        return None, None, None
+    os_label, arch = label.strip().lower(), None
+    for token in _ARCH_TOKENS:
+        if os_label.endswith(token) and os_label[: -len(token)][-1:] in ("-", "_"):
+            os_label, arch = os_label[: -len(token) - 1], token
+            break
+    architecture = _ARCH_ALIASES.get(arch) if arch else None
+    for prefix, platform in _PLATFORM_PREFIXES:
+        if os_label.startswith(prefix):
+            version = os_label if prefix in ("ubuntu", "debian") else os_label[len(prefix) :].strip("-_")
+            return platform, version or None, architecture
+    return None, None, architecture
+
+
+def _text(*values: Any) -> Optional[str]:
+    """Return the first non-empty text value, skipping missing or malformed ones."""
+    return next((value for value in values if isinstance(value, str) and value), None)
+
+
 # Non-interactive service account SIDs are never "the current user" — Triage's own
 # rules agree (e.g. its "reg_hku_write" signature fires for these, naming the hive HKU
 # rather than treating it as a current-user write), so these stay under HKEY_USERS.
@@ -191,6 +259,8 @@ class DynamicReport:
     errors: Optional[List[dict]] = None  # type: ignore[type-arg]
 
     def __add_sandbox(self) -> None:
+        # Upstream task identifier, e.g. "240202-3y8f7sefen-behavioral1".
+        task_id = f"{self.sample['id']}-{self.task_id}"
         oid = SandboxModel.get_oid(
             {
                 "sandbox_name": SERVICE_NAME,
@@ -198,18 +268,27 @@ class DynamicReport:
                 "analysis_metadata": {
                     "start_time": self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
                     "end_time": self.end_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
+                    "task_id": task_id,
                 },
             }
         )
         object_id = self.ontology.create_objectid(ontology_id=oid, tag=SERVICE_NAME, session=self.session)
         object_id.assign_guid()
+        platform, version, architecture = self._machine
+        # analysis.resource names the VM image profile, not a measured hostname, so it
+        # is shown in the task section only. Routing, IP and hypervisor are not reported.
+        metadata = Sandbox.AnalysisMetadata(
+            start_time=self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
+            end_time=self.end_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
+            machine_metadata=Sandbox.AnalysisMetadata.MachineMetadata(
+                platform=platform, version=version, architecture=architecture
+            ),
+        )
+        # The helper types task_id as an integer; the Sandbox ODM field is a keyword.
+        metadata.task_id = cast(Any, task_id)
         sandbox = self.ontology.create_sandbox(
             objectid=object_id,
-            analysis_metadata=Sandbox.AnalysisMetadata(
-                start_time=self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
-                end_time=self.end_time.strftime("%Y-%m-%d %H:%M:%S.%f"),
-                machine_metadata=Sandbox.AnalysisMetadata.MachineMetadata(hostname=self.analysis["resource"]),
-            ),
+            analysis_metadata=metadata,
             sandbox_name=SERVICE_NAME,
             sandbox_version=self.version,
         )
@@ -774,6 +853,22 @@ class DynamicReport:
         self._indicator_keys: dict[str, tuple[set[tuple[Any, ...]], set[tuple[Any, ...]]]] = {}
         # Maps normalized signature name → processes it reports as crashed (program_crash only)
         self.crashed_processes: dict[str, List[Process]] = {}
+        # Older reports omit analysis.platform; the "os:" resource tag carries the same label.
+        resource_tags = self.analysis.get("resource_tags") or []
+        os_tag = next((t[3:] for t in resource_tags if isinstance(t, str) and t.startswith("os:")), None)
+        self.platform_label: Optional[str] = _text(self.analysis.get("platform"), os_tag)
+        self._machine = _machine_platform(self.platform_label)
+        platform, version, architecture = self._machine
+        described = ", ".join(p for p in (platform, f"version {version}" if version else None, architecture) if p)
+        # UI text for the same values the Sandbox ontology object exports.
+        self.platform_text: Optional[str] = (
+            (f"{described} ({self.platform_label})" if described else self.platform_label)
+            if self.platform_label
+            else None
+        )
+        self.resource: Optional[str] = _text(self.analysis.get("resource"))
+        self.target: Optional[str] = _text(self.task.get("target"))
+        self.pick: Optional[str] = _text(self.task.get("pick"))
         self.__add_sandbox()
         if self.processes:
             self.__add_processes()
@@ -822,12 +917,25 @@ class Sample:
     private: Optional[bool] = None
     task_reports: List[DynamicReport] = field(default_factory=list)
     diagnostics: list[str] = field(default_factory=list, init=False)
+    # (task, casefolded reason) pairs already reported, so equivalent upstream errors appear once.
+    _task_reasons: set[tuple[Optional[str], Optional[str]]] = field(default_factory=set, init=False, repr=False)
     parse_error: Optional[Exception] = field(default=None, init=False, repr=False)
 
-    def get_task_reports(self, client: TriageClient) -> None:
+    def add_task_error(self, task_id: Optional[str], reason: Any) -> None:
+        """Record an upstream analysis error once per task, ignoring reasons already reported."""
+        text = _diagnostic_text(reason)
+        key = (task_id, text.casefold() if text else None)
+        if key in self._task_reasons:
+            return
+        self._task_reasons.add(key)
+        stage = f"Task {task_id}" if task_id else "Overview"
+        self.diagnostics.append(f"{stage}: analysis error: {text or 'unspecified analysis error'}")
+
+    def get_task_reports(self, client: TriageClient, overview_tasks: Optional[dict[str, dict]] = None) -> None:  # type: ignore[type-arg]
         self.task_reports = []
         self.diagnostics = []
         self.parse_error = None
+        self._task_reasons = set()
         if self.status == "failed":
             self.diagnostics.append("Sample analysis failed; recovered evidence is incomplete.")
         fetch_error: Optional[Exception] = None
@@ -837,9 +945,13 @@ class Sample:
                     self.diagnostics.append(f"Task {task['id']}: {task['status']}; no behavioral report processed.")
                     continue
                 if task["status"] == "failed":
+                    # The sample's task list rarely carries the reason; the overview task does.
+                    overview_task = (overview_tasks or {}).get(task["id"], {})
+                    failure = _diagnostic_text(task.get("failure")) or _diagnostic_text(overview_task.get("failure"))
+                    if failure:
+                        self._task_reasons.add((task["id"], failure.casefold()))
                     self.diagnostics.append(
-                        f"Task {task['id']}: failed execution ({task.get('failure') or 'reason unavailable'}); "
-                        "analysis incomplete."
+                        f"Task {task['id']}: failed execution ({failure or 'reason unavailable'}); analysis incomplete."
                     )
                 # One bounded HTTP request per eligible task, including failed tasks.
                 try:
@@ -870,8 +982,10 @@ class Sample:
                 if report.diagnostics:
                     self.diagnostics.append(f"Task {task['id']}: report partially parsed; valid evidence retained.")
                 self.diagnostics.extend(report.diagnostics)
-                for error in api_response.get("errors") or []:
-                    self.diagnostics.append(f"Task {task['id']}: {error.get('reason') or 'unspecified analysis error'}")
+                errors = api_response.get("errors")
+                for error in errors if isinstance(errors, list) else []:
+                    if isinstance(error, dict):
+                        self.add_task_error(task["id"], error.get("reason"))
 
         # Partial evidence remains useful, but a total fetch outage must not become
         # a successful, cacheable analysis. Missing reports on explicitly failed
@@ -935,8 +1049,23 @@ def _filter_sample(sample: dict) -> dict:  # type: ignore[type-arg]
 class TriageResult:
     def __init__(self, client: TriageClient, sample: dict) -> None:  # type: ignore[type-arg]
         self.sample = Sample(**_filter_sample(sample))
-        self.sample.get_task_reports(client)
+        self._labels: dict[str, str] = {}
+        try:
+            overview = client.overview_report(self.sample.id)
+            overview_error: Optional[Exception] = None
+        except Exception as exc:
+            overview, overview_error = {}, exc
+        overview_tasks = _overview_tasks(overview)
+        self.sample.get_task_reports(client, overview_tasks)
+        errors = overview.get("errors") if overview else None
+        for error in errors if isinstance(errors, list) else []:
+            if isinstance(error, dict):
+                self.sample.add_task_error(_text(error.get("task")), error.get("reason"))
         self.diagnostics = list(self.sample.diagnostics)
+        if overview_error is not None:
+            self.diagnostics.append(f"Overview report unavailable ({type(overview_error).__name__}).")
+        self.task_rows = self.__task_rows(overview_tasks)
+        self.signature_targets = _signature_targets(overview) if overview else {}
         self.malware_config = list(itertools.chain.from_iterable(r.malware_config for r in self.sample.task_reports))
 
         # Configs already recovered from behavioral reports (dedup key: canonical JSON of filtered config)
@@ -957,12 +1086,7 @@ class TriageResult:
         self.overview_configs: list[dict] = []  # type: ignore[type-arg]
         self.overview_config_resources: list[Optional[str]] = []
         self.overview_signatures: list[dict] = []  # type: ignore[type-arg]
-
-        try:
-            overview = client.overview_report(self.sample.id)
-        except Exception as exc:
-            self.diagnostics.append(f"Overview report unavailable ({type(exc).__name__}).")
-            overview = {}
+        self.overview_config_tasks: list[list[str]] = []
 
         if overview:
             for item in overview.get("extracted") or []:
@@ -978,6 +1102,10 @@ class TriageResult:
                     self.malware_config.append(mc)
                     self.overview_configs.append(cfg)
                     self.overview_config_resources.append(item.get("resource"))
+                    tasks = item.get("tasks")
+                    self.overview_config_tasks.append(
+                        [t for t in tasks if isinstance(t, str)] if isinstance(tasks, list) else []
+                    )
                     behavioral_config_keys.add(key)  # prevent double-adding if overview has dupes
                 # Overview data is best-effort and may contain values rejected by
                 # either the Config dataclass or Assemblyline ODM validation.
@@ -1000,3 +1128,83 @@ class TriageResult:
             and not self.overview_configs
         ):
             raise self.sample.parse_error
+
+    def __task_rows(self, overview_tasks: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        """Summarize each behavioral task's target, archive selection and environment.
+
+        Values come from the task's own report first, then the sample's task list,
+        then the overview, so tasks without a usable report are still identified.
+        """
+        reports = {report.task_id: report for report in self.sample.task_reports}
+        sample_tasks = {t["id"]: t for t in self.sample.tasks if t["id"].startswith("behavioral")}
+        task_ids = list(dict.fromkeys([*sample_tasks, *(t for t in overview_tasks if t.startswith("behavioral"))]))
+        rows = []
+        for task_id in task_ids:
+            report, listed, overview = (
+                reports.get(task_id),
+                sample_tasks.get(task_id, {}),
+                overview_tasks.get(task_id, {}),
+            )
+            row = {
+                "Task": task_id,
+                "Target": _text(report and report.target, listed.get("target"), overview.get("target")),
+                "Selection": _text(report and report.pick, listed.get("pick"), overview.get("pick")),
+                "Platform": _text(report and report.platform_label, overview.get("os"), overview.get("platform")),
+                "Resource": _text(report and report.resource, overview.get("resource")),
+                "Status": _text(listed.get("status"), overview.get("status")),
+            }
+            label = task_id
+            if row["Target"]:
+                label += f" - {row['Target']}"
+            if row["Platform"]:
+                label += f" ({row['Platform']})"
+            self._labels[task_id] = label
+            rows.append({key: value or "" for key, value in row.items()})
+        return rows
+
+    def task_label(self, task_id: str) -> str:
+        """Identify a task by its target and platform where known."""
+        return self._labels.get(task_id, task_id)
+
+
+def _overview_tasks(overview: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Index overview task entries ("<sample>-behavioral1": {...}) by short task name.
+
+    Entries without a "name" take it from the mapping key's last "-" component;
+    sample ids themselves contain "-", so only the final part is the task name.
+    """
+    tasks = overview.get("tasks") if overview else None
+    entries: Any = (
+        tasks.items()
+        if isinstance(tasks, dict)
+        else [(None, t) for t in tasks or []]
+        if isinstance(tasks, list)
+        else []
+    )
+    indexed: dict[str, dict[str, Any]] = {}
+    for key, entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name = _text(entry.get("name"), key.rsplit("-", 1)[-1] if isinstance(key, str) else None)
+        if name:
+            indexed.setdefault(name, entry)
+    return indexed
+
+
+def _signature_targets(overview: dict[str, Any]) -> dict[str, list[str]]:
+    """Map overview signature names to the targets (and their tasks) that produced them."""
+    observed: dict[str, list[str]] = {}
+    targets = overview.get("targets")
+    for target in targets if isinstance(targets, list) else []:
+        if not isinstance(target, dict) or not (name := _text(target.get("target"))):
+            continue
+        tasks = target.get("tasks")
+        task_ids = [t for t in tasks if isinstance(t, str)] if isinstance(tasks, list) else []
+        described = f"{name} ({', '.join(task_ids)})" if task_ids else name
+        signatures = target.get("signatures")
+        for sig in signatures if isinstance(signatures, list) else []:
+            if isinstance(sig, dict) and (key := _text(sig.get("label"), sig.get("name"))):
+                observed.setdefault(key, [])
+                if described not in observed[key]:
+                    observed[key].append(described)
+    return observed

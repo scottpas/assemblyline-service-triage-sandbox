@@ -30,7 +30,7 @@ def test_recovered_config_readable_and_deduplicated(cfg, expected, triage_servic
     req = make_request()
     triage_service.execute(req)
     sandbox = req.result.sections[0]
-    task = next(s for s in sandbox.subsections if s.title_text == "Task: behavioral1")
+    task = next(s for s in sandbox.subsections if s.title_text.startswith("Task: behavioral1 "))
     malware = next(s for s in task.subsections if s.title_text == "Malware Config")
     section = malware.subsections[0]
     assert expected in [row["Value"] for row in json.loads(section.section_body.body)]
@@ -87,7 +87,7 @@ def test_rule_signature_survives_unknown_family(family, triage_service, make_req
     mock_triage_api.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
     request = make_request()
     triage_service.execute(request)
-    task = next(s for s in request.result.sections[0].subsections if s.title_text == "Task: behavioral1")
+    task = next(s for s in request.result.sections[0].subsections if s.title_text.startswith("Task: behavioral1 "))
     signatures = next(s for s in task.subsections if s.title_text == "Signatures")
     signature = next(s for s in signatures.subsections if s.title_text == "RECOVEREDRULE")
     assert signature.heuristic.heur_id == 5
