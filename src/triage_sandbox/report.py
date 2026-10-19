@@ -60,10 +60,23 @@ def _analysis_time(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _indicator_value(value: Any) -> Any:
+    """Keep scalar indicator values; serialize arrays and objects so evidence stays hashable text."""
+    if value is None or isinstance(value, (str, int, float)):
+        return value
+    return json.dumps(value, sort_keys=True, default=str)
+
+
+def _indicator_str(value: Any) -> Optional[str]:
+    """Render an indicator value as text, leaving missing values unset."""
+    value = _indicator_value(value)
+    return value if value is None or isinstance(value, str) else str(value)
+
+
 def _indicator_text(indicator: dict) -> Optional[str]:
     """Combine an indicator's human-readable description with its IOC value, if present."""
-    desc = indicator.get("description")
-    ioc = indicator.get("ioc")
+    desc = _indicator_str(indicator.get("description"))
+    ioc = _indicator_str(indicator.get("ioc"))
     if desc and ioc:
         return f"{desc}: {ioc}"
     return desc or ioc
@@ -89,14 +102,17 @@ def _process_ref(procid: Any, pid: Any) -> str:
 
 def _indicator_row(indicator: dict[str, Any], source: str, target: str) -> dict[str, Any]:
     """Tabulate one signature indicator; flow ids and resources are task-local references."""
+    fields = {
+        "Description": "description",
+        "IOC": "ioc",
+        "Flow": "flow",
+        "Resource": "resource",
+        "YARA rule": "yara_rule",
+    }
     return {
         "Source": source,
         "Target": target,
-        "Description": indicator.get("description") or "",
-        "IOC": indicator.get("ioc") or "",
-        "Flow": indicator.get("flow") or "",
-        "Resource": indicator.get("resource") or "",
-        "YARA rule": indicator.get("yara_rule") or "",
+        **{column: _indicator_value(indicator.get(key)) or "" for column, key in fields.items()},
     }
 
 
@@ -118,6 +134,8 @@ def _normalize_registry_key(raw: str) -> Optional[str]:
     SERVICE) are also kept under HKEY_USERS rather than collapsed to HKEY_CURRENT_USER.
     Returns None if `raw` isn't a registry path.
     """
+    if not isinstance(raw, str):
+        return None
     key = raw.split(" = ", 1)[0]
     if not key.lower().startswith("\\registry\\"):
         return None

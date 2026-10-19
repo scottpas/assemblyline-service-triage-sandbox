@@ -177,3 +177,77 @@ def test_overview_signature_indicator_table_keeps_raw_process_references(triage_
     rows = json.loads(find_subsection(signature, "Indicators").section_body.body)
     assert rows == [{"Source": "#84 PID 4700", "Target": "#86", "IOC": "a"}]
     assert find_subsection(find_subsection(overview_sigs, "NO_INDICATORS"), "Indicators") is None
+
+
+STRUCTURED_INDICATOR = {
+    "description": ["listed"],
+    "ioc": {"key": "value"},
+    "procid": 1,
+    "flow": [1, 2],
+    "resource": {"name": "r"},
+    "yara_rule": ["rule"],
+}
+
+
+def test_structured_indicator_values_are_serialized_not_fatal():
+    dr = make_report(
+        processes=PROCESSES,
+        signatures=[{"label": "s", "score": 5, "indicators": [STRUCTURED_INDICATOR, STRUCTURED_INDICATOR]}],
+    )
+    [row] = dr.signature_indicators["s"]
+    assert row["Description"] == '["listed"]'
+    assert row["IOC"] == '{"key": "value"}'
+    assert row["Flow"] == "[1, 2]"
+    assert row["Resource"] == '{"name": "r"}'
+    assert row["YARA rule"] == '["rule"]'
+    assert [a["meta"] for a in attrs(dr, "s")] == ['["listed"]: {"key": "value"}']
+    assert dr.signature_descriptions["s"] == '["listed"]: {"key": "value"}'
+    assert "s" not in dr.signature_registry_keys
+
+
+def test_numeric_indicator_text_is_rendered_as_text():
+    dr = make_report(
+        processes=PROCESSES, signatures=[{"label": "s", "score": 5, "indicators": [{"ioc": 7, "procid": 1}]}]
+    )
+    assert [a["meta"] for a in attrs(dr, "s")] == ["7"]
+
+
+def test_structured_overview_indicator_values_render(triage_service, make_request, mock_triage_api):
+    from conftest import build_overview
+
+    overview = build_overview(signatures=[{"label": "structured", "score": 5, "indicators": [STRUCTURED_INDICATOR]}])
+    mock_triage_api.get(f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json", json=overview)
+    request = make_request()
+
+    triage_service.execute(request)
+
+    overview_sigs = find_subsection(find_subsection(request.result.sections[0], "Overview"), "Signatures")
+    rows = json.loads(find_subsection(find_subsection(overview_sigs, "STRUCTURED"), "Indicators").section_body.body)
+    assert rows[0]["IOC"] == '{"key": "value"}'
+
+
+def test_crashed_instances_sharing_a_reused_pid_are_both_listed(
+    triage_service, triage_client, requests_mock, make_request
+):
+    del triage_client  # registers the shared Triage endpoints
+    report = build_report("behavioral1")
+    report["processes"] = [
+        proc(1, 100, 4, 0, terminated=10),
+        proc(2, 100, 4, 20),
+        proc(3, 300, 4, 30),
+    ]
+    report["signatures"].append(
+        {
+            "label": "program_crash",
+            "score": 3,
+            "indicators": [{"procid": 3, "procid_target": 1}, {"procid": 3, "procid_target": 2}],
+        }
+    )
+    requests_mock.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/behavioral1/report_triage.json", json=report)
+    request = make_request()
+
+    triage_service.execute(request)
+
+    task = find_subsection(request.result.sections[0], "Task: behavioral1")
+    crash = find_subsection(find_subsection(task, "PROGRAM_CRASH"), "Crashed Process(es)")
+    assert [p["process_name"] for p in json.loads(crash.section_body.body)] == ["p1.exe", "p2.exe"]

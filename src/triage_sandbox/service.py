@@ -351,12 +351,13 @@ class TriageSandbox(ServiceBase):
                         if crashed:
                             crash_tree = ResultProcessTreeSection(title_text="Crashed Process(es)")
                             crash_tree.auto_collapse = True
-                            seen_pids: set = set()
+                            # Instances that reused a PID are distinct crashes.
+                            seen_instances: set = set()
                             for p in crashed:
                                 p = cast(Any, p)
-                                if p.pid in seen_pids:
+                                if p.objectid.guid in seen_instances:
                                     continue
-                                seen_pids.add(p.pid)
+                                seen_instances.add(p.objectid.guid)
                                 crash_tree.add_process(ProcessItem(pid=p.pid, name=p.image, cmd=p.command_line))
                             s.add_subsection(crash_tree)
                         sig_subsections[name] = s
