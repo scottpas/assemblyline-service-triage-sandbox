@@ -310,7 +310,7 @@ class DynamicReport:
         # Go omits a zero procid_parent, so zero also means "not reported".
         parent_procid = process.get("procid_parent")
         if parent_procid:
-            parent = self._procid_process.get(parent_procid)
+            parent = self.__process_for(parent_procid)
             if parent is None or parent is child:
                 return f"{parent_procid} (not recorded)"
         else:
