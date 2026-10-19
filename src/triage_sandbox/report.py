@@ -1,5 +1,6 @@
 import itertools
 import json
+import ntpath
 import shlex
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta, timezone
@@ -78,6 +79,25 @@ _HKU_WELL_KNOWN_SERVICE_SIDS = frozenset(
         "S-1-5-20",  # NETWORK SERVICE
     }
 )
+
+
+def _process_ref(procid: Any, pid: Any) -> str:
+    """Describe a raw process reference from whichever identifiers are present."""
+    parts = [f"#{procid}" if procid is not None else "", f"PID {pid}" if pid is not None else ""]
+    return " ".join(part for part in parts if part)
+
+
+def _indicator_row(indicator: dict[str, Any], source: str, target: str) -> dict[str, Any]:
+    """Tabulate one signature indicator; flow ids and resources are task-local references."""
+    return {
+        "Source": source,
+        "Target": target,
+        "Description": indicator.get("description") or "",
+        "IOC": indicator.get("ioc") or "",
+        "Flow": indicator.get("flow") or "",
+        "Resource": indicator.get("resource") or "",
+        "YARA rule": indicator.get("yara_rule") or "",
+    }
 
 
 def _normalize_registry_key(raw: str) -> Optional[str]:
@@ -191,9 +211,16 @@ class DynamicReport:
         return (self.start_time + timedelta(milliseconds=milliseconds)).strftime("%Y-%m-%d %H:%M:%S.%f")
 
     def __add_processes(self) -> None:
+        # The helper's add/update path identifies processes by PID and time: it merges a
+        # reused PID into an earlier instance with no recorded termination and infers
+        # parents from PPID. Triage's procid already identifies each instance, so build
+        # every instance here and register the list directly.
+        created: list[tuple[dict[str, Any], Any]] = []
         for process in self.processes or []:
             try:
                 procid = process["procid"]
+                if type(procid) is not int or procid in self._procid_process:
+                    raise ValueError("Process instance identifiers must be unique integers")
                 start_time = self.__relative_time_str(process.get("started"), f"process {procid} started")
                 if start_time is None:
                     if process.get("started") is None:
@@ -245,13 +272,80 @@ class DynamicReport:
                 # Validate before mutating the ontology: helper objects accept values that
                 # the Process ODM may reject later during result emission.
                 ProcessModel({**data, "objectid": object_id.as_primitives()})
-                self.ontology.update_process(**data)
-                # procid is unique per process instance within a task; pid can be reused by the
-                # OS during the task, so indicators must resolve through this objectid map rather
-                # than pid lookups (which pick an arbitrary matching process on reuse).
-                self._id_objectid_map[procid] = object_id
+                instance = self.ontology.create_process(**data)
+                self._procid_process[procid] = instance
+                created.append((process, instance))
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 self.diagnostics.append(f"Task {self.task_id}: invalid process ({type(exc).__name__}).")
+        procid_of = {id(instance): process["procid"] for process, instance in created}
+        for _, instance in created:
+            self._pid_instances.setdefault(instance.pid, []).append(instance)
+        for process, instance in created:
+            parent_procid = self.__set_parent(process, instance, procid_of)
+            cmd = process.get("cmd")
+            self.process_rows.append(
+                {
+                    "Process": process["procid"],
+                    "Parent": parent_procid,
+                    "PID": instance.pid,
+                    "PPID": instance.ppid,
+                    # Upstream marker, shown as-is: its meaning is not documented consistently.
+                    "Triage orig": process["orig"] if type(process.get("orig")) is bool else "",
+                    "Image": instance.image,
+                    # Argument arrays keep their original boundaries here.
+                    "Command": json.dumps(cmd) if isinstance(cmd, list) else cmd or "",
+                }
+            )
+        self.ontology.set_processes([instance for _, instance in created])
+
+    def __set_parent(self, process: dict[str, Any], child: Any, procid_of: dict[int, int]) -> Any:
+        """Link a child to its parent instance and return the parent reference for display.
+
+        Triage's procid_parent names the nearest recorded ancestor: forks that never exec
+        are not recorded, so that ancestor's PID can differ from the reported PPID. The
+        reported PPID is kept as-is. An explicit but unrecorded parent is not replaced by
+        a PID guess; only reports without procid_parent fall back to a single process with
+        the PPID that is alive when the child starts.
+        """
+        # Go omits a zero procid_parent, so zero also means "not reported".
+        parent_procid = process.get("procid_parent")
+        if parent_procid:
+            parent = self._procid_process.get(parent_procid)
+            if parent is None or parent is child:
+                return f"{parent_procid} (not recorded)"
+        else:
+            # Helper times are fixed-width strings; open-ended instances end at MAX_TIME.
+            live = [
+                p
+                for p in self._pid_instances.get(child.ppid, [])
+                if p is not child and p.start_time <= child.start_time <= p.end_time
+            ]
+            if len(live) != 1:
+                return ""
+            parent = live[0]
+        child.pobjectid = parent.objectid
+        child.pimage = parent.image
+        child.pcommand_line = parent.command_line
+        return procid_of[id(parent)]
+
+    def __process_for(self, procid: Any) -> Any:
+        return self._procid_process.get(procid) if type(procid) is int else None
+
+    def __record_process(self, record: dict[str, Any]) -> Any:
+        """Resolve a flow or dump owner by procid; records without one fall back to a unique PID."""
+        if "procid" in record:
+            return self.__process_for(record["procid"])
+        owners = self._pid_instances.get(record.get("pid")) or []
+        return owners[0] if record.get("pid") and len(owners) == 1 else None
+
+    def __process_label(self, indicator: dict[str, Any], procid_key: str, pid_key: str) -> str:
+        """Describe an indicator's process reference by instance, falling back to its raw ids."""
+        procid, pid = indicator.get(procid_key), indicator.get(pid_key)
+        process = self.__process_for(procid)
+        if process is not None:
+            return f"#{procid} {ntpath.basename(process.image)} (PID {process.pid})"
+        ref = _process_ref(procid, pid)
+        return f"{ref} (not recorded)" if procid is not None else ref
 
     def __add_network(self) -> None:
         if not self.network:
@@ -369,8 +463,9 @@ class DynamicReport:
                     flow["direction"] = "outbound"
             except ValueError:
                 pass
-            if f.get("pid"):
-                flow["process"] = self.ontology.get_process_by_pid(f["pid"])
+            owner = self.__record_process(f)
+            if owner is not None:
+                flow["process"] = owner
 
             # Triage sets flow.domain to the raw destination IP when no hostname
             # is resolved; AL rejects IPs in network.dynamic.domain
@@ -443,7 +538,12 @@ class DynamicReport:
                 resolved_domains=d.get("resolved_domains") or None,  # ty: ignore[invalid-argument-type]
                 lookup_type=d["lookup_type"],
             )
-        self.ontology.add_network_connection(NetworkConnection(objectid=object_id, **flow))
+        owner = flow.pop("process", None)
+        connection = NetworkConnection(objectid=object_id, **flow)
+        self.ontology.add_network_connection(connection)
+        # The helper re-resolves owners through its GUID map, which set_processes() does
+        # not populate; attach the procid-resolved instance after adding.
+        connection.set_process(owner)
 
     def __add_signatures(self) -> None:
         for sig in self.signatures:
@@ -513,7 +613,9 @@ class DynamicReport:
                 or (sig.get("name") if name == yara_rule else None)
                 or ("\n".join(indicator_texts) if indicator_texts else None)
             )
-            if description:
+            # A repeated signature without its own explanation must not replace an earlier one;
+            # its indicator evidence is kept in the indicator rows instead.
+            if description and (sig.get("desc") or name not in self.signature_descriptions):
                 self.signature_descriptions[name] = description
             registry_keys = self.signature_registry_keys.setdefault(name, [])
             for indicator in sig.get("indicators", []):
@@ -522,25 +624,53 @@ class DynamicReport:
                     registry_keys.append(registry_key)
             if not registry_keys:
                 del self.signature_registry_keys[name]
+            rows = self.signature_indicators.setdefault(name, [])
+            # Signatures can carry tens of thousands of indicators, so deduplicate through
+            # key sets rather than list scans or the helper's add_attribute(), which
+            # compares every existing attribute's primitives.
+            seen_rows, seen_attributes = self._indicator_keys.setdefault(name, (set(), set()))
             for indicator in sig.get("indicators", []):
-                # A procid found in this map was created from the same process list, but the
-                # ontology's own add_process() can silently drop a process that reuses a pid
-                # within an overlapping time window — so the objectid may have no backing
-                # process here, and get_process_by_objectid() can still return None.
-                if indicator.get("procid") in self._id_objectid_map:
-                    source_process = self.ontology.get_process_by_objectid(self._id_objectid_map[indicator["procid"]])
-                    if source_process is not None:
-                        attr = Attribute(source=cast(Any, source_process).objectid)
-                        al_sig.add_attribute(attr)
+                source_process = self.__process_for(indicator.get("procid"))
+                target_process = self.__process_for(indicator.get("procid_target"))
+                row = _indicator_row(
+                    indicator,
+                    self.__process_label(indicator, "procid", "pid"),
+                    self.__process_label(indicator, "procid_target", "pid_target"),
+                )
+                row_key = tuple(row.values())
+                if any(row_key) and row_key not in seen_rows:
+                    seen_rows.add(row_key)
+                    rows.append(row)
+                if source_process is not None:
+                    target = target_process if target_process is not source_process else None
+                    meta = _indicator_text(indicator)
+                    attribute_key = (id(source_process), id(target), meta)
+                    if attribute_key not in seen_attributes:
+                        seen_attributes.add(attribute_key)
+                        # No action is set: indicators do not state how source relates to target.
+                        al_sig.attributes.append(
+                            Attribute(
+                                source=cast(Any, source_process).objectid,
+                                target=cast(Any, target).objectid if target is not None else None,
+                                meta=meta,
+                            )
+                        )
                 # For "program_crash", procid is the crash-reporting process (e.g. WerFault.exe)
                 # and procid_target is the process that actually crashed — surface the latter
                 # separately so it can be rendered as its own process list.
-                if name == "program_crash" and indicator.get("procid_target") in self._id_objectid_map:
-                    crashed_process = self.ontology.get_process_by_objectid(
-                        self._id_objectid_map[indicator["procid_target"]]
-                    )
-                    if crashed_process is not None:
-                        self.crashed_processes.setdefault(name, []).append(cast(Any, crashed_process))
+                if name == "program_crash" and target_process is not None:
+                    self.crashed_processes.setdefault(name, []).append(cast(Any, target_process))
+            if not rows:
+                del self.signature_indicators[name]
+
+    def __resource_process(self, resource: Any) -> Any:
+        """Resolve an extraction resource to the process instance its dump record names."""
+        prefix = f"{self.task_id}/"
+        if not isinstance(resource, str) or not resource.startswith(prefix):
+            return None
+        name = resource[len(prefix) :]
+        dump = next((d for d in self.dumped or [] if isinstance(d, dict) and d.get("name") == name), None)
+        return self.__record_process(dump) if dump is not None else None
 
     def __add_extracted(self) -> None:
         for item in self.extracted or []:
@@ -586,16 +716,9 @@ class DynamicReport:
                             malware_families=families,
                             classification=DEFAULT_SIGNATURE_CLASSIFICATION,
                         )
-                    if item.get("resource"):
-                        try:
-                            source = self.ontology.get_process_by_pid(
-                                int(item["resource"].split("/")[-1].split("-")[0])
-                            )
-                            if source:
-                                attr = Attribute(source=cast(Any, source).objectid)
-                                al_sig.add_attribute(attr)
-                        except ValueError:
-                            pass
+                    source = self.__resource_process(item.get("resource"))
+                    if source is not None:
+                        al_sig.add_attribute(Attribute(source=cast(Any, source).objectid))
                     self.ontology.add_signature(al_sig)
             if item.get("ransom_note"):
                 self.malware_config.append(Ransom(**item["ransom_note"]).create_MalwareConfig())
@@ -618,14 +741,18 @@ class DynamicReport:
         self.http_evidence: list[dict[str, Any]] = []
         self.configs: list[dict[str, Any]] = []
         self.config_resources: list[Optional[str]] = []
-        # Maps procid → the process's unique ObjectID (pid can be reused within a task by
-        # the OS, so indicator resolution must go through this, not a procid → pid → pid
-        # lookup, which could resolve to the wrong process instance on reuse)
-        self._id_objectid_map: dict[int, Any] = {}
+        # Maps procid → its process instance. The OS can reuse a pid within a task, so
+        # signatures, flows and parents resolve through procid rather than pid lookups.
+        self._procid_process: dict[int, Any] = {}
+        self._pid_instances: dict[Any, list[Any]] = {}
+        self.process_rows: list[dict[str, Any]] = []
         # Maps normalized signature name → human-readable description (sig.desc)
         self.signature_descriptions: dict[str, str] = {}
         # Maps normalized signature name → normalized registry keys touched (dynamic.registry_key)
         self.signature_registry_keys: dict[str, List[str]] = {}
+        # Maps normalized signature name → distinct per-indicator evidence rows
+        self.signature_indicators: dict[str, list[dict[str, Any]]] = {}
+        self._indicator_keys: dict[str, tuple[set[tuple[Any, ...]], set[tuple[Any, ...]]]] = {}
         # Maps normalized signature name → processes it reports as crashed (program_crash only)
         self.crashed_processes: dict[str, List[Process]] = {}
         self.__add_sandbox()

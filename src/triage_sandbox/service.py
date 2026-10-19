@@ -23,9 +23,33 @@ from retrying import RetryError, retry
 
 from .client import ServerError, TriageClient
 from .constants import SUPPORTED_FILE_TYPES
-from .report import TriageResult, _filter_config, _indicator_text, _is_static_yara_resource, _normalize_registry_key
+from .report import (
+    TriageResult,
+    _filter_config,
+    _indicator_row,
+    _indicator_text,
+    _is_static_yara_resource,
+    _normalize_registry_key,
+    _process_ref,
+)
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
+# Inline row limit for evidence tables; the ontology keeps every record.
+MAX_TABLE_ROWS = 100
+
+
+def _bounded_table(title: str, rows: list[dict[str, Any]], noun: str) -> ResultTableSection:
+    """Render at most MAX_TABLE_ROWS rows, without columns that are empty in every row,
+    and state how many rows were left out."""
+    section = ResultTableSection(title_text=title, auto_collapse=True)
+    columns = [key for key in rows[0] if any(row[key] not in ("", None) for row in rows)]
+    for row in rows[:MAX_TABLE_ROWS]:
+        section.add_row(TableRow(**{key: row[key] for key in columns}))
+    if len(rows) > MAX_TABLE_ROWS:
+        section.add_subsection(
+            ResultSection("Rows omitted", body=f"{len(rows) - MAX_TABLE_ROWS} more {noun}(s) not shown.")
+        )
+    return section
 
 
 def _config_rows(value: Any, field: str = "") -> list[dict[str, Any]]:
@@ -237,6 +261,22 @@ class TriageSandbox(ServiceBase):
                             s.add_line(description)
                             if description.count("\n") + 1 > 3:
                                 s.auto_collapse = True
+                        # Overview indicators carry no task, so process references stay raw.
+                        rows = {
+                            tuple(row.values()): row
+                            for i in sig.get("indicators", [])
+                            if any(
+                                (
+                                    row := _indicator_row(
+                                        i,
+                                        _process_ref(i.get("procid"), i.get("pid")),
+                                        _process_ref(i.get("procid_target"), i.get("pid_target")),
+                                    )
+                                ).values()
+                            )
+                        }
+                        if rows:
+                            s.add_subsection(_bounded_table("Indicators", list(rows.values()), "indicator"))
                         overview_sigs.add_subsection(s)
                     overview_section.add_subsection(overview_sigs)
                 if triage_result.overview_configs:
@@ -302,6 +342,9 @@ class TriageSandbox(ServiceBase):
                             s.add_line(desc)
                             if desc.count("\n") + 1 > 3:
                                 s.auto_collapse = True
+                        indicators = task.signature_indicators.get(sig.name)
+                        if indicators:
+                            s.add_subsection(_bounded_table("Indicators", indicators, "indicator"))
                         # program_crash: list the process(es) that actually crashed
                         # (not the crash-reporting process, e.g. WerFault.exe)
                         crashed = task.crashed_processes.get(sig.name)
@@ -320,6 +363,10 @@ class TriageSandbox(ServiceBase):
                 for sig_section in reversed(sorted(sig_subsections.values(), key=lambda s: s.heuristic.heur_id)):
                     sigs_section.add_subsection(sig_section)
                 task_section.add_subsection(process_tree)
+                if task.process_rows:
+                    task_section.add_subsection(
+                        _bounded_table("Process instances", task.process_rows, "process instance")
+                    )
                 task_section.add_subsection(sigs_section)
                 ioc_section = ResultTableSection(title_text="Network IOCs", auto_collapse=True)
                 extract_iocs_from_text_blob(blob=json.dumps(task.network), result_section=ioc_section)
