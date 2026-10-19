@@ -63,13 +63,17 @@ def _config_rows(value: Any, field: str = "") -> list[dict[str, Any]]:
     return [{"Field": field, "Value": value}]
 
 
-def _config_section(cfg: dict[str, Any], resource: Optional[str]) -> ResultTableSection:
+def _config_section(
+    cfg: dict[str, Any], resource: Optional[str], tasks: Optional[list[str]] = None
+) -> ResultTableSection:
     family = (cfg.get("family") or "").strip().upper() or "UNKNOWN"
     section = ResultTableSection(title_text=family)
     for row in _config_rows(_filter_config(cfg)):
         section.add_row(TableRow(**row))
     if resource:
         section.add_row(TableRow(Field="Extraction resource", Value=resource))
+    if tasks:
+        section.add_row(TableRow(Field="Tasks", Value=", ".join(tasks)))
     iocs = ResultTableSection(title_text="Configuration IOCs", auto_collapse=True)
     extract_iocs_from_text_blob(blob=json.dumps(cfg), result_section=iocs)
     section.tags.update(iocs.tags)
@@ -207,6 +211,8 @@ class TriageSandbox(ServiceBase):
             sandbox_section.add_line(f"URL: {self.web_url}/{triage_result.sample.id}")
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
+            if triage_result.task_rows:
+                sandbox_section.add_subsection(_bounded_table("Analysis tasks", triage_result.task_rows, "task"))
             # Single Overview section: signatures + malware config from overview report
             if triage_result.overview_signatures or triage_result.overview_configs:
                 overview_section = ResultSection(title_text="Overview", auto_collapse=True)
@@ -261,6 +267,9 @@ class TriageSandbox(ServiceBase):
                             s.add_line(description)
                             if description.count("\n") + 1 > 3:
                                 s.auto_collapse = True
+                        observed = triage_result.signature_targets.get(sig.get("label") or sig.get("name", ""))
+                        if observed:
+                            s.add_line(f"Observed in: {'; '.join(observed)}")
                         # Overview indicators carry no task, so process references stay raw.
                         rows = {
                             tuple(row.values()): row
@@ -281,15 +290,35 @@ class TriageSandbox(ServiceBase):
                     overview_section.add_subsection(overview_sigs)
                 if triage_result.overview_configs:
                     overview_mc = ResultSection(title_text="Malware Config", auto_collapse=True)
-                    for cfg, resource in zip(triage_result.overview_configs, triage_result.overview_config_resources):
-                        overview_mc.add_subsection(_config_section(cfg, resource))
+                    for cfg, resource, tasks in zip(
+                        triage_result.overview_configs,
+                        triage_result.overview_config_resources,
+                        triage_result.overview_config_tasks,
+                    ):
+                        labels = [triage_result.task_label(task_id) for task_id in tasks]
+                        overview_mc.add_subsection(_config_section(cfg, resource, labels))
                     overview_section.add_subsection(overview_mc)
                 sandbox_section.add_subsection(overview_section)
 
+            rows_by_task = {row["Task"]: row for row in triage_result.task_rows}
             for task in triage_result.sample.task_reports:
                 _attach_dynamic_ontology(self, task.ontology)
-                task_section = ResultSection(f"Task: {task.task_id}")
+                task_section = ResultSection(f"Task: {triage_result.task_label(task.task_id)}")
                 task_section.add_line(f"URL: {self.web_url}/{task.session}")
+                # Target and selection fall back to the sample and overview task lists;
+                # the platform line describes the same values as the exported Sandbox.
+                row = rows_by_task.get(task.task_id, {})
+                for name, value in (
+                    ("Target", row.get("Target")),
+                    ("Selection", row.get("Selection")),
+                    ("Platform", task.platform_text),
+                    ("Resource", task.resource),
+                ):
+                    if value:
+                        task_section.add_line(f"{name}: {value}")
+                source = f"task {triage_result.sample.id}-{task.task_id}" + (
+                    f" ({row['Target']})" if row.get("Target") else ""
+                )
                 for protocol, evidence in (("DNS", task.dns_evidence), ("HTTP", task.http_evidence)):
                     if evidence:
                         task_section.add_subsection(
@@ -394,7 +423,7 @@ class TriageSandbox(ServiceBase):
                         request.add_extracted(
                             path=temp_path,
                             name=f"{triage_result.sample.id}-{task.task_id}-dump.pcapng",
-                            description=f"PCAP file from task {triage_result.sample.id}-{task.task_id}",
+                            description=f"PCAP file from {source}",
                         )
                     except Exception as e:
                         self.log.error(e)
@@ -413,7 +442,7 @@ class TriageSandbox(ServiceBase):
                                 request.add_extracted(
                                     path=temp_path,
                                     name=dump["name"],
-                                    description=f"Memdump file from task {triage_result.sample.id}-{task.task_id}",
+                                    description=f"Memdump file from {source}",
                                 )
                             except Exception as e:
                                 self.log.error(e)
@@ -432,7 +461,7 @@ class TriageSandbox(ServiceBase):
                                 request.add_extracted(
                                     path=temp_path,
                                     name=dump["name"],
-                                    description=f"Dropped file from task {triage_result.sample.id}-{task.task_id}",
+                                    description=f"Dropped file from {source}",
                                 )
                             except Exception as e:
                                 self.log.error(e)

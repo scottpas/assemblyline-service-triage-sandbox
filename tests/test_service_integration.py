@@ -27,6 +27,11 @@ SAMPLE_SHA256 = "7d50e22081955b574b989561277ce0e835117e716817736373ac8799774b6f0
 # ---------------------------------------------------------------------------
 
 
+def task_sections(sandbox_section):
+    """Per-task result sections, excluding the task summary and completeness sections."""
+    return [s for s in sandbox_section.subsections if s.title_text.startswith("Task: ")]
+
+
 def find_subsection(section, substr):
     """Recursively find the first subsection whose title_text contains substr."""
     for sub in section.subsections:
@@ -196,9 +201,11 @@ def test_execute_happy_path_builds_sandbox_section(triage_service, make_request,
     assert "Submitted:" in body
     assert "Completed:" in body
 
-    task_ids = {s.title_text for s in sandbox_section.subsections}
-    assert "Task: behavioral1" in task_ids
-    assert "Task: behavioral2" in task_ids
+    task_ids = {s.title_text for s in task_sections(sandbox_section)}
+    assert task_ids == {
+        "Task: behavioral1 - sample.exe (windows7_x64)",
+        "Task: behavioral2 - sample.exe (windows7_x64)",
+    }
 
 
 def test_execute_signatures_section_and_heuristics(triage_service, make_request, mock_triage_api):
@@ -208,7 +215,7 @@ def test_execute_signatures_section_and_heuristics(triage_service, make_request,
     svc.execute(req)
 
     sandbox_section = req.result.sections[0]
-    for task_section in sandbox_section.subsections:
+    for task_section in task_sections(sandbox_section):
         sigs = find_subsection(task_section, "Signatures")
         assert sigs is not None, f"No Signatures subsection in {task_section.title_text}"
         assert len(sigs.subsections) >= 1, f"Signatures section has no entries in {task_section.title_text}"
@@ -298,7 +305,7 @@ def test_execute_network_iocs_section(triage_service, make_request, mock_triage_
     svc.execute(req)
 
     sandbox_section = req.result.sections[0]
-    for task_section in sandbox_section.subsections:
+    for task_section in task_sections(sandbox_section):
         ioc = find_subsection(task_section, "Network IOCs")
         assert ioc is not None, f"No 'Network IOCs' subsection in {task_section.title_text}"
 
@@ -353,7 +360,7 @@ def test_execute_malware_config_section(triage_service, make_request, mock_triag
     svc.execute(req)
 
     sandbox_section = req.result.sections[0]
-    for task_section in sandbox_section.subsections:
+    for task_section in task_sections(sandbox_section):
         mc = find_subsection(task_section, "Malware Config")
         assert mc is not None, f"No 'Malware Config' subsection in {task_section.title_text}"
         assert len(mc.subsections) >= 1, f"Malware Config has no family entries in {task_section.title_text}"
@@ -376,7 +383,7 @@ def test_execute_attack_ids_on_signature_heuristics(triage_service, make_request
     svc.execute(req)
 
     sandbox_section = req.result.sections[0]
-    for task_section in sandbox_section.subsections:
+    for task_section in task_sections(sandbox_section):
         # Standalone section must be gone
         ttp_standalone = find_subsection(task_section, "ATT&CK Techniques")
         assert ttp_standalone is None, (
