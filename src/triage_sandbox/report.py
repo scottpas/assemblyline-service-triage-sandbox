@@ -325,9 +325,10 @@ class DynamicReport:
         a PID guess; only reports without procid_parent fall back to a single process with
         the PPID that is alive when the child starts.
         """
-        # Go omits a zero procid_parent, so zero also means "not reported".
+        # Go omits a zero procid_parent, so zero also means "not reported". Any other
+        # value, including a malformed falsy one, is an explicit reference.
         parent_procid = process.get("procid_parent")
-        if parent_procid:
+        if not (parent_procid is None or (type(parent_procid) is int and parent_procid == 0)):
             parent = self.__process_for(parent_procid)
             if parent is None or parent is child:
                 return f"{parent_procid} (not recorded)"

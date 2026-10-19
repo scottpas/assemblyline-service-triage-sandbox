@@ -83,7 +83,7 @@ def test_parent_listed_after_child_resolves():
     assert by_procid(dr, 2).pobjectid.guid == by_procid(dr, 1).objectid.guid
 
 
-@pytest.mark.parametrize("procid_parent", [55, 3, [1], {"procid": 1}])
+@pytest.mark.parametrize("procid_parent", [55, 3, [1], {"procid": 1}, [], {}, "", False])
 def test_unresolved_or_self_procid_parent_does_not_fall_back_to_pid(procid_parent):
     """An explicit parent instance that was not recorded is not replaced by a PID guess."""
     dr = make_report(processes=[proc(1, 100, 4, 0), proc(3, 300, 100, 30, procid_parent=procid_parent)])
