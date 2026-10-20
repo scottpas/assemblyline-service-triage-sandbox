@@ -16,6 +16,8 @@ updates:
     directory: "/"
     patterns: ["*"]
     multi-ecosystem-group: "weekly-maintenance"
+    allow:
+      - dependency-type: "all"
     cooldown:
       default-days: 7
       semver-major-days: 30
