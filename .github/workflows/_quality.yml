@@ -66,9 +66,9 @@ jobs:
         run: uv sync --locked --no-install-project
 
       - name: Pre-commit hooks
-        # ty and uv-sync have dedicated steps; the remaining hooks (including pyupgrade) run here.
+        # ty, uv-sync, ruff and bandit have dedicated steps; the remaining hooks (including pyupgrade) run here.
         env:
-          SKIP: ty-check,uv-sync
+          SKIP: ty-check,uv-sync,ruff,ruff-format,bandit
         run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
 
       - name: Lint
