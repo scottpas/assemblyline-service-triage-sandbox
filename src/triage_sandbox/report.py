@@ -821,7 +821,16 @@ class DynamicReport:
             if item.get("ransom_note"):
                 self.malware_config.append(Ransom(**item["ransom_note"]).create_MalwareConfig())
             if item.get("credentials"):
-                self.malware_config.append(Credentials(**item["credentials"]).create_MalwareConfig())
+                try:
+                    cred_mc = Credentials(**_filter_credentials(item["credentials"])).create_MalwareConfig()
+                except Exception as exc:
+                    # Credential records are untrusted; never log their values.
+                    self.diagnostics.append(f"Task {self.task_id}: invalid credentials ({type(exc).__name__}).")
+                else:
+                    if cred_mc is None:
+                        self.diagnostics.append(f"Task {self.task_id}: skipped credentials with no supported content.")
+                    else:
+                        self.malware_config.append(cred_mc)
 
     def __post_init__(self) -> None:
         self.start_time = _analysis_time(self.analysis["submitted"])
@@ -1026,6 +1035,12 @@ _CONFIG_DATACLASS_FIELDS = frozenset(
 def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
     """Return only keys accepted by the Config dataclass; drops unknown future Triage fields."""
     return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
+
+
+def _filter_credentials(cred: dict) -> dict:  # type: ignore[type-arg]
+    """Return only keys accepted by the Credentials dataclass; drops unknown future Triage fields."""
+    accepted = {f.name for f in fields(Credentials)}
+    return {k: v for k, v in cred.items() if k in accepted}
 
 
 def _has_config_content(value: Any) -> bool:
