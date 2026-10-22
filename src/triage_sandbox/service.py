@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
@@ -63,9 +63,7 @@ def _config_rows(value: Any, field: str = "") -> list[dict[str, Any]]:
     return [{"Field": field, "Value": value}]
 
 
-def _config_section(
-    cfg: dict[str, Any], resource: Optional[str], tasks: Optional[list[str]] = None
-) -> ResultTableSection:
+def _config_section(cfg: dict[str, Any], resource: str | None, tasks: list[str] | None = None) -> ResultTableSection:
     family = (cfg.get("family") or "").strip().upper() or "UNKNOWN"
     section = ResultTableSection(title_text=family)
     for row in _config_rows(_filter_config(cfg)):

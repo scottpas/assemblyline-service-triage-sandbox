@@ -5,7 +5,7 @@ import shlex
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
-from typing import Any, List, Optional, cast
+from typing import Any, cast
 
 from assemblyline.common.attack_map import attack_map
 from assemblyline.common.dict_utils import get_dict_fingerprint_hash
@@ -67,13 +67,13 @@ def _indicator_value(value: Any) -> Any:
     return json.dumps(value, sort_keys=True, default=str)
 
 
-def _indicator_str(value: Any) -> Optional[str]:
+def _indicator_str(value: Any) -> str | None:
     """Render an indicator value as text, leaving missing values unset."""
     value = _indicator_value(value)
     return value if value is None or isinstance(value, str) else str(value)
 
 
-def _indicator_text(indicator: dict) -> Optional[str]:
+def _indicator_text(indicator: dict) -> str | None:
     """Combine an indicator's human-readable description with its IOC value, if present."""
     desc = _indicator_str(indicator.get("description"))
     ioc = _indicator_str(indicator.get("ioc"))
@@ -85,7 +85,7 @@ def _indicator_text(indicator: dict) -> Optional[str]:
 _MAX_DIAGNOSTIC_LENGTH = 200
 
 
-def _diagnostic_text(value: Any) -> Optional[str]:
+def _diagnostic_text(value: Any) -> str | None:
     """Reduce an upstream failure reason to its first line, bounded in length.
 
     Reasons can carry multi-line crash dumps or tool output; only the summary
@@ -123,7 +123,7 @@ _PLATFORM_PREFIXES = (
 )
 
 
-def _machine_platform(label: Any) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def _machine_platform(label: Any) -> tuple[str | None, str | None, str | None]:
     """Split a Triage platform label into Sandbox ODM (platform, version, architecture).
 
     Labels are "<os>[-<version>]<sep><arch>", e.g. "windows10-2004_x64",
@@ -145,7 +145,7 @@ def _machine_platform(label: Any) -> tuple[Optional[str], Optional[str], Optiona
     return None, None, architecture
 
 
-def _text(*values: Any) -> Optional[str]:
+def _text(*values: Any) -> str | None:
     """Return the first non-empty text value, skipping missing or malformed ones."""
     return next((value for value in values if isinstance(value, str) and value), None)
 
@@ -184,7 +184,7 @@ def _indicator_row(indicator: dict[str, Any], source: str, target: str) -> dict[
     }
 
 
-def _normalize_registry_key(raw: str) -> Optional[str]:
+def _normalize_registry_key(raw: str) -> str | None:
     """Normalize a Triage indicator IOC into a conventional Win32 registry key path.
 
     Triage denotes registry keys using the native NT object namespace
@@ -231,7 +231,7 @@ def _normalize_registry_key(raw: str) -> Optional[str]:
     return None
 
 
-def _is_static_yara_resource(resource: Optional[str]) -> bool:
+def _is_static_yara_resource(resource: str | None) -> bool:
     """Whether an indicator's "resource" points to something a static YARA scan actually
     ran against (the submitted sample, or a memory dump captured during execution) —
     as opposed to a behavioral indicator that only incidentally carries a yara_rule.
@@ -250,13 +250,13 @@ class DynamicReport:
     sample: dict  # type: ignore[type-arg]
     task: dict  # type: ignore[type-arg]
     analysis: dict  # type: ignore[type-arg]
-    signatures: List[dict]  # type: ignore[type-arg]
+    signatures: list[dict]  # type: ignore[type-arg]
     network: dict  # type: ignore[type-arg]
-    processes: Optional[List[dict]] = None  # type: ignore[type-arg]
-    extracted: Optional[List[dict]] = None  # type: ignore[type-arg]
-    tags: Optional[List[dict]] = None  # type: ignore[type-arg]
-    dumped: Optional[List[dict]] = None  # type: ignore[type-arg]
-    errors: Optional[List[dict]] = None  # type: ignore[type-arg]
+    processes: list[dict] | None = None  # type: ignore[type-arg]
+    extracted: list[dict] | None = None  # type: ignore[type-arg]
+    tags: list[dict] | None = None  # type: ignore[type-arg]
+    dumped: list[dict] | None = None  # type: ignore[type-arg]
+    errors: list[dict] | None = None  # type: ignore[type-arg]
 
     def __add_sandbox(self) -> None:
         # Upstream task identifier, e.g. "240202-3y8f7sefen-behavioral1".
@@ -294,7 +294,7 @@ class DynamicReport:
         )
         self.ontology.add_sandbox(sandbox)
 
-    def __relative_time_str(self, milliseconds: Any, context: str) -> Optional[str]:
+    def __relative_time_str(self, milliseconds: Any, context: str) -> str | None:
         """Convert Triage's integer millisecond offsets to the helper's UTC format.
 
         Missing optional values remain unknown. Reject offsets outside the reported
@@ -840,14 +840,14 @@ class DynamicReport:
         duration = self.end_time - self.start_time
         self._duration_ms = (duration.days * 86400 + duration.seconds) * 1000 + duration.microseconds // 1000
         self.session = f"{self.sample['id']}/{self.task_id}"
-        self.network_tags: List[tuple] = []  # type: ignore[type-arg]
+        self.network_tags: list[tuple] = []  # type: ignore[type-arg]
         self.untagged_flow_domains: list[str] = []
-        self.malware_config: List[MalwareConfig] = []
+        self.malware_config: list[MalwareConfig] = []
         self.diagnostics: list[str] = []
         self.dns_evidence: list[dict[str, Any]] = []
         self.http_evidence: list[dict[str, Any]] = []
         self.configs: list[dict[str, Any]] = []
-        self.config_resources: list[Optional[str]] = []
+        self.config_resources: list[str | None] = []
         # Maps procid → its process instance. The OS can reuse a pid within a task, so
         # signatures, flows and parents resolve through procid rather than pid lookups.
         self._procid_process: dict[int, Any] = {}
@@ -856,28 +856,28 @@ class DynamicReport:
         # Maps normalized signature name → human-readable description (sig.desc)
         self.signature_descriptions: dict[str, str] = {}
         # Maps normalized signature name → normalized registry keys touched (dynamic.registry_key)
-        self.signature_registry_keys: dict[str, List[str]] = {}
+        self.signature_registry_keys: dict[str, list[str]] = {}
         # Maps normalized signature name → distinct per-indicator evidence rows
         self.signature_indicators: dict[str, list[dict[str, Any]]] = {}
         self._indicator_keys: dict[str, tuple[set[tuple[Any, ...]], set[tuple[Any, ...]]]] = {}
         # Maps normalized signature name → processes it reports as crashed (program_crash only)
-        self.crashed_processes: dict[str, List[Process]] = {}
+        self.crashed_processes: dict[str, list[Process]] = {}
         # Older reports omit analysis.platform; the "os:" resource tag carries the same label.
         resource_tags = self.analysis.get("resource_tags") or []
         os_tag = next((t[3:] for t in resource_tags if isinstance(t, str) and t.startswith("os:")), None)
-        self.platform_label: Optional[str] = _text(self.analysis.get("platform"), os_tag)
+        self.platform_label: str | None = _text(self.analysis.get("platform"), os_tag)
         self._machine = _machine_platform(self.platform_label)
         platform, version, architecture = self._machine
         described = ", ".join(p for p in (platform, f"version {version}" if version else None, architecture) if p)
         # UI text for the same values the Sandbox ontology object exports.
-        self.platform_text: Optional[str] = (
+        self.platform_text: str | None = (
             (f"{described} ({self.platform_label})" if described else self.platform_label)
             if self.platform_label
             else None
         )
-        self.resource: Optional[str] = _text(self.analysis.get("resource"))
-        self.target: Optional[str] = _text(self.task.get("target"))
-        self.pick: Optional[str] = _text(self.task.get("pick"))
+        self.resource: str | None = _text(self.analysis.get("resource"))
+        self.target: str | None = _text(self.task.get("target"))
+        self.pick: str | None = _text(self.task.get("pick"))
         self.__add_sandbox()
         if self.processes:
             self.__add_processes()
@@ -917,20 +917,20 @@ class Sample:
     id: str
     status: str
     kind: str
-    tasks: List[dict]  # type: ignore[type-arg]
+    tasks: list[dict]  # type: ignore[type-arg]
     submitted: str
-    sha256: Optional[str] = None
-    filename: Optional[str] = None
-    completed: Optional[str] = None
-    url: Optional[str] = None
-    private: Optional[bool] = None
-    task_reports: List[DynamicReport] = field(default_factory=list)
+    sha256: str | None = None
+    filename: str | None = None
+    completed: str | None = None
+    url: str | None = None
+    private: bool | None = None
+    task_reports: list[DynamicReport] = field(default_factory=list)
     diagnostics: list[str] = field(default_factory=list, init=False)
     # (task, casefolded reason) pairs already reported, so equivalent upstream errors appear once.
-    _task_reasons: set[tuple[Optional[str], Optional[str]]] = field(default_factory=set, init=False, repr=False)
-    parse_error: Optional[Exception] = field(default=None, init=False, repr=False)
+    _task_reasons: set[tuple[str | None, str | None]] = field(default_factory=set, init=False, repr=False)
+    parse_error: Exception | None = field(default=None, init=False, repr=False)
 
-    def add_task_error(self, task_id: Optional[str], reason: Any) -> None:
+    def add_task_error(self, task_id: str | None, reason: Any) -> None:
         """Record an upstream analysis error once per task, ignoring reasons already reported."""
         text = _diagnostic_text(reason)
         key = (task_id, text.casefold() if text else None)
@@ -940,14 +940,14 @@ class Sample:
         stage = f"Task {task_id}" if task_id else "Overview"
         self.diagnostics.append(f"{stage}: analysis error: {text or 'unspecified analysis error'}")
 
-    def get_task_reports(self, client: TriageClient, overview_tasks: Optional[dict[str, dict]] = None) -> None:  # type: ignore[type-arg]
+    def get_task_reports(self, client: TriageClient, overview_tasks: dict[str, dict] | None = None) -> None:  # type: ignore[type-arg]
         self.task_reports = []
         self.diagnostics = []
         self.parse_error = None
         self._task_reasons = set()
         if self.status == "failed":
             self.diagnostics.append("Sample analysis failed; recovered evidence is incomplete.")
-        fetch_error: Optional[Exception] = None
+        fetch_error: Exception | None = None
         for task in self.tasks:
             if task["id"].startswith("behavioral"):
                 if task["status"] not in {"reported", "failed"}:
@@ -1067,7 +1067,7 @@ class TriageResult:
         self._labels: dict[str, str] = {}
         try:
             overview = client.overview_report(self.sample.id)
-            overview_error: Optional[Exception] = None
+            overview_error: Exception | None = None
         except Exception as exc:
             overview, overview_error = {}, exc
         overview_tasks = _overview_tasks(overview)
@@ -1099,7 +1099,7 @@ class TriageResult:
                     behavioral_sig_names.add(name)
 
         self.overview_configs: list[dict] = []  # type: ignore[type-arg]
-        self.overview_config_resources: list[Optional[str]] = []
+        self.overview_config_resources: list[str | None] = []
         self.overview_signatures: list[dict] = []  # type: ignore[type-arg]
         self.overview_config_tasks: list[list[str]] = []
 
