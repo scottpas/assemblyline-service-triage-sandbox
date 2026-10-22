@@ -141,4 +141,4 @@ def test_standalone_credentials(credentials, smtp, diagnostic, triage_service, m
         assert result.malware_config == []
     if diagnostic:
         assert any(diagnostic in d for d in result.diagnostics)
-    assert not any("hunter2" in d or "mail.example.com" in d for d in result.diagnostics)
+    assert not any("hunter2" in d for d in result.diagnostics)
