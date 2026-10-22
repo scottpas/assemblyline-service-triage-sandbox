@@ -2,6 +2,7 @@
 
 import io
 import json
+from pathlib import Path
 
 import pytest
 from requests import utils as req_utils
@@ -243,7 +244,7 @@ def test_download_task_file_writes_streamed_bytes(requests_mock, tmp_path, monke
         content=b"abcdefghij",
     )
     path = TriageClient(token="T").download_task_file(SID, "behavioral1", "dump.pcapng", str(tmp_path))
-    assert open(path, "rb").read() == b"abcdefghij"
+    assert Path(path).read_bytes() == b"abcdefghij"
     req = requests_mock.last_request
     assert req.stream is True
     assert req.timeout == DOWNLOAD_TIMEOUT
@@ -269,7 +270,7 @@ def test_download_task_file_skips_empty_chunks(tmp_path):
     c = TriageClient(token="T")
     c.session = FakeSession()  # ty: ignore[invalid-assignment]
     path = c.download_task_file(SID, "behavioral1", "x.dmp", str(tmp_path))
-    assert open(path, "rb").read() == b"firstsecond"
+    assert Path(path).read_bytes() == b"firstsecond"
 
 
 def test_download_task_file_non_2xx_raises_and_leaves_no_file(requests_mock, tmp_path):
