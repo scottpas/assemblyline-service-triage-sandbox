@@ -15,7 +15,7 @@ import json
 import os
 import platform
 import tempfile
-from typing import Any, BinaryIO, Optional
+from typing import Any, BinaryIO
 
 import requests
 from requests.utils import quote
@@ -57,10 +57,10 @@ class ServerError(Exception):
 class TriageClient:
     def __init__(
         self,
-        token: Optional[str],
-        root_url: Optional[str] = None,
-        timeout: Optional[float] = None,
-        download_timeout: Optional[float] = None,
+        token: str | None,
+        root_url: str | None = None,
+        timeout: float | None = None,
+        download_timeout: float | None = None,
     ) -> None:
         self.root_url = (root_url or DEFAULT_ROOT_URL).rstrip("/")
         self.timeout = timeout or REQUEST_TIMEOUT
@@ -73,8 +73,8 @@ class TriageClient:
         method: str,
         path: str,
         *,
-        json_body: Optional[dict[str, Any]] = None,  # type: ignore[type-arg]
-        files: Optional[dict[str, Any]] = None,  # type: ignore[type-arg]
+        json_body: dict[str, Any] | None = None,  # type: ignore[type-arg]
+        files: dict[str, Any] | None = None,  # type: ignore[type-arg]
     ) -> dict[str, Any]:  # type: ignore[type-arg]
         response = self.session.request(
             method, f"{self.root_url}{path}", json=json_body, files=files, timeout=self.timeout
@@ -92,7 +92,7 @@ class TriageClient:
     def overview_report(self, sample_id: str) -> dict[str, Any]:  # type: ignore[type-arg]
         return self._request("GET", f"/v1/samples/{sample_id}/overview.json")
 
-    def search_one(self, query: str) -> Optional[dict[str, Any]]:  # type: ignore[type-arg]
+    def search_one(self, query: str) -> dict[str, Any] | None:  # type: ignore[type-arg]
         """Return the most recent sample matching ``query``, or ``None``."""
         page = self._request("GET", f"/v0/search?query={quote(query)}&limit=1")
         data = page.get("data") or []

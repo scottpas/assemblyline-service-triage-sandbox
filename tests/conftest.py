@@ -18,7 +18,7 @@ Key architectural notes:
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -41,7 +41,7 @@ _SERVICE_ROOT = Path(__file__).parents[1]
 # ---------------------------------------------------------------------------
 
 
-def build_sample() -> Dict[str, Any]:
+def build_sample() -> dict[str, Any]:
     """Build a minimal synthetic Triage sample object (GET /v0/samples/{id})."""
     return {
         "id": SAMPLE_ID,
@@ -60,7 +60,7 @@ def build_sample() -> Dict[str, Any]:
     }
 
 
-def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
+def build_report(task_id: str, family: str = "fabookie") -> dict[str, Any]:
     """Build a minimal synthetic Triage task report (GET /v0/samples/{id}/{task_id}/report_triage.json)."""
     # Use task-specific PIDs so process tree isolation tests can distinguish tasks.
     # behavioral1 owns 2104/2356; behavioral2 owns 3104/3356.
@@ -214,9 +214,9 @@ def build_report(task_id: str, family: str = "fabookie") -> Dict[str, Any]:
 
 
 def build_overview(
-    signatures: Optional[list] = None,  # type: ignore[type-arg]
-    configs: Optional[list] = None,  # type: ignore[type-arg]
-) -> Dict[str, Any]:
+    signatures: list | None = None,  # type: ignore[type-arg]
+    configs: list | None = None,  # type: ignore[type-arg]
+) -> dict[str, Any]:
     """Build a synthetic Triage overview.json body (GET /v1/samples/{id}/overview.json).
 
     `signatures` and `configs` are passed straight through as overview["signatures"]
@@ -234,19 +234,19 @@ def build_overview(
 
 
 @pytest.fixture(scope="session")
-def sample_json() -> Dict[str, Any]:
+def sample_json() -> dict[str, Any]:
     """Synthetic top-level sample object (id, status, tasks, …)."""
     return build_sample()
 
 
 @pytest.fixture(scope="session")
-def behavioral1_json() -> Dict[str, Any]:
+def behavioral1_json() -> dict[str, Any]:
     """Synthetic behavioral1 triage task report."""
     return build_report("behavioral1")
 
 
 @pytest.fixture(scope="session")
-def behavioral2_json() -> Dict[str, Any]:
+def behavioral2_json() -> dict[str, Any]:
     """Synthetic behavioral2 triage task report (different family for variety)."""
     return build_report("behavioral2", family="vidar")
 
@@ -322,7 +322,7 @@ def triage_client(requests_mock, sample_text, behavioral1_text, behavioral2_text
 # Default submission parameters (mirrors service_manifest.yml defaults)
 # ---------------------------------------------------------------------------
 
-DEFAULT_PARAMS: Dict[str, Any] = {
+DEFAULT_PARAMS: dict[str, Any] = {
     "analysis_timeout_in_seconds": 150,
     "network": "internet",
     "api_key": "",
@@ -355,9 +355,9 @@ def make_request(sample_json):
     """
 
     def _factory(
-        sha256: Optional[str] = None,
+        sha256: str | None = None,
         file_type: str = "executable/windows/pe32",
-        file_name: Optional[str] = None,
+        file_name: str | None = None,
         file_path: str = "/tmp/test_sample",
         uri_info=None,
         **param_overrides: Any,

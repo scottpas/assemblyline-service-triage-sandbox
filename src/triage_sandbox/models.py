@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass
 from ipaddress import ip_address
-from typing import Any, List, Optional
+from typing import Any
 
 import regex
 from assemblyline.odm.models.ontology.results.malware_config import (
@@ -50,14 +50,14 @@ def _credential_entry(cred: dict[str, Any]) -> tuple[str, FTP | SMTP] | None:
 @dataclass
 class Credentials:
     protocol: str
-    username: Optional[str] = None
-    password: Optional[str] = None
-    flow: Optional[int] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    email_to: Optional[Any] = None
+    username: str | None = None
+    password: str | None = None
+    flow: int | None = None
+    host: str | None = None
+    port: int | None = None
+    email_to: Any | None = None
 
-    def create_MalwareConfig(self) -> Optional[MalwareConfig]:
+    def create_MalwareConfig(self) -> MalwareConfig | None:
         """Return None when there is nothing MalwareConfig can represent, rather than an empty UNKNOWN config."""
         converted = _credential_entry(asdict(self))
         if converted is None:
@@ -88,12 +88,12 @@ class Ransom:
     """
 
     note: str
-    family: Optional[str] = None
-    target: Optional[str] = None
-    emails: Optional[List[str]] = None
-    wallets: Optional[List[str]] = None
-    urls: Optional[List[str]] = None
-    contact: Optional[List[str]] = None
+    family: str | None = None
+    target: str | None = None
+    emails: list[str] | None = None
+    wallets: list[str] | None = None
+    urls: list[str] | None = None
+    contact: list[str] | None = None
 
     def create_MalwareConfig(self) -> MalwareConfig:
         family = self.family.upper() if self.family else "UNKNOWN"
@@ -107,28 +107,28 @@ class Ransom:
 
 @dataclass
 class Config:
-    family: Optional[str] = None
-    tags: Optional[List[str]] = None
-    rule: Optional[str] = None
-    c2: Optional[List[str]] = None
-    version: Optional[str] = None
-    botnet: Optional[str] = None
-    campaign: Optional[str] = None
-    mutex: Optional[List[str]] = None
-    decoy: Optional[List[str]] = None
-    wallet: Optional[List[str]] = None
-    dns: Optional[List[str]] = None
-    keys: Optional[List[dict]] = None  # type: ignore[type-arg]
-    webinject: Optional[List[str]] = None
-    command_lines: Optional[List[str]] = None
-    listen_addr: Optional[str] = None
-    listen_port: Optional[int] = None
-    listen_for: Optional[List[str]] = None
-    shellcode: Optional[List[bytearray]] = None
-    extracted_pe: Optional[List[str]] = None
-    credentials: Optional[List[dict]] = None  # type: ignore[type-arg]
-    attr: Optional[dict] = None  # type: ignore[type-arg]
-    raw: Optional[str] = None
+    family: str | None = None
+    tags: list[str] | None = None
+    rule: str | None = None
+    c2: list[str] | None = None
+    version: str | None = None
+    botnet: str | None = None
+    campaign: str | None = None
+    mutex: list[str] | None = None
+    decoy: list[str] | None = None
+    wallet: list[str] | None = None
+    dns: list[str] | None = None
+    keys: list[dict] | None = None  # type: ignore[type-arg]
+    webinject: list[str] | None = None
+    command_lines: list[str] | None = None
+    listen_addr: str | None = None
+    listen_port: int | None = None
+    listen_for: list[str] | None = None
+    shellcode: list[bytearray] | None = None
+    extracted_pe: list[str] | None = None
+    credentials: list[dict] | None = None  # type: ignore[type-arg]
+    attr: dict | None = None  # type: ignore[type-arg]
+    raw: str | None = None
 
     def create_MalwareConfig(self) -> MalwareConfig:
         family = (self.family or "").strip().upper() or "UNKNOWN"
