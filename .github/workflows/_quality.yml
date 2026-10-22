@@ -25,7 +25,15 @@ jobs:
   quality:
     name: Lint, type, test, and audit
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 matches the service base image runtime; 3.14 is the upgrade target.
+        python-version: ["3.11", "3.14"]
     timeout-minutes: 25
+    env:
+      # Overrides .python-version so uv uses the matrix interpreter.
+      UV_PYTHON: ${{ matrix.python-version }}
     outputs:
       reports_available: ${{ steps.reports.outputs.available }}
     steps:
@@ -48,7 +56,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version-file: .python-version
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -78,7 +86,7 @@ jobs:
         run: uv run --no-sync ruff format --check .
 
       - name: Type check
-        run: uv run --no-sync ty check
+        run: uv run --no-sync ty check --python-version ${{ matrix.python-version }}
 
       - name: Static security analysis
         run: uv run --no-sync bandit -c pyproject.toml -r src
@@ -104,7 +112,9 @@ jobs:
           echo "available=$available" >> "$GITHUB_OUTPUT"
 
       - name: Upload Codecov reports
-        if: ${{ !cancelled() && steps.reports.outputs.available == 'true' }}
+        # Only one leg uploads: the artifact name must be unique. Every leg reports the same
+        # availability so the matrix-level job output is deterministic.
+        if: ${{ !cancelled() && matrix.python-version == '3.11' && steps.reports.outputs.available == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codecov-reports
