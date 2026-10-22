@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from ipaddress import ip_address
 from typing import Any, List, Optional
 
@@ -7,6 +7,7 @@ from assemblyline.odm.models.ontology.results.malware_config import (
     DNS,
     FTP,
     HTTP,
+    SMTP,
     Cryptocurrency,
     Encryption,
     GeneralConnection,
@@ -18,26 +19,57 @@ from .constants import EXTRA_CONFIG_FIELDS, SERVICE_NAME
 from .network import _split_addr
 
 
+def _credential_entry(cred: dict[str, Any]) -> tuple[str, FTP | SMTP] | None:
+    """Convert one Triage credential record to its MalwareConfig protocol model.
+
+    Returns None for protocols MalwareConfig has no model for, and for records with no usable content.
+    """
+    protocol = str(cred.get("protocol") or "").lower()
+    if protocol not in ("ftp", "smtp"):
+        return None
+    entry: dict[str, Any] = {
+        "username": cred.get("username"),
+        "password": cred.get("password"),
+        "hostname": cred.get("host"),
+    }
+    try:
+        entry["port"] = int(cred["port"])
+    except (KeyError, TypeError, ValueError):
+        pass
+    if protocol == "smtp":
+        recipients = cred.get("email_to")
+        if isinstance(recipients, str):
+            recipients = [recipients]
+        if isinstance(recipients, (list, tuple)):
+            entry["mail_to"] = [r for r in recipients if isinstance(r, str) and r]
+    if not any(entry.values()):
+        return None
+    return protocol, (SMTP if protocol == "smtp" else FTP)(data=entry)
+
+
 @dataclass
 class Credentials:
     protocol: str
-    username: str
-    password: str
+    username: Optional[str] = None
+    password: Optional[str] = None
     flow: Optional[int] = None
     host: Optional[str] = None
     port: Optional[int] = None
+    email_to: Optional[Any] = None
 
-    def create_MalwareConfig(self) -> MalwareConfig:
-        data: dict[str, Any] = {"config_extractor": SERVICE_NAME, "family": ["UNKNOWN"]}
-        if self.protocol == "ftp":
-            ftp_data: dict[str, Any] = {
-                "username": self.username,
-                "password": self.password,
-                "hostname": self.host,
-            }
-            if self.port is not None:
-                ftp_data["port"] = int(self.port)
-            data["ftp"] = [FTP(data=ftp_data).as_primitives()]
+    def create_MalwareConfig(self) -> Optional[MalwareConfig]:
+        """Return None when there is nothing MalwareConfig can represent, rather than an empty UNKNOWN config."""
+        converted = _credential_entry(asdict(self))
+        if converted is None:
+            return None
+        protocol, entry = converted
+        data: dict[str, Any] = {
+            "config_extractor": SERVICE_NAME,
+            "family": ["UNKNOWN"],
+            protocol: [entry.as_primitives()],
+        }
+        if self.flow is not None:
+            data["other"] = {"flow": self.flow}
         return MalwareConfig(data=data)
 
 
@@ -138,19 +170,10 @@ class Config:
                 data["tcp"] = tcp
         if self.wallet:
             data["cryptocurrency"] = [Cryptocurrency(data={"address": addr}) for addr in self.wallet]
-        if self.credentials:
-            data["ftp"] = [
-                FTP(
-                    data={
-                        "username": cred.get("username"),
-                        "password": cred.get("password"),
-                        "hostname": cred.get("host"),
-                        "port": cred.get("port"),
-                    }
-                )
-                for cred in self.credentials
-                if cred.get("protocol") == "ftp"
-            ]
+        for cred in self.credentials or []:
+            converted = _credential_entry(cred)
+            if converted is not None:
+                data.setdefault(converted[0], []).append(converted[1])
         # Map config.keys[] → MalwareConfig.encryption[]
         encryptions: list[Encryption] = []
         for key_entry in self.keys or []:

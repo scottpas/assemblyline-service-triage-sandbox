@@ -99,3 +99,46 @@ def test_rule_signature_survives_unknown_family(family, triage_service, make_req
     )
     assert rule["malware_families"] == ["UNKNOWN"]
     assert result.malware_config[0].family == ["UNKNOWN"]
+
+
+@pytest.mark.parametrize(
+    "credentials, smtp, diagnostic",
+    [
+        (
+            {
+                "protocol": "smtp",
+                "host": "mail.example.com",
+                "port": 25,
+                "username": "u",
+                "password": "hunter2-secret",
+                "email_to": "a@example.com",
+                "future": 1,
+            },
+            True,
+            None,
+        ),
+        (
+            {"protocol": "imap", "host": "mail.example.com", "username": "u", "password": "hunter2-secret"},
+            False,
+            "skipped credentials with no supported content",
+        ),
+        ({"protocol": "smtp", "port": "not-a-port"}, False, "skipped credentials with no supported content"),
+        ({"username": "x"}, False, "invalid credentials (TypeError)"),
+    ],
+)
+def test_standalone_credentials(credentials, smtp, diagnostic, triage_service, make_request, mock_triage_api):
+    for task_id in ("behavioral1", "behavioral2"):
+        report = build_report(task_id)
+        report["extracted"] = [{"credentials": credentials}]
+        mock_triage_api.get(f"https://api.tria.ge/v0/samples/{SAMPLE_ID}/{task_id}/report_triage.json", json=report)
+    req = make_request()
+    triage_service.execute(req)
+    result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
+    if smtp:
+        assert len(result.malware_config) == 2
+        assert result.malware_config[0].smtp[0].mail_to == ["a@example.com"]
+    else:
+        assert result.malware_config == []
+    if diagnostic:
+        assert any(diagnostic in d for d in result.diagnostics)
+    assert not any("hunter2" in d for d in result.diagnostics)
