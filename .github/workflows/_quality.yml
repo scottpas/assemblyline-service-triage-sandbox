@@ -103,7 +103,8 @@ jobs:
 
       - name: Check Codecov reports
         id: reports
-        if: ${{ inputs.upload_reports && !cancelled() }}
+        # Only the 3.11 leg reports, so the matrix-level job output cannot be set by the 3.14 leg.
+        if: ${{ inputs.upload_reports && matrix.python-version == '3.11' && !cancelled() }}
         run: |
           available=false
           if [[ -s coverage.xml && -s junit.xml ]]; then
@@ -112,8 +113,7 @@ jobs:
           echo "available=$available" >> "$GITHUB_OUTPUT"
 
       - name: Upload Codecov reports
-        # Only one leg uploads: the artifact name must be unique. Every leg reports the same
-        # availability so the matrix-level job output is deterministic.
+        # Only one leg uploads: the artifact name must be unique.
         if: ${{ !cancelled() && matrix.python-version == '3.11' && steps.reports.outputs.available == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
