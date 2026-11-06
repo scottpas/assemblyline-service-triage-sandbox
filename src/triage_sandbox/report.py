@@ -39,6 +39,7 @@ from .constants import (
     SCORE_MULTIPLY_FACTOR,
     SERVICE_NAME,
 )
+from .evidence import ExtractedEvidence, convert_extracted
 from .models import Config, Credentials, Ransom
 from .network import (
     _network_transactions,
@@ -772,6 +773,14 @@ class DynamicReport:
 
     def __add_extracted(self) -> None:
         for item in self.extracted or []:
+            converted, diagnostics = convert_extracted(item, f"Task {self.task_id}")
+            self.diagnostics.extend(diagnostics)
+            for record in converted:
+                record.tasks = [self.task_id]
+                if record.key in self.evidence:
+                    self.evidence[record.key].merge_context(record)
+                else:
+                    self.evidence[record.key] = record
             if item.get("config"):
                 try:
                     filtered = _filter_config(item["config"])
@@ -852,6 +861,8 @@ class DynamicReport:
         self.http_evidence: list[dict[str, Any]] = []
         self.configs: list[dict[str, Any]] = []
         self.config_resources: list[str | None] = []
+        # Distinct non-configuration records; a note written to many paths appears once.
+        self.evidence: dict[str, ExtractedEvidence] = {}
         # Maps procid → its process instance. The OS can reuse a pid within a task, so
         # signatures, flows and parents resolve through procid rather than pid lookups.
         self._procid_process: dict[int, Any] = {}
