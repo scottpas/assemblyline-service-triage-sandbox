@@ -225,7 +225,11 @@ class TriageSandbox(ServiceBase):
             urls.auto_collapse = False
             # Payload URLs are recovered from script text, not contacted by the sandbox.
             for row in details["urls"]:
-                add_tag(urls, "network.static.uri", row["URL"])
+                try:
+                    add_tag(urls, "network.static.uri", row["URL"])
+                except ValueError:
+                    # A URL urlsplit rejects stays visible in its row without a tag.
+                    continue
             section.add_subsection(urls)
         diagnostics = []
         for title, field, name in (

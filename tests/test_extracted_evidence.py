@@ -75,6 +75,14 @@ def test_dropper_section_keeps_typed_urls_context_and_static_tags(triage_service
     request.add_supplementary.assert_not_called()
 
 
+def test_malformed_dropper_url_keeps_row_without_failing(triage_service, make_request, mock_triage_api):
+    dropper = {"urls": [{"url": "http://[bad/"}, {"url": "https://payload.example.com/a.exe"}]}
+    _, task, _ = run(triage_service, make_request, mock_triage_api, [{"dropper": dropper}])
+    urls = titled(titled(task, "Dropper"), "Dropper URLs")
+    assert [row["URL"] for row in json.loads(urls.body)] == ["http://[bad/", "https://payload.example.com/a.exe"]
+    assert urls.tags["network.static.uri"] == ["https://payload.example.com/a.exe"]
+
+
 def test_dropper_repeated_in_task_appears_once_with_all_context(triage_service, make_request, mock_triage_api):
     extracted = [{"dropper": DROPPER, "path": "C:\\a"}, {"dropper": DROPPER, "path": "C:\\b"}]
     _, task, _ = run(triage_service, make_request, mock_triage_api, extracted)
