@@ -265,3 +265,123 @@ def test_string_values_normalizes_untrusted_fields():
     assert string_values("a") == ["a"]
     assert string_values(["a", "a", "", None, 7, "b"]) == ["a", "b"]
     assert string_values(None) == []
+
+
+CREDENTIALS = {"protocol": "smtp", "host": "smtp.example.com", "port": 587, "username": "u", "password": "p", "flow": 2}
+
+
+def test_behavioral_credentials_render_and_keep_config_mapping(triage_service, make_request, mock_triage_api):
+    item = {"credentials": {**CREDENTIALS, "email_to": "dest@example.com"}}
+    _, task, _ = run(triage_service, make_request, mock_triage_api, [item])
+    section = titled(task, "Credentials (SMTP)")
+    assert section.heuristic is None
+    assert json.loads(titled(section, "Recovered credentials").body) == [
+        {
+            "Protocol": "smtp",
+            "Host": "smtp.example.com",
+            "Port": 587,
+            "Username": "u",
+            "Password": "p",
+            "Recipients": "dest@example.com",
+            "Flow": 2,
+        }
+    ]
+    result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
+    assert result.malware_config[0].smtp[0].hostname == "smtp.example.com"
+
+
+def overview_only_setup(api, extracted):
+    """Neither behavioral report has extracted evidence; only the overview does."""
+    for task_id in ("behavioral1", "behavioral2"):
+        report = build_report(task_id)
+        report["extracted"] = []
+        api.get(REPORT_URL.format(SAMPLE_ID, task_id), json=report)
+    api.get(OVERVIEW_URL, json={"extracted": extracted})
+
+
+def test_overview_only_records_appear_with_their_own_context(triage_service, make_request, mock_triage_api):
+    overview_only_setup(
+        mock_triage_api,
+        [
+            {"dropper": DROPPER, "tasks": ["behavioral9"], "resource": "behavioral9/files/x"},
+            {"ransom_note": {"note": "pay", "family": "conti"}, "path": "C:\\a", "tasks": ["behavioral9"]},
+            {"ransom_note": {"note": "pay", "family": "conti"}, "path": "C:\\b", "tasks": ["behavioral8"]},
+            {"ransom_note": {"note": "other note"}},
+            {"credentials": CREDENTIALS},
+        ],
+    )
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    overview = titled(sandbox, "Overview")
+    assert "Tasks: behavioral9" in titled(overview, "Dropper (ps1)").body
+    note = titled(overview, "Ransom note (CONTI)")
+    assert "Path: C:\\a, C:\\b" in note.body
+    assert "Tasks: behavioral9, behavioral8" in note.body
+    # A record without upstream task attribution is not assigned one.
+    assert titled(overview, "Ransom note").body is None
+    assert titled(overview, "Credentials (SMTP)").body is None
+    assert not any(s.heuristic for s in overview.subsections)
+    result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
+    # Two distinct notes and one credential; a dropper has no MalwareConfig.
+    assert len(result.malware_config) == 3
+
+
+def test_behavioral_and_overview_equivalents_appear_once_with_context(triage_service, make_request, mock_triage_api):
+    note = {"note": "pay", "family": "conti", "wallets": ["w1"]}
+    behavioral = [
+        {"ransom_note": note, "path": "C:\\a"},
+        {"dropper": DROPPER},
+        {"credentials": CREDENTIALS},
+    ]
+    overview = {
+        "extracted": [
+            {"ransom_note": note, "path": "C:\\a", "tasks": ["behavioral1", "behavioral7"]},
+            {"dropper": DROPPER, "tasks": ["behavioral1"]},
+            # Flow numbers are per task, so this is the same credential seen elsewhere.
+            {"credentials": {**CREDENTIALS, "flow": 9}, "tasks": ["behavioral2"]},
+        ]
+    }
+    request, task, sandbox = run(triage_service, make_request, mock_triage_api, behavioral, overview)
+    assert not any(s.title_text == "Overview" for s in sandbox.subsections)
+    # Tasks with a report are identified by their label; others keep the upstream name.
+    labels = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID)).task_label
+    assert f"Tasks: {labels('behavioral1')}, behavioral7" in titled(task, "Ransom note (CONTI)").body
+    assert f"Tasks: {labels('behavioral1')}, {labels('behavioral2')}" in titled(task, "Credentials (SMTP)").body
+    result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
+    assert result.overview_evidence == {}
+    assert len(result.malware_config) == 2
+    assert [c.address for c in result.malware_config[0].cryptocurrency] == ["w1"]
+
+
+def test_malformed_overview_records_keep_unrelated_evidence(triage_service, make_request, mock_triage_api):
+    overview_only_setup(
+        mock_triage_api,
+        [
+            "bad",
+            {"dropper": "bad"},
+            {"ransom_note": {"family": 7}},
+            {"credentials": {"username": "missing protocol"}},
+            {"credentials": {"protocol": "imap"}},
+            {"ransom_note": {"note": "kept"}},
+        ],
+    )
+    request = make_request()
+    triage_service.execute(request)
+    sandbox = request.result.sections[0]
+    assert titled(titled(titled(sandbox, "Overview"), "Ransom note"), "Ransom note text").body == "kept"
+    completeness = titled(sandbox, "Analysis completeness").body
+    assert "Overview: invalid dropper record." in completeness
+    assert "Overview: invalid ransom note (AttributeError)." in completeness
+    assert "Overview: invalid credentials (TypeError)." in completeness
+    assert "Overview: skipped credentials with no supported content." in completeness
+
+
+def test_overview_evidence_prevents_failure_when_reports_cannot_parse(triage_client, requests_mock):
+    for task_id in ("behavioral1", "behavioral2"):
+        requests_mock.get(REPORT_URL.format(SAMPLE_ID, task_id), json={"sample": {}})
+    requests_mock.get(OVERVIEW_URL, json={"extracted": [{"credentials": CREDENTIALS}]})
+    result = TriageResult(triage_client, triage_client.sample_by_id(SAMPLE_ID))
+    assert result.sample.task_reports == []
+    assert len(result.overview_evidence) == 1
+    assert len(result.malware_config) == 1

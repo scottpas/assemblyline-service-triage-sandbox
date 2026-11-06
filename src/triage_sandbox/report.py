@@ -40,7 +40,7 @@ from .constants import (
     SERVICE_NAME,
 )
 from .evidence import ExtractedEvidence, convert_extracted
-from .models import Config, Credentials
+from .models import Config
 from .network import (
     _network_transactions,
     _normalize_dns_lookup_type,
@@ -829,17 +829,6 @@ class DynamicReport:
                     if source is not None:
                         al_sig.add_attribute(Attribute(source=cast(Any, source).objectid))
                     self.ontology.add_signature(al_sig)
-            if item.get("credentials"):
-                try:
-                    cred_mc = Credentials(**_filter_credentials(item["credentials"])).create_MalwareConfig()
-                except Exception as exc:
-                    # Credential records are untrusted; never log their values.
-                    self.diagnostics.append(f"Task {self.task_id}: invalid credentials ({type(exc).__name__}).")
-                else:
-                    if cred_mc is None:
-                        self.diagnostics.append(f"Task {self.task_id}: skipped credentials with no supported content.")
-                    else:
-                        self.malware_config.append(cred_mc)
 
     def __post_init__(self) -> None:
         self.start_time = _analysis_time(self.analysis["submitted"])
@@ -1048,12 +1037,6 @@ def _filter_config(cfg: dict) -> dict:  # type: ignore[type-arg]
     return {k: v for k, v in cfg.items() if k in _CONFIG_DATACLASS_FIELDS}
 
 
-def _filter_credentials(cred: dict) -> dict:  # type: ignore[type-arg]
-    """Return only keys accepted by the Credentials dataclass; drops unknown future Triage fields."""
-    accepted = {f.name for f in fields(Credentials)}
-    return {k: v for k, v in cred.items() if k in accepted}
-
-
 def _has_config_content(value: Any) -> bool:
     """Ignore empty containers and credential protocol placeholders, retaining zero/false settings."""
     if isinstance(value, dict):
@@ -1113,9 +1096,28 @@ class TriageResult:
         self.overview_config_resources: list[str | None] = []
         self.overview_signatures: list[dict] = []  # type: ignore[type-arg]
         self.overview_config_tasks: list[list[str]] = []
+        # Records no behavioral report covers, e.g. every record of a task without a report.
+        self.overview_evidence: dict[str, ExtractedEvidence] = {}
+        behavioral_evidence: dict[str, list[ExtractedEvidence]] = {}
+        for report in self.sample.task_reports:
+            for key, record in report.evidence.items():
+                behavioral_evidence.setdefault(key, []).append(record)
 
         if overview:
             for item in overview.get("extracted") or []:
+                converted, diagnostics = convert_extracted(item, "Overview")
+                self.diagnostics.extend(diagnostics)
+                for record in converted:
+                    # Provenance is kept on the existing copy; evidence and config are not repeated.
+                    if record.key in behavioral_evidence:
+                        for existing in behavioral_evidence[record.key]:
+                            existing.merge_context(record)
+                    elif record.key in self.overview_evidence:
+                        self.overview_evidence[record.key].merge_context(record)
+                    else:
+                        self.overview_evidence[record.key] = record
+                        if record.malware_config is not None:
+                            self.malware_config.append(record.malware_config)
                 try:
                     cfg = item.get("config") or {}
                     filtered = _filter_config(cfg)
@@ -1152,6 +1154,7 @@ class TriageResult:
             and not self.sample.task_reports
             and not self.overview_signatures
             and not self.overview_configs
+            and not self.overview_evidence
         ):
             raise self.sample.parse_error
 

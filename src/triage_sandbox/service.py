@@ -265,6 +265,16 @@ class TriageSandbox(ServiceBase):
         section.add_subsection(note)
         return section, [diagnostic] if diagnostic else []
 
+    def _credentials_section(
+        self, request: ServiceRequest, evidence: ExtractedEvidence, label: Callable[[str], str]
+    ) -> tuple[ResultSection, list[str]]:
+        section = ResultSection(f"Credentials ({evidence.details['protocol']})")
+        _add_context_lines(section, evidence, label)
+        credentials = _bounded_table("Recovered credentials", evidence.details["rows"], "credential")
+        credentials.auto_collapse = False
+        section.add_subsection(credentials)
+        return section, []
+
     def _add_evidence_sections(
         self,
         request: ServiceRequest,
@@ -274,7 +284,11 @@ class TriageSandbox(ServiceBase):
     ) -> None:
         """Render non-configuration records. These sections carry no heuristic: scoring is unchanged."""
         for record in evidence:
-            render = self._ransom_section if record.kind == "ransom_note" else self._dropper_section
+            render = {
+                "credentials": self._credentials_section,
+                "dropper": self._dropper_section,
+                "ransom_note": self._ransom_section,
+            }[record.kind]
             section, diagnostics = render(request, record, triage_result.task_label)
             parent.add_subsection(section)
             triage_result.diagnostics.extend(diagnostics)
@@ -320,8 +334,8 @@ class TriageSandbox(ServiceBase):
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             if triage_result.task_rows:
                 sandbox_section.add_subsection(_bounded_table("Analysis tasks", triage_result.task_rows, "task"))
-            # Single Overview section: signatures + malware config from overview report
-            if triage_result.overview_signatures or triage_result.overview_configs:
+            # Single Overview section: signatures, malware config and other extracted evidence
+            if triage_result.overview_signatures or triage_result.overview_configs or triage_result.overview_evidence:
                 overview_section = ResultSection(title_text="Overview", auto_collapse=True)
                 if triage_result.overview_signatures:
                     overview_sigs = ResultSection(title_text="Signatures", auto_collapse=True)
@@ -405,6 +419,9 @@ class TriageSandbox(ServiceBase):
                         labels = [triage_result.task_label(task_id) for task_id in tasks]
                         overview_mc.add_subsection(_config_section(cfg, resource, labels))
                     overview_section.add_subsection(overview_mc)
+                self._add_evidence_sections(
+                    request, overview_section, triage_result.overview_evidence.values(), triage_result
+                )
                 sandbox_section.add_subsection(overview_section)
 
             rows_by_task = {row["Task"]: row for row in triage_result.task_rows}

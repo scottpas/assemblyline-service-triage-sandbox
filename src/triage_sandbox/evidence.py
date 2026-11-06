@@ -6,7 +6,7 @@ from typing import Any
 
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
 
-from .models import Ransom, clean_text, string_values
+from .models import Credentials, Ransom, clean_text, string_values
 
 
 @dataclass
@@ -65,6 +65,33 @@ def _ransom_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConf
     )
 
 
+def _credential_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConfig] | None:
+    accepted = {f.name for f in fields(Credentials)}
+    credentials = Credentials(**{k: v for k, v in record.items() if k in accepted})
+    malware_config = credentials.create_MalwareConfig()
+    if malware_config is None:
+        return None
+    recipients = string_values(credentials.email_to)
+    row = {
+        "Protocol": credentials.protocol,
+        "Host": credentials.host,
+        "Port": credentials.port,
+        "Username": credentials.username,
+        "Password": credentials.password,
+        "Recipients": ", ".join(recipients),
+        "Flow": credentials.flow,
+    }
+    return {"protocol": str(credentials.protocol).upper(), "rows": [row]}, malware_config
+
+
+def _evidence_key(kind: str, record: Any) -> str:
+    """Identify equivalent records. A flow number is only meaningful within its own task."""
+    identity = record
+    if kind == "credentials":
+        identity = {k: v for k, v in record.items() if k != "flow"}
+    return json.dumps([kind, identity], sort_keys=True, default=str)
+
+
 def convert_extracted(item: Any, stage: str) -> tuple[list[ExtractedEvidence], list[str]]:
     """Convert the non-configuration records of one extracted item.
 
@@ -80,7 +107,7 @@ def convert_extracted(item: Any, stage: str) -> tuple[list[ExtractedEvidence], l
         evidence.append(
             ExtractedEvidence(
                 kind=kind,
-                key=json.dumps([kind, record], sort_keys=True, default=str),
+                key=_evidence_key(kind, record),
                 details=details,
                 paths=string_values(item.get("path")),
                 resources=string_values(item.get("resource")),
@@ -106,4 +133,15 @@ def convert_extracted(item: Any, stage: str) -> tuple[list[ExtractedEvidence], l
             diagnostics.append(f"{stage}: invalid ransom note ({type(exc).__name__}).")
         else:
             add("ransom_note", record, details, malware_config)
+    record = item.get("credentials")
+    if record:
+        try:
+            converted = _credential_details(record)
+        except Exception as exc:
+            diagnostics.append(f"{stage}: invalid credentials ({type(exc).__name__}).")
+        else:
+            if converted is None:
+                diagnostics.append(f"{stage}: skipped credentials with no supported content.")
+            else:
+                add("credentials", record, *converted)
     return evidence, diagnostics
