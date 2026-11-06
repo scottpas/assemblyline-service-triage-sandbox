@@ -135,7 +135,7 @@ def test_standalone_credentials(credentials, smtp, diagnostic, triage_service, m
     triage_service.execute(req)
     result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
     if smtp:
-        assert len(result.malware_config) == 2
+        assert len(result.malware_config) == 1
         assert result.malware_config[0].smtp[0].mail_to == ["a@example.com"]
     else:
         assert result.malware_config == []

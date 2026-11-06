@@ -1,5 +1,7 @@
+import hashlib
 import json
 import os
+from collections.abc import Callable, Iterable
 from typing import Any, cast
 
 from assemblyline.common.attack_map import attack_map
@@ -9,6 +11,7 @@ from assemblyline.odm.models.ontology.results import Sandbox as SandboxModel
 from assemblyline.odm.models.ontology.results import Signature as SignatureModel
 from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
 from assemblyline_service_utilities.common.dynamic_service_helper import OntologyResults, extract_iocs_from_text_blob
+from assemblyline_service_utilities.common.tag_helper import add_tag
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
 from assemblyline_v4_service.common.result import (
@@ -23,6 +26,7 @@ from retrying import RetryError, retry
 
 from .client import ServerError, TriageClient
 from .constants import SUPPORTED_FILE_TYPES
+from .evidence import ExtractedEvidence
 from .report import (
     TriageResult,
     _filter_config,
@@ -36,6 +40,8 @@ from .report import (
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
 # Inline row limit for evidence tables; the ontology keeps every record.
 MAX_TABLE_ROWS = 100
+# Inline character limit for recovered text; longer text is kept as a supplementary file.
+MAX_INLINE_TEXT = 4096
 
 
 def _bounded_table(title: str, rows: list[dict[str, Any]], noun: str) -> ResultTableSection:
@@ -83,6 +89,16 @@ def _config_section(cfg: dict[str, Any], resource: str | None, tasks: list[str] 
         ResultSection(title_text="Raw Config", body_format="JSON", body=json.dumps(cfg), auto_collapse=True)
     )
     return section
+
+
+def _add_context_lines(section: ResultSection, evidence: ExtractedEvidence, label: Callable[[str], str]) -> None:
+    for name, values in (
+        ("Path", evidence.paths),
+        ("Extraction resource", evidence.resources),
+        ("Tasks", [label(task_id) for task_id in evidence.tasks]),
+    ):
+        if values:
+            section.add_line(f"{name}: {', '.join(values)}")
 
 
 TRIAGE_POLL_DELAY = 10
@@ -171,6 +187,116 @@ class TriageSandbox(ServiceBase):
                 )
         return submission
 
+    def _text_section(
+        self, request: ServiceRequest, title: str, text: str, name: str
+    ) -> tuple[ResultSection, str | None]:
+        """Show recovered text up to MAX_INLINE_TEXT, keeping longer text as supplementary evidence.
+
+        Returns the section and a diagnostic when the complete text could not be retained.
+        """
+        section = ResultSection(title, auto_collapse=True)
+        diagnostic = None
+        if len(text) > MAX_INLINE_TEXT:
+            digest = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:16]
+            file_name = f"{name}_{digest}.txt"
+            section.add_line(f"Showing the first {MAX_INLINE_TEXT} of {len(text)} characters.")
+            try:
+                if file_name not in self._supplementary_names:
+                    path = os.path.join(self.working_directory, file_name)
+                    with open(path, "w", encoding="utf-8", errors="replace") as fh:
+                        fh.write(text)
+                    request.add_supplementary(path, file_name, f"{title} recovered by Triage")
+                    self._supplementary_names.add(file_name)
+                section.add_line(f"Complete text: supplementary file {file_name}")
+            except Exception as exc:
+                self.log.error(exc)
+                diagnostic = f"{title}: complete text could not be retained."
+        section.add_line(text[:MAX_INLINE_TEXT])
+        return section, diagnostic
+
+    def _dropper_section(
+        self, request: ServiceRequest, evidence: ExtractedEvidence, label: Callable[[str], str]
+    ) -> tuple[ResultSection, list[str]]:
+        details = evidence.details
+        section = ResultSection(f"Dropper ({details['language']})" if details["language"] else "Dropper")
+        _add_context_lines(section, evidence, label)
+        if details["urls"]:
+            urls = _bounded_table("Dropper URLs", details["urls"], "URL")
+            urls.auto_collapse = False
+            # Payload URLs are recovered from script text, not contacted by the sandbox.
+            for row in details["urls"]:
+                try:
+                    add_tag(urls, "network.static.uri", row["URL"])
+                except ValueError:
+                    # A URL urlsplit rejects stays visible in its row without a tag.
+                    continue
+            section.add_subsection(urls)
+        diagnostics = []
+        for title, field, name in (
+            ("Dropper source", "source", "dropper_source"),
+            ("Deobfuscated dropper", "deobfuscated", "dropper_deobfuscated"),
+        ):
+            if details[field]:
+                text_section, diagnostic = self._text_section(request, title, details[field], name)
+                section.add_subsection(text_section)
+                if diagnostic:
+                    diagnostics.append(diagnostic)
+        return section, diagnostics
+
+    def _ransom_section(
+        self, request: ServiceRequest, evidence: ExtractedEvidence, label: Callable[[str], str]
+    ) -> tuple[ResultSection, list[str]]:
+        details = evidence.details
+        family = (details["family"] or "").upper()
+        section = ResultSection(f"Ransom note ({family})" if family else "Ransom note")
+        if family:
+            section.add_tag(tag_type="attribution.family", value=family)
+        if details["target"]:
+            section.add_line(f"Target: {details['target']}")
+        _add_context_lines(section, evidence, label)
+        if details["rows"]:
+            contacts = _bounded_table("Contact and payment details", details["rows"], "contact detail")
+            contacts.auto_collapse = False
+            for email in details["emails"]:
+                add_tag(contacts, "network.email.address", email)
+            for url in details["urls"]:
+                add_tag(contacts, "network.static.uri", url)
+            section.add_subsection(contacts)
+        if not details["note"]:
+            return section, []
+        note, diagnostic = self._text_section(request, "Ransom note text", details["note"], "ransom_note")
+        note.auto_collapse = False
+        section.add_subsection(note)
+        return section, [diagnostic] if diagnostic else []
+
+    def _credentials_section(
+        self, request: ServiceRequest, evidence: ExtractedEvidence, label: Callable[[str], str]
+    ) -> tuple[ResultSection, list[str]]:
+        section = ResultSection(f"Credentials ({evidence.details['protocol']})")
+        _add_context_lines(section, evidence, label)
+        credentials = _bounded_table("Recovered credentials", evidence.details["rows"], "credential")
+        credentials.auto_collapse = False
+        section.add_subsection(credentials)
+        return section, []
+
+    def _add_evidence_sections(
+        self,
+        request: ServiceRequest,
+        parent: ResultSection,
+        evidence: Iterable[ExtractedEvidence],
+        triage_result: TriageResult,
+    ) -> None:
+        """Render non-configuration records. These sections carry no heuristic: scoring is unchanged."""
+        renderers = {
+            "credentials": self._credentials_section,
+            "dropper": self._dropper_section,
+            "ransom_note": self._ransom_section,
+        }
+        for record in evidence:
+            section, diagnostics = renderers[record.kind](request, record, triage_result.task_label)
+            parent.add_subsection(section)
+            triage_result.diagnostics.extend(diagnostics)
+
     def start(self) -> None:
         self.log.info(f"start() from {self.service_attributes.name} service called")
 
@@ -199,6 +325,7 @@ class TriageSandbox(ServiceBase):
             self.log.error(e)
             raise
 
+        self._supplementary_names: set[str] = set()
         try:
             wait_for_submission(service=self, submission_id=submission["id"])
             triage_result = TriageResult(self.client, self.client.sample_by_id(sample_id=submission["id"]))
@@ -211,8 +338,8 @@ class TriageSandbox(ServiceBase):
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             if triage_result.task_rows:
                 sandbox_section.add_subsection(_bounded_table("Analysis tasks", triage_result.task_rows, "task"))
-            # Single Overview section: signatures + malware config from overview report
-            if triage_result.overview_signatures or triage_result.overview_configs:
+            # Single Overview section: signatures, malware config and other extracted evidence
+            if triage_result.overview_signatures or triage_result.overview_configs or triage_result.overview_evidence:
                 overview_section = ResultSection(title_text="Overview", auto_collapse=True)
                 if triage_result.overview_signatures:
                     overview_sigs = ResultSection(title_text="Signatures", auto_collapse=True)
@@ -296,6 +423,9 @@ class TriageSandbox(ServiceBase):
                         labels = [triage_result.task_label(task_id) for task_id in tasks]
                         overview_mc.add_subsection(_config_section(cfg, resource, labels))
                     overview_section.add_subsection(overview_mc)
+                self._add_evidence_sections(
+                    request, overview_section, triage_result.overview_evidence.values(), triage_result
+                )
                 sandbox_section.add_subsection(overview_section)
 
             rows_by_task = {row["Task"]: row for row in triage_result.task_rows}
@@ -409,6 +539,7 @@ class TriageSandbox(ServiceBase):
                         malware_section.add_subsection(_config_section(cfg, resource))
                     if malware_section.subsections:
                         task_section.add_subsection(malware_section)
+                self._add_evidence_sections(request, task_section, task.evidence.values(), triage_result)
                 sandbox_section.add_subsection(task_section)
                 if request.get_param("extract_pcap"):
                     try:
