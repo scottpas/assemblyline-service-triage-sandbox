@@ -87,7 +87,7 @@ class Ransom:
     }
     """
 
-    note: str
+    note: str | None = None
     family: str | None = None
     target: str | None = None
     emails: list[str] | None = None

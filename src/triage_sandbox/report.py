@@ -819,7 +819,11 @@ class DynamicReport:
                         al_sig.add_attribute(Attribute(source=cast(Any, source).objectid))
                     self.ontology.add_signature(al_sig)
             if item.get("ransom_note"):
-                self.malware_config.append(Ransom(**item["ransom_note"]).create_MalwareConfig())
+                try:
+                    self.malware_config.append(Ransom(**_filter_ransom(item["ransom_note"])).create_MalwareConfig())
+                except Exception as exc:
+                    # Isolate untrusted note conversion so other evidence in the report survives.
+                    self.diagnostics.append(f"Task {self.task_id}: invalid ransom note ({type(exc).__name__}).")
             if item.get("credentials"):
                 try:
                     cred_mc = Credentials(**_filter_credentials(item["credentials"])).create_MalwareConfig()
@@ -1041,6 +1045,12 @@ def _filter_credentials(cred: dict) -> dict:  # type: ignore[type-arg]
     """Return only keys accepted by the Credentials dataclass; drops unknown future Triage fields."""
     accepted = {f.name for f in fields(Credentials)}
     return {k: v for k, v in cred.items() if k in accepted}
+
+
+def _filter_ransom(note: dict) -> dict:  # type: ignore[type-arg]
+    """Return only keys accepted by the Ransom dataclass; drops unknown future Triage fields."""
+    accepted = {f.name for f in fields(Ransom)}
+    return {k: v for k, v in note.items() if k in accepted}
 
 
 def _has_config_content(value: Any) -> bool:

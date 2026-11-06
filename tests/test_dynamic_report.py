@@ -537,6 +537,26 @@ def test_add_extracted_ransom_note_no_family():
     assert prim.get("category") == ["ransomware"]
 
 
+@pytest.mark.parametrize(
+    "note",
+    [
+        {"family": 7},
+        "not-a-record",
+    ],
+)
+def test_add_extracted_invalid_ransom_note_keeps_other_evidence(note):
+    extracted = [{"ransom_note": note}, {"ransom_note": {"note": "pay up", "family": "conti"}}]
+    dr = make_report(extracted=extracted)
+    assert [mc.as_primitives(strip_null=True)["family"] for mc in dr.malware_config] == [["CONTI"]]
+    assert any("invalid ransom note" in message for message in dr.diagnostics)
+
+
+def test_add_extracted_ransom_note_tolerates_unknown_and_missing_fields():
+    dr = make_report(extracted=[{"ransom_note": {"family": "conti", "future_field": 1}}])
+    assert dr.malware_config[0].as_primitives(strip_null=True)["family"] == ["CONTI"]
+    assert dr.diagnostics == []
+
+
 # ---------------------------------------------------------------------------
 # 13. __add_extracted — credentials config
 # ---------------------------------------------------------------------------
