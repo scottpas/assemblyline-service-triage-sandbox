@@ -531,7 +531,13 @@ def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
 
     overview = build_overview(
         signatures=[
-            {"label": "sig5", "score": 10, "tags": ["family:emotet"], "ttp": ["T1082", "T9999999"], "desc": "d5"},
+            {
+                "label": "sig5",
+                "score": 10,
+                "tags": ["family:emotet"],
+                "ttp": ["T1082", "T9999999", "T1562.001"],
+                "desc": "d5",
+            },
             {"label": "sig4", "score": 8},
             {"label": "sig3", "score": 5},
             {"label": "sig2", "score": 1},
@@ -559,6 +565,9 @@ def test_execute_overview_signatures_rendered_with_heuristics_family_and_ttps(
     assert by_title["SIG5"].tags.get("attribution.family") == ["EMOTET"]
     assert "T1082" in by_title["SIG5"].heuristic.attack_ids
     assert "T9999999" not in by_title["SIG5"].heuristic.attack_ids
+    # Revoked by ATT&CK: reported under its successor rather than dropped.
+    assert "T1685" in by_title["SIG5"].heuristic.attack_ids
+    assert "T1562.001" not in by_title["SIG5"].heuristic.attack_ids
     assert "d5" in (by_title["SIG5"].body or "")
 
     # No description supplied -> no line added (falsy sig.get("desc") branch)

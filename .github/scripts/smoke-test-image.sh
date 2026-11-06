@@ -18,13 +18,23 @@ docker run --rm -i \
   "$image" - <<'PY'
 import importlib
 import os
+import re
 import subprocess
 import sys
 
 import yaml
 from assemblyline_v4_service.common.base import ServiceBase
 
-subprocess.run([sys.executable, "-m", "pip", "check"], check=True)
+# The pillow override in pyproject.toml deliberately breaks upstream's exact pin; anything else is a failure.
+ALLOWED_CONFLICT = re.compile(
+    r"^assemblyline-v4-service \S+ has requirement pillow==\S+, but you have pillow \S+\.$"
+)
+check = subprocess.run([sys.executable, "-m", "pip", "check"], capture_output=True, text=True)
+print(check.stdout, end="")
+if check.returncode != 0:
+    unexpected = [line for line in check.stdout.splitlines() if line and not ALLOWED_CONFLICT.match(line)]
+    if unexpected or not check.stdout.strip():
+        sys.exit(f"pip check failed: {unexpected or check.stderr}")
 
 module_name, class_name = os.environ["SERVICE_PATH"].rsplit(".", 1)
 service_class = getattr(importlib.import_module(module_name), class_name)

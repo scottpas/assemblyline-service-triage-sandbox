@@ -941,6 +941,20 @@ def test_add_signatures_unknown_ttp_id_adds_no_attack():
     assert sigs[0].attacks == []
 
 
+def test_add_signatures_revoked_ttp_maps_to_successor():
+    """A TTP revoked by ATT&CK is reported under the technique that replaced it."""
+    dr = make_report(signatures=[{"label": "s", "score": 3, "ttp": ["T1070.001"]}])
+    attacks = dr.ontology.get_signatures()[0].attacks
+    assert [a["attack_id"] for a in attacks] == ["T1685.005"]
+    assert attacks[0]["pattern"] == "Clear Windows Event Logs"
+
+
+def test_add_signatures_revoked_ttps_with_same_successor_dedupe():
+    """T1562 and T1562.001 were both replaced by T1685, which must appear only once."""
+    dr = make_report(signatures=[{"label": "s", "score": 3, "ttp": ["T1562", "T1562.001", "T1685"]}])
+    assert [a["attack_id"] for a in dr.ontology.get_signatures()[0].attacks] == ["T1685"]
+
+
 def test_add_signatures_indicator_attaches_attribute_to_process():
     procs_input = [{"procid": 1, "pid": 100, "ppid": 0, "image": "a.exe", "cmd": "a", "started": 1}]
     dr = make_report(
