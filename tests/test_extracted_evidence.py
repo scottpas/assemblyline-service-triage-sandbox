@@ -291,7 +291,6 @@ def test_behavioral_credentials_render_and_keep_config_mapping(triage_service, m
             "Username": "u",
             "Password": "p",
             "Recipients": "dest@example.com",
-            "Flow": 2,
         }
     ]
     result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))

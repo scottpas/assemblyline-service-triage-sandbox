@@ -79,7 +79,6 @@ def _credential_details(record: dict[str, Any]) -> tuple[dict[str, Any], Malware
         "Username": credentials.username,
         "Password": credentials.password,
         "Recipients": ", ".join(recipients),
-        "Flow": credentials.flow,
     }
     return {"protocol": str(credentials.protocol).upper(), "rows": [row]}, malware_config
 
