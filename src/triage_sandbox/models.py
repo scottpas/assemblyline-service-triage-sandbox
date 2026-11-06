@@ -46,7 +46,7 @@ def _embedded_emails(text: str) -> list[str]:
     found = []
     for match in _EMBEDDED_EMAIL.findall(text):
         try:
-            found.append(_EMAIL_FIELD.check(match.rstrip(".")))
+            found.append(_EMAIL_FIELD.check(match))
         except ValueError:
             continue
     return found

@@ -27,6 +27,12 @@ class ExtractedEvidence:
             mine.extend(value for value in theirs if value not in mine)
 
 
+def _dataclass_kwargs(model: Any, record: dict[str, Any]) -> dict[str, Any]:
+    """Keep only the fields `model` accepts; drops unknown future Triage fields."""
+    accepted = {f.name for f in fields(model)}
+    return {k: v for k, v in record.items() if k in accepted}
+
+
 def _dropper_details(record: dict[str, Any]) -> dict[str, Any] | None:
     urls: dict[tuple[str, str], dict[str, str]] = {}
     entries = record.get("urls")
@@ -48,8 +54,7 @@ def _dropper_details(record: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _ransom_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConfig] | None:
-    accepted = {f.name for f in fields(Ransom)}
-    ransom = Ransom(**{k: v for k, v in record.items() if k in accepted})
+    ransom = Ransom(**_dataclass_kwargs(Ransom, record))
     if not ransom.has_content():
         return None
     malware_config = ransom.create_MalwareConfig()
@@ -68,8 +73,7 @@ def _ransom_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConf
 
 
 def _credential_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConfig] | None:
-    accepted = {f.name for f in fields(Credentials)}
-    credentials = Credentials(**{k: v for k, v in record.items() if k in accepted})
+    credentials = Credentials(**_dataclass_kwargs(Credentials, record))
     malware_config = credentials.create_MalwareConfig()
     if malware_config is None:
         return None

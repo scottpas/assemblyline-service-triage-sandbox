@@ -287,13 +287,13 @@ class TriageSandbox(ServiceBase):
         triage_result: TriageResult,
     ) -> None:
         """Render non-configuration records. These sections carry no heuristic: scoring is unchanged."""
+        renderers = {
+            "credentials": self._credentials_section,
+            "dropper": self._dropper_section,
+            "ransom_note": self._ransom_section,
+        }
         for record in evidence:
-            render = {
-                "credentials": self._credentials_section,
-                "dropper": self._dropper_section,
-                "ransom_note": self._ransom_section,
-            }[record.kind]
-            section, diagnostics = render(request, record, triage_result.task_label)
+            section, diagnostics = renderers[record.kind](request, record, triage_result.task_label)
             parent.add_subsection(section)
             triage_result.diagnostics.extend(diagnostics)
 
