@@ -539,10 +539,7 @@ def test_add_extracted_ransom_note_no_family():
 
 @pytest.mark.parametrize(
     "note",
-    [
-        {"family": 7},
-        "not-a-record",
-    ],
+    ["not-a-record", ["not-a-record"]],
 )
 def test_add_extracted_invalid_ransom_note_keeps_other_evidence(note):
     extracted = [{"ransom_note": note}, {"ransom_note": {"note": "pay up", "family": "conti"}}]

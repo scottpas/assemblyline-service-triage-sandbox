@@ -2,7 +2,7 @@
 
 import json
 import os
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -227,11 +227,26 @@ def test_ransom_malware_config_without_optional_fields_has_no_other():
     assert "http" not in prim
 
 
-def test_ransom_without_optional_fields_renders_title_only(triage_service, make_request, mock_triage_api):
-    _, task, _ = run(triage_service, make_request, mock_triage_api, [{"ransom_note": {"future_field": 1}}])
-    section = titled(task, "Ransom note")
-    assert section.subsections == []
-    assert "attribution.family" not in section.tags
+def test_family_only_ransom_renders_title_only(triage_service, make_request, mock_triage_api):
+    _, task, _ = run(triage_service, make_request, mock_triage_api, [{"ransom_note": {"family": "conti"}}])
+    assert titled(task, "Ransom note (CONTI)").subsections == []
+
+
+@pytest.mark.parametrize("record", [{"future_field": 1}, {"note": " \x00"}, {"family": 7, "wallets": []}])
+def test_ransom_without_content_makes_no_config(record):
+    assert convert_extracted({"ransom_note": record}, "Task t") == (
+        [],
+        ["Task t: skipped ransom note with no supported content."],
+    )
+
+
+@pytest.mark.parametrize("family", ["  ", 7, None])
+def test_unusable_family_keeps_note_as_unknown(family):
+    converted, diagnostics = convert_extracted({"ransom_note": {"note": "pay", "family": family}}, "Task t")
+    assert diagnostics == []
+    assert converted[0].details["family"] is None
+    assert cast(Any, converted[0].malware_config).family == ["UNKNOWN"]
+    assert converted[0].details["note"] == "pay"
 
 
 def test_distinct_notes_stay_separate_and_repeats_merge(triage_service, make_request, mock_triage_api):
@@ -367,7 +382,7 @@ def test_malformed_overview_records_keep_unrelated_evidence(triage_service, make
         [
             "bad",
             {"dropper": "bad"},
-            {"ransom_note": {"family": 7}},
+            {"ransom_note": "bad"},
             {"credentials": {"username": "missing protocol"}},
             {"credentials": {"protocol": "imap"}},
             {"ransom_note": {"note": "kept"}},

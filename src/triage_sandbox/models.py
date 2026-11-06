@@ -141,6 +141,18 @@ class Ransom:
     urls: list[str] | None = None
     contact: list[str] | None = None
 
+    def has_content(self) -> bool:
+        """Report whether any field holds usable text, so an empty record makes no config."""
+        return bool(
+            clean_text(self.note)
+            or clean_text(self.family)
+            or clean_text(self.target)
+            or string_values(self.emails)
+            or string_values(self.wallets)
+            or string_values(self.urls)
+            or string_values(self.contact)
+        )
+
     def contact_rows(self) -> list[dict[str, str]]:
         """Pair each original contact value with the validated indicators found inside it."""
         rows: dict[tuple[str, str], dict[str, str]] = {}
@@ -165,7 +177,7 @@ class Ransom:
         )
 
     def create_MalwareConfig(self) -> MalwareConfig:
-        family = self.family.upper() if self.family else "UNKNOWN"
+        family = (clean_text(self.family) or "UNKNOWN").upper()
         data: dict[str, Any] = {"config_extractor": SERVICE_NAME, "family": [family], "category": ["ransomware"]}
         wallets = string_values(self.wallets)
         if wallets:

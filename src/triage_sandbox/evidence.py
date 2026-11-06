@@ -47,9 +47,11 @@ def _dropper_details(record: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _ransom_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConfig]:
+def _ransom_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConfig] | None:
     accepted = {f.name for f in fields(Ransom)}
     ransom = Ransom(**{k: v for k, v in record.items() if k in accepted})
+    if not ransom.has_content():
+        return None
     malware_config = ransom.create_MalwareConfig()
     emails, urls = ransom.indicators()
     return (
@@ -126,12 +128,15 @@ def convert_extracted(item: Any, stage: str) -> tuple[list[ExtractedEvidence], l
     record = item.get("ransom_note")
     if record:
         try:
-            details, malware_config = _ransom_details(record)
+            converted = _ransom_details(record)
         except Exception as exc:
             # ODM validation can raise several exception types on untrusted values.
             diagnostics.append(f"{stage}: invalid ransom note ({type(exc).__name__}).")
         else:
-            add("ransom_note", record, details, malware_config)
+            if converted is None:
+                diagnostics.append(f"{stage}: skipped ransom note with no supported content.")
+            else:
+                add("ransom_note", record, *converted)
     record = item.get("credentials")
     if record:
         try:
