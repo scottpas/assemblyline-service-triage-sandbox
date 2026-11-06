@@ -1102,6 +1102,9 @@ class TriageResult:
         for report in self.sample.task_reports:
             for key, record in report.evidence.items():
                 behavioral_evidence.setdefault(key, []).append(record)
+        # Each task keeps its own section, but a record repeated across tasks is one finding.
+        repeated = {id(record.malware_config) for records in behavioral_evidence.values() for record in records[1:]}
+        self.malware_config = [mc for mc in self.malware_config if id(mc) not in repeated]
 
         if overview:
             for item in overview.get("extracted") or []:

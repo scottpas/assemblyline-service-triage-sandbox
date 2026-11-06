@@ -393,3 +393,15 @@ def test_overview_evidence_prevents_failure_when_reports_cannot_parse(triage_cli
     assert result.sample.task_reports == []
     assert len(result.overview_evidence) == 1
     assert len(result.malware_config) == 1
+
+
+def test_record_repeated_across_tasks_exports_one_malware_config(triage_client, requests_mock):
+    note = {"note": "pay", "family": "conti", "wallets": ["w1"]}
+    for task_id in ("behavioral1", "behavioral2"):
+        report = build_report(task_id)
+        report["extracted"] = [{"ransom_note": note}, {"credentials": CREDENTIALS}]
+        requests_mock.get(REPORT_URL.format(SAMPLE_ID, task_id), json=report)
+    requests_mock.get(OVERVIEW_URL, json={})
+    result = TriageResult(triage_client, triage_client.sample_by_id(SAMPLE_ID))
+    assert [len(r.evidence) for r in result.sample.task_reports] == [2, 2]
+    assert len(result.malware_config) == 2
