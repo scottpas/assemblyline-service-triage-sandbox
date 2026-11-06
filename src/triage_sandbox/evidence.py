@@ -1,8 +1,12 @@
 """Convert non-configuration ``extracted`` records for behavioral and overview reports alike."""
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
+
+from assemblyline.odm.models.ontology.results.malware_config import MalwareConfig
+
+from .models import Ransom, clean_text, string_values
 
 
 @dataclass
@@ -15,24 +19,12 @@ class ExtractedEvidence:
     paths: list[str] = field(default_factory=list)
     resources: list[str] = field(default_factory=list)
     tasks: list[str] = field(default_factory=list)
+    malware_config: MalwareConfig | None = None
 
     def merge_context(self, other: "ExtractedEvidence") -> None:
         """Retain the provenance of an equivalent record without repeating its evidence."""
         for mine, theirs in ((self.paths, other.paths), (self.resources, other.resources), (self.tasks, other.tasks)):
             mine.extend(value for value in theirs if value not in mine)
-
-
-def clean_text(value: Any) -> str | None:
-    """Return displayable text; Triage note and script dumps can carry NUL padding."""
-    if not isinstance(value, str):
-        return None
-    return value.replace("\x00", "").strip() or None
-
-
-def _strings(value: Any) -> list[str]:
-    """Return the non-empty strings of an untrusted string-or-list field."""
-    values = value if isinstance(value, list) else [value]
-    return [v for v in values if isinstance(v, str) and v]
 
 
 def _dropper_details(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -55,6 +47,24 @@ def _dropper_details(record: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _ransom_details(record: dict[str, Any]) -> tuple[dict[str, Any], MalwareConfig]:
+    accepted = {f.name for f in fields(Ransom)}
+    ransom = Ransom(**{k: v for k, v in record.items() if k in accepted})
+    malware_config = ransom.create_MalwareConfig()
+    emails, urls = ransom.indicators()
+    return (
+        {
+            "family": clean_text(ransom.family),
+            "target": clean_text(ransom.target),
+            "note": clean_text(ransom.note),
+            "rows": ransom.contact_rows(),
+            "emails": emails,
+            "urls": urls,
+        },
+        malware_config,
+    )
+
+
 def convert_extracted(item: Any, stage: str) -> tuple[list[ExtractedEvidence], list[str]]:
     """Convert the non-configuration records of one extracted item.
 
@@ -65,21 +75,35 @@ def convert_extracted(item: Any, stage: str) -> tuple[list[ExtractedEvidence], l
     diagnostics: list[str] = []
     if not isinstance(item, dict):
         return evidence, diagnostics
+
+    def add(kind: str, record: Any, details: dict[str, Any], malware_config: MalwareConfig | None = None) -> None:
+        evidence.append(
+            ExtractedEvidence(
+                kind=kind,
+                key=json.dumps([kind, record], sort_keys=True, default=str),
+                details=details,
+                paths=string_values(item.get("path")),
+                resources=string_values(item.get("resource")),
+                tasks=string_values(item.get("tasks")),
+                malware_config=malware_config,
+            )
+        )
+
     record = item.get("dropper")
     if record:
         if isinstance(record, dict):
             details = _dropper_details(record)
             if details is not None:
-                evidence.append(
-                    ExtractedEvidence(
-                        kind="dropper",
-                        key=json.dumps(["dropper", record], sort_keys=True, default=str),
-                        details=details,
-                        paths=_strings(item.get("path")),
-                        resources=_strings(item.get("resource")),
-                        tasks=_strings(item.get("tasks")),
-                    )
-                )
+                add("dropper", record, details)
         else:
             diagnostics.append(f"{stage}: invalid dropper record.")
+    record = item.get("ransom_note")
+    if record:
+        try:
+            details, malware_config = _ransom_details(record)
+        except Exception as exc:
+            # ODM validation can raise several exception types on untrusted values.
+            diagnostics.append(f"{stage}: invalid ransom note ({type(exc).__name__}).")
+        else:
+            add("ransom_note", record, details, malware_config)
     return evidence, diagnostics

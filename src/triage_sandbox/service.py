@@ -239,6 +239,32 @@ class TriageSandbox(ServiceBase):
                     diagnostics.append(diagnostic)
         return section, diagnostics
 
+    def _ransom_section(
+        self, request: ServiceRequest, evidence: ExtractedEvidence, label: Callable[[str], str]
+    ) -> tuple[ResultSection, list[str]]:
+        details = evidence.details
+        family = (details["family"] or "").upper()
+        section = ResultSection(f"Ransom note ({family})" if family else "Ransom note")
+        if family:
+            section.add_tag(tag_type="attribution.family", value=family)
+        if details["target"]:
+            section.add_line(f"Target: {details['target']}")
+        _add_context_lines(section, evidence, label)
+        if details["rows"]:
+            contacts = _bounded_table("Contact and payment details", details["rows"], "contact detail")
+            contacts.auto_collapse = False
+            for email in details["emails"]:
+                add_tag(contacts, "network.email.address", email)
+            for url in details["urls"]:
+                add_tag(contacts, "network.static.uri", url)
+            section.add_subsection(contacts)
+        if not details["note"]:
+            return section, []
+        note, diagnostic = self._text_section(request, "Ransom note text", details["note"], "ransom_note")
+        note.auto_collapse = False
+        section.add_subsection(note)
+        return section, [diagnostic] if diagnostic else []
+
     def _add_evidence_sections(
         self,
         request: ServiceRequest,
@@ -248,7 +274,8 @@ class TriageSandbox(ServiceBase):
     ) -> None:
         """Render non-configuration records. These sections carry no heuristic: scoring is unchanged."""
         for record in evidence:
-            section, diagnostics = self._dropper_section(request, record, triage_result.task_label)
+            render = self._ransom_section if record.kind == "ransom_note" else self._dropper_section
+            section, diagnostics = render(request, record, triage_result.task_label)
             parent.add_subsection(section)
             triage_result.diagnostics.extend(diagnostics)
 

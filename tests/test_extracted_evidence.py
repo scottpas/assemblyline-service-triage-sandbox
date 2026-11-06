@@ -2,13 +2,16 @@
 
 import json
 import os
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from conftest import SAMPLE_ID, build_report
 
 from triage_sandbox import service as service_module
-from triage_sandbox.evidence import clean_text, convert_extracted
+from triage_sandbox.evidence import convert_extracted
+from triage_sandbox.models import Ransom, clean_text, string_values
+from triage_sandbox.report import TriageResult
 
 REPORT_URL = "https://api.tria.ge/v0/samples/{}/{}/report_triage.json"
 OVERVIEW_URL = f"https://api.tria.ge/v1/samples/{SAMPLE_ID}/overview.json"
@@ -146,3 +149,119 @@ def test_dropper_without_language_or_urls(triage_service, make_request, mock_tri
 def test_clean_text_rejects_non_text_and_blank_values():
     assert clean_text(None) is None
     assert clean_text(" \x00 ") is None
+
+
+NOTE: dict[str, Any] = {
+    "family": "conti",
+    "target": "files",
+    "note": "Your files are encrypted\x00",
+    "emails": ['href="mailto:help@example.com"', "<h2>help@example.com</h2>", "not-an-address@bad.invalidtld"],
+    "urls": [
+        "http://abcdefghijklmnop.onion/ticket<",
+        "http://www.w3.org/TR/html4/strict.dtd'>",
+        "http-equiv=x",
+        "http://host.invalidtld/",
+    ],
+    "contact": ["Email: other@example.com", "Site https://contact.example.com/a."],
+    "wallets": ["w1", "w1"],
+}
+
+
+def test_ransom_section_shows_note_and_normalized_contacts(triage_service, make_request, mock_triage_api):
+    item = {"ransom_note": NOTE, "path": "C:\\a\\note.txt", "resource": "behavioral1/files/n.dat"}
+    request, task, _ = run(triage_service, make_request, mock_triage_api, [item])
+
+    section = titled(task, "Ransom note (CONTI)")
+    assert section.heuristic is None
+    assert section.tags["attribution.family"] == ["CONTI"]
+    assert "Target: files" in section.body
+    assert "Path: C:\\a\\note.txt" in section.body
+    assert titled(section, "Ransom note text").body == "Your files are encrypted"
+    assert titled(section, "Ransom note text").auto_collapse is False
+    contacts = titled(section, "Contact and payment details")
+    rows = {(row["Type"], row["Value"]): row["Indicator"] for row in json.loads(contacts.body)}
+    assert rows[("Email", NOTE["emails"][0])] == "help@example.com"
+    assert rows[("Email", "not-an-address@bad.invalidtld")] == ""
+    assert rows[("URL", "http://abcdefghijklmnop.onion/ticket<")] == "http://abcdefghijklmnop.onion/ticket"
+    assert rows[("URL", "http://www.w3.org/TR/html4/strict.dtd'>")] == ""
+    assert rows[("URL", "http://host.invalidtld/")] == ""
+    assert rows[("Contact", "Email: other@example.com")] == "other@example.com"
+    assert rows[("Contact", "Site https://contact.example.com/a.")] == "https://contact.example.com/a"
+    assert rows[("Wallet", "w1")] == ""
+    assert sum(key[0] == "Wallet" for key in rows) == 1
+    assert set(contacts.tags["network.email.address"]) == {"help@example.com", "other@example.com"}
+    assert set(contacts.tags["network.static.uri"]) == {
+        "http://abcdefghijklmnop.onion/ticket",
+        "https://contact.example.com/a",
+    }
+    assert "www.w3.org" not in contacts.tags["network.static.domain"]
+    request.add_supplementary.assert_not_called()
+
+
+def test_ransom_malware_config_keeps_wallets_purpose_and_original_context():
+    prim = Ransom(**NOTE).create_MalwareConfig().as_primitives(strip_null=True)
+    assert [c["address"] for c in prim["cryptocurrency"]] == ["w1"]
+    assert prim["http"] == [
+        {"uri": "http://abcdefghijklmnop.onion/ticket", "usage": "ransom"},
+        {"uri": "https://contact.example.com/a", "usage": "ransom"},
+    ]
+    assert prim["other"]["note"] == "Your files are encrypted"
+    assert prim["other"]["target"] == "files"
+    assert prim["other"]["contact"] == NOTE["contact"]
+    assert prim["other"]["emails"] == NOTE["emails"]
+    assert prim["other"]["urls"] == NOTE["urls"]
+
+
+def test_ransom_malware_config_without_optional_fields_has_no_other():
+    prim = Ransom().create_MalwareConfig().as_primitives(strip_null=True)
+    assert prim["family"] == ["UNKNOWN"]
+    assert "other" not in prim
+    assert "http" not in prim
+
+
+def test_ransom_without_optional_fields_renders_title_only(triage_service, make_request, mock_triage_api):
+    _, task, _ = run(triage_service, make_request, mock_triage_api, [{"ransom_note": {"future_field": 1}}])
+    section = titled(task, "Ransom note")
+    assert section.subsections == []
+    assert "attribution.family" not in section.tags
+
+
+def test_distinct_notes_stay_separate_and_repeats_merge(triage_service, make_request, mock_triage_api):
+    extracted = [
+        {"ransom_note": {"note": "first", "family": "conti"}, "path": "C:\\a"},
+        {"ransom_note": {"note": "first", "family": "conti"}, "path": "C:\\b"},
+        {"ransom_note": {"note": "second", "family": "conti"}, "path": "C:\\c"},
+    ]
+    _, task, _ = run(triage_service, make_request, mock_triage_api, extracted)
+    sections = [s for s in task.subsections if s.title_text == "Ransom note (CONTI)"]
+    assert [titled(s, "Ransom note text").body for s in sections] == ["first", "second"]
+    assert "Path: C:\\a, C:\\b" in sections[0].body
+    result = TriageResult(triage_service.client, triage_service.client.sample_by_id(SAMPLE_ID))
+    assert len(result.malware_config) == 2
+
+
+def test_long_note_is_bounded_with_supplementary_copy(triage_service, make_request, mock_triage_api):
+    note = "N" * (service_module.MAX_INLINE_TEXT + 1)
+    request, task, _ = run(triage_service, make_request, mock_triage_api, [{"ransom_note": {"note": note}}])
+    assert (
+        "Complete text: supplementary file ransom_note_" in titled(titled(task, "Ransom note"), "Ransom note text").body
+    )
+    request.add_supplementary.assert_called_once()
+
+
+def test_long_note_supplementary_failure_is_reported(triage_service, make_request, mock_triage_api, monkeypatch):
+    monkeypatch.setattr(service_module, "MAX_INLINE_TEXT", 3)
+    report = build_report("behavioral1")
+    report["extracted"] = [{"ransom_note": {"note": "long note"}}]
+    mock_triage_api.get(REPORT_URL.format(SAMPLE_ID, "behavioral1"), json=report)
+    request = make_request()
+    request.add_supplementary.side_effect = OSError("disk full")
+    triage_service.execute(request)
+    completeness = titled(request.result.sections[0], "Analysis completeness")
+    assert "Ransom note text: complete text could not be retained." in completeness.body
+
+
+def test_string_values_normalizes_untrusted_fields():
+    assert string_values("a") == ["a"]
+    assert string_values(["a", "a", "", None, 7, "b"]) == ["a", "b"]
+    assert string_values(None) == []
