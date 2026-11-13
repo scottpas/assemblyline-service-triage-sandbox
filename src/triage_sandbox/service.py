@@ -4,7 +4,6 @@ import os
 from collections.abc import Callable, Iterable
 from typing import Any, cast
 
-from assemblyline.common.attack_map import attack_map
 from assemblyline.odm.models.ontology.results import NetworkConnection as NetworkConnectionModel
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
 from assemblyline.odm.models.ontology.results import Sandbox as SandboxModel
@@ -35,6 +34,7 @@ from .report import (
     _is_static_yara_resource,
     _normalize_registry_key,
     _process_ref,
+    resolve_attack_id,
 )
 
 _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
@@ -378,8 +378,8 @@ class TriageSandbox(ServiceBase):
                         else:
                             s.set_heuristic(1, signature=name)
                         for ttp_id in sig.get("ttp", []):
-                            if attack_map.get(ttp_id):
-                                s.heuristic.add_attack_id(ttp_id)
+                            if attack_id := resolve_attack_id(ttp_id):
+                                s.heuristic.add_attack_id(attack_id)
                         indicator_texts = list(
                             dict.fromkeys(t for i in sig.get("indicators", []) if (t := _indicator_text(i)))
                         )

@@ -1,10 +1,10 @@
-ARG branch=stable
+ARG branch=4.8.stable
 ARG base=cccs/assemblyline-v4-service-base
 
 FROM ghcr.io/astral-sh/uv:0.13.8 AS uv
 
 # Builder: build the service wheel
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 COPY --from=uv /uv /bin/uv
 ENV UV_PYTHON_DOWNLOADS=0
 WORKDIR /app
@@ -12,7 +12,11 @@ COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv build --wheel -o dist/ && \
-    uv export --locked --no-dev --no-emit-project --output-file=requirements.txt
+    uv export --locked --no-dev --no-emit-project \
+        --no-emit-package assemblyline \
+        --no-emit-package assemblyline-core \
+        --no-emit-package assemblyline-v4-service \
+        --output-file=requirements.txt
 
 # AL4 service base
 FROM $base:$branch

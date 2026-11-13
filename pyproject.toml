@@ -19,6 +19,9 @@ packages = ["src/triage_sandbox"]
 [tool.uv]
 override-dependencies = [
     "click>=8.3.3,<9",
+    # assemblyline-v4-service 4.8.0.1 pins pillow==12.3.0, which has known advisories fixed in 13.0.0.
+    # Drop this, and the matching allowance in .github/scripts/smoke-test-image.sh, once upstream lifts the pin.
+    "pillow>=13.0.0",
 ]
 
 [tool.ruff]
@@ -60,7 +63,7 @@ targets = ["src"]
 exclude_dirs = ["tests"]
 
 [tool.ty.environment]
-python-version = "3.11"
+python-version = "3.14"
 python-platform = "linux"
 root = ["./src", "./tests"]
 

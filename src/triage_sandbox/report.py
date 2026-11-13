@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
 from typing import Any, cast
 
-from assemblyline.common.attack_map import attack_map
+from assemblyline.common.attack_map import attack_map, revoke_map
 from assemblyline.common.dict_utils import get_dict_fingerprint_hash
 from assemblyline.odm.base import Domain as DomainField
 from assemblyline.odm.models.ontology.results import Process as ProcessModel
@@ -51,6 +51,15 @@ from .network import (
 
 # Same validator AL applies to network.dynamic.domain tags at result validation
 _DOMAIN_FIELD = DomainField()
+
+
+def resolve_attack_id(ttp_id: str) -> str | None:
+    """Return the current ATT&CK technique for a Triage TTP, or None if it is not a known technique.
+
+    Triage reports technique IDs that ATT&CK has since revoked, so follow revoke_map to the successor.
+    """
+    current = revoke_map.get(ttp_id, ttp_id)
+    return current if current in attack_map else None
 
 
 def _analysis_time(value: str) -> datetime:
@@ -628,7 +637,7 @@ class DynamicReport:
             if d.get("response_content_mimetype"):
                 # The helper has no parameter for this ODM field and update() ignores
                 # undeclared attributes; as_primitives() exports every attribute set.
-                flow["http_details"].response_content_mimetype = d["response_content_mimetype"]  # ty: ignore[unresolved-attribute]
+                flow["http_details"].response_content_mimetype = d["response_content_mimetype"]  # ty: ignore[missing-attribute]
         if isinstance(flow.get("dns_details"), dict):
             d = cast(dict[str, Any], flow["dns_details"])
             flow["dns_details"] = NetworkDNS(
@@ -676,15 +685,14 @@ class DynamicReport:
             attacks = []
             families = [i.split(":")[-1].upper() for i in sig.get("tags", []) if i.startswith("family:")]
             if sig.get("ttp"):
-                for ttp_id in sig["ttp"]:
-                    if attack_map.get(ttp_id):
-                        attacks.append(
-                            {
-                                "attack_id": ttp_id,
-                                "pattern": attack_map[ttp_id]["name"],
-                                "categories": attack_map[ttp_id]["categories"],
-                            }
-                        )
+                for attack_id in dict.fromkeys(filter(None, map(resolve_attack_id, sig["ttp"]))):
+                    attacks.append(
+                        {
+                            "attack_id": attack_id,
+                            "pattern": attack_map[attack_id]["name"],
+                            "categories": attack_map[attack_id]["categories"],
+                        }
+                    )
             object_id = self.ontology.create_objectid(ontology_id=oid, tag=tag)
             object_id.assign_guid()
             existing_by_tag = {cast(Any, s).objectid.tag: s for s in self.ontology.get_signatures()}
