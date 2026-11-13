@@ -60,7 +60,10 @@ jobs:
             echo "Invalid values in .release-version" >&2
             exit 1
           fi
-          echo "version=${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.dev0" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${ASSEMBLYLINE_VERSION}.${SERVICE_MAJOR}.dev0"
+            echo "base_tag=${ASSEMBLYLINE_VERSION}.latest"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build container
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -72,7 +75,7 @@ jobs:
           push: false
           build-args: |
             version=${{ steps.version.outputs.version }}
-            branch=latest
+            branch=${{ steps.version.outputs.base_tag }}
           tags: local/triage-sandbox:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max

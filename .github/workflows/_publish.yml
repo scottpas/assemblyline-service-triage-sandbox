@@ -122,9 +122,9 @@ jobs:
             echo "commit=$commit"
             echo "resume=$resume"
             if [[ "$CHANNEL" == "dev" ]]; then
-              echo "base_tag=latest"
+              echo "base_tag=${ASSEMBLYLINE_VERSION}.latest"
             else
-              echo "base_tag=stable"
+              echo "base_tag=${ASSEMBLYLINE_VERSION}.stable"
             fi
           } >> "$GITHUB_OUTPUT"
 
