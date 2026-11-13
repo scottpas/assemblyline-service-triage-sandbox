@@ -637,7 +637,7 @@ class DynamicReport:
             if d.get("response_content_mimetype"):
                 # The helper has no parameter for this ODM field and update() ignores
                 # undeclared attributes; as_primitives() exports every attribute set.
-                flow["http_details"].response_content_mimetype = d["response_content_mimetype"]  # ty: ignore[unresolved-attribute]
+                flow["http_details"].response_content_mimetype = d["response_content_mimetype"]  # ty: ignore[missing-attribute]
         if isinstance(flow.get("dns_details"), dict):
             d = cast(dict[str, Any], flow["dns_details"])
             flow["dns_details"] = NetworkDNS(

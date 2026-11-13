@@ -1,7 +1,7 @@
 ARG branch=4.8.stable
 ARG base=cccs/assemblyline-v4-service-base
 
-FROM ghcr.io/astral-sh/uv:0.13.7 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.8 AS uv
 
 # Builder: build the service wheel
 FROM python:3.14-slim AS builder
