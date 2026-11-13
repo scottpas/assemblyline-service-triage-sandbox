@@ -195,9 +195,9 @@ def test_execute_happy_path_builds_sandbox_section(triage_service, make_request,
     sandbox_section = sections[0]
     assert sandbox_section.title_text == "Sandbox Information"
 
-    # Body should contain URL, Submitted, Completed lines
+    # Body should contain Submitted and Completed lines; the link lives in a URL subsection
     body = sandbox_section.body or ""
-    assert "URL:" in body
+    assert "URL:" not in body
     assert "Submitted:" in body
     assert "Completed:" in body
 
@@ -206,6 +206,27 @@ def test_execute_happy_path_builds_sandbox_section(triage_service, make_request,
         "Task: behavioral1 - sample.exe (windows7_x64)",
         "Task: behavioral2 - sample.exe (windows7_x64)",
     }
+
+
+def test_execute_sandbox_links_are_url_sections(triage_service, make_request, mock_triage_api):
+    """The sample and each task link to the Triage web UI through a clickable URL section."""
+    svc = triage_service
+    req = make_request()
+    svc.execute(req)
+
+    sandbox_section = req.result.sections[0]
+    link = sandbox_section.subsections[0]
+    assert link.title_text == "Sandbox Link"
+    assert link.body_format == "URL"
+    assert json.loads(link.body) == [{"url": f"https://tria.ge/{SAMPLE_ID}", "name": f"https://tria.ge/{SAMPLE_ID}"}]
+
+    for task_section in task_sections(sandbox_section):
+        assert "URL:" not in (task_section.body or "")
+        task_link = task_section.subsections[0]
+        assert task_link.title_text == "Sandbox Link"
+        assert task_link.body_format == "URL"
+    task_urls = {json.loads(s.subsections[0].body)[0]["url"] for s in task_sections(sandbox_section)}
+    assert task_urls == {f"https://tria.ge/{SAMPLE_ID}/behavioral1", f"https://tria.ge/{SAMPLE_ID}/behavioral2"}
 
 
 def test_execute_signatures_section_and_heuristics(triage_service, make_request, mock_triage_api):
@@ -509,6 +530,14 @@ def test_execute_retry_error_reraised(triage_service, make_request, mock_triage_
 def test_execute_web_url_default(triage_service):
     """TriageSandbox derives web_url from root_url by stripping 'api.' prefix."""
     assert triage_service.web_url == "https://tria.ge"
+
+
+def test_web_url_falls_back_to_default_root_url(monkeypatch):
+    """An unset root_url links to the same default Triage instance the client calls."""
+    monkeypatch.setenv("SERVICE_MANIFEST_PATH", str(Path(__file__).parent.parent / "service_manifest.yml"))
+    from triage_sandbox.service import TriageSandbox
+
+    assert TriageSandbox(config={"root_url": ""}).web_url == "https://tria.ge"
 
 
 def test_start_logs_service_name(triage_service):

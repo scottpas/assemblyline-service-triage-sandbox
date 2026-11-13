@@ -19,11 +19,12 @@ from assemblyline_v4_service.common.result import (
     ResultProcessTreeSection,
     ResultSection,
     ResultTableSection,
+    ResultURLSection,
     TableRow,
 )
 from retrying import RetryError, retry
 
-from .client import ServerError, TriageClient
+from .client import DEFAULT_ROOT_URL, ServerError, TriageClient
 from .constants import SUPPORTED_FILE_TYPES
 from .evidence import ExtractedEvidence
 from .report import (
@@ -42,6 +43,13 @@ _PROCESS_MODEL_FIELDS = frozenset(ProcessModel.fields())
 MAX_TABLE_ROWS = 100
 # Inline character limit for recovered text; longer text is kept as a supplementary file.
 MAX_INLINE_TEXT = 4096
+
+
+def _link_section(url: str) -> ResultURLSection:
+    """A clickable link to a Triage web UI page."""
+    section = ResultURLSection("Sandbox Link")
+    section.add_url(url, name=url)
+    return section
 
 
 def _bounded_table(title: str, rows: list[dict[str, Any]], noun: str) -> ResultTableSection:
@@ -158,7 +166,8 @@ def wait_for_submission(service: Any, submission_id: str) -> dict:  # type: igno
 class TriageSandbox(ServiceBase):
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
-        root_url: str = self.config.get("root_url") or ""
+        # Same fallback as TriageClient, so links point at the Triage UI the API calls go to
+        root_url: str = self.config.get("root_url") or DEFAULT_ROOT_URL
         self.web_url = root_url.replace("api.", "").replace("/api", "").rstrip("/")
 
     def search_triage(self, request: ServiceRequest) -> dict | None:  # type: ignore[type-arg]
@@ -333,7 +342,7 @@ class TriageSandbox(ServiceBase):
                 self.ontology.add_result_part(cast(Any, MalwareConfig), mc.as_primitives(strip_null=True))
             result = Result()
             sandbox_section = ResultSection("Sandbox Information")
-            sandbox_section.add_line(f"URL: {self.web_url}/{triage_result.sample.id}")
+            sandbox_section.add_subsection(_link_section(f"{self.web_url}/{triage_result.sample.id}"))
             sandbox_section.add_line(f"Submitted: {triage_result.sample.submitted}")
             sandbox_section.add_line(f"Completed: {triage_result.sample.completed}")
             if triage_result.task_rows:
@@ -432,7 +441,7 @@ class TriageSandbox(ServiceBase):
             for task in triage_result.sample.task_reports:
                 _attach_dynamic_ontology(self, task.ontology)
                 task_section = ResultSection(f"Task: {triage_result.task_label(task.task_id)}")
-                task_section.add_line(f"URL: {self.web_url}/{task.session}")
+                task_section.add_subsection(_link_section(f"{self.web_url}/{task.session}"))
                 # Target and selection fall back to the sample and overview task lists;
                 # the platform line describes the same values as the exported Sandbox.
                 row = rows_by_task.get(task.task_id, {})
